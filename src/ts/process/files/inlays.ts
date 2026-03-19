@@ -8,6 +8,7 @@ import {
     type InlayAssetMeta,
     buildInlayMeta,
     getInlayMeta,
+    getInlayMetasBatch,
     removeInlayMeta,
     setInlayMeta,
 } from "./inlayMeta";
@@ -291,6 +292,12 @@ class NodeInlayThumbStorage {
         }
         return result
     }
+
+    /** Return set of IDs that have thumbnails, without downloading thumb data */
+    async existingIds(): Promise<Set<string>> {
+        const allKeys = await this.nodeStorage.keys(INLAY_THUMB_PREFIX)
+        return new Set(allKeys.map(k => k.replace(INLAY_THUMB_PREFIX, '')))
+    }
 }
 
 // ── NodeInlayInfoStorage ──
@@ -469,32 +476,20 @@ function buildInlayExplorerInfo(asset: InlayAsset): InlayExplorerInfo {
 function buildExplorerItem(
     id: string,
     info: InlayExplorerInfo | null,
-    thumb: InlayThumbnail | null,
+    hasThumb: boolean,
     meta: InlayAssetMeta | null
 ): InlayExplorerItem {
-    const fallbackFromThumb: InlayExplorerInfo | null = thumb
-        ? {
-            ext: thumb.ext,
-            height: thumb.height,
-            name: thumb.name || id,
-            type: 'image',
-            width: thumb.width,
-        }
-        : null
-
-    const resolved = info ?? fallbackFromThumb
-
     return {
-        ext: resolved?.ext ?? '',
+        ext: info?.ext ?? '',
         hasMeta: meta !== null,
-        hasThumb: thumb !== null,
-        height: resolved?.height,
+        hasThumb,
+        height: info?.height,
         id,
         meta,
-        name: resolved?.name ?? id,
-        thumb,
-        type: resolved?.type ?? 'unknown',
-        width: resolved?.width,
+        name: info?.name ?? id,
+        thumb: null, // thumb data is no longer bulk-fetched; served via /api/asset/ URL
+        type: info?.type ?? 'image',
+        width: info?.width,
     }
 }
 
@@ -663,22 +658,41 @@ export function getCharacterChatIndex(): CharacterChatIndexItem[] {
  * Lightweight explorer list for Playground.
  * Use `getInlayAssetBlob(id)` on demand when the user opens or downloads the original file.
  */
-export async function listInlayExplorerItems(): Promise<InlayExplorerItem[]> {
-    const ids = await listInlayKeys()
-    if (ids.length === 0) return []
+// Gallery metadata cache — avoids re-fetching on gallery re-entry
+let _explorerItemsCache: InlayExplorerItem[] | null = null
+let _explorerItemsCacheTime = 0
+const EXPLORER_CACHE_TTL = 30_000 // 30 seconds
 
-    const [infos, thumbs, metas] = await Promise.all([
+export async function listInlayExplorerItems(forceRefresh = false): Promise<InlayExplorerItem[]> {
+    if (!forceRefresh && _explorerItemsCache && Date.now() - _explorerItemsCacheTime < EXPLORER_CACHE_TTL) {
+        return _explorerItemsCache
+    }
+
+    const ids = await listInlayKeys()
+    if (ids.length === 0) {
+        _explorerItemsCache = []
+        _explorerItemsCacheTime = Date.now()
+        return []
+    }
+
+    // Fetch info + meta + thumb key existence in parallel.
+    // Thumb DATA is NOT fetched here — gallery renders thumbs via /api/asset/ URL.
+    const [infos, thumbIds, metas] = await Promise.all([
         getInlayInfoStorage().getItems<InlayExplorerInfo>(ids),
-        getInlayThumbStorage().getItems<InlayThumbnail>(ids),
+        getInlayThumbStorage().existingIds(),
         getInlayMetas(ids),
     ])
 
-    return ids.map((id) => buildExplorerItem(
+    const items = ids.map((id) => buildExplorerItem(
         id,
         infos[id] ?? null,
-        thumbs[id] ?? null,
+        thumbIds.has(id),
         metas[id] ?? null,
     ))
+
+    _explorerItemsCache = items
+    _explorerItemsCacheTime = Date.now()
+    return items
 }
 
 export async function setInlayAsset(id: string, img: InlayAsset) {
@@ -693,6 +707,7 @@ export async function setInlayAsset(id: string, img: InlayAsset) {
     } else {
         await getInlayThumbStorage().removeItem(id)
     }
+    _explorerItemsCache = null // invalidate gallery cache
 }
 
 export async function removeInlayAsset(id: string) {
@@ -700,6 +715,7 @@ export async function removeInlayAsset(id: string) {
     await getInlayInfoStorage().removeItem(id)
     await removeInlayMeta(id)
     await getInlayThumbStorage().removeItem(id)
+    _explorerItemsCache = null // invalidate gallery cache
 }
 
 export async function removeInlayAssets(ids: string[]): Promise<number> {
@@ -735,20 +751,12 @@ export async function setInlayMetaFields(
 }
 
 export async function getInlayMetas(ids: string[]): Promise<Record<string, InlayAssetMeta>> {
-    const result: Record<string, InlayAssetMeta> = {}
-    if (!Array.isArray(ids) || ids.length === 0) return result
-    const batchSize = 200
-    for (let i = 0; i < ids.length; i += batchSize) {
-        const batch = ids.slice(i, i + batchSize)
-        const metas = await Promise.all(batch.map(async (id) => {
-            try { return await getInlayMeta(id) } catch { return null }
-        }))
-        for (let j = 0; j < batch.length; j++) {
-            const meta = metas[j]
-            if (meta) result[batch[j]] = meta
-        }
-    }
-    return result
+    if (!Array.isArray(ids) || ids.length === 0) return {}
+    return await getInlayMetasBatch(ids)
+}
+
+export async function getInlayInfo(id: string): Promise<InlayExplorerInfo | null> {
+    return await getInlayInfoStorage().getItem<InlayExplorerInfo>(id)
 }
 
 export async function getInlayListItem(id: string): Promise<InlayAsset | null> {

@@ -278,10 +278,30 @@ export class NodeStorage{
             method: 'POST',
             body: JSON.stringify(keys),
             headers: {
-                'content-type': 'application/json'
+                'content-type': 'application/json',
+                'accept': 'application/octet-stream'
             }
         })
         if (da.status < 200 || da.status >= 300) throw 'getItems Error'
+
+        const ct = da.headers.get('content-type') || ''
+        if (ct.includes('application/octet-stream')) {
+            // Binary protocol: [count(4)] then per entry: [keyLen(4)][key][valLen(4)][value]
+            const buf = Buffer.from(await da.arrayBuffer())
+            let offset = 0
+            const count = buf.readUInt32BE(offset); offset += 4
+            const results: {key: string, value: Buffer}[] = []
+            for (let i = 0; i < count; i++) {
+                const keyLen = buf.readUInt32BE(offset); offset += 4
+                const key = buf.subarray(offset, offset + keyLen).toString('utf-8'); offset += keyLen
+                const valLen = buf.readUInt32BE(offset); offset += 4
+                const value = buf.subarray(offset, offset + valLen) as Buffer; offset += valLen
+                results.push({ key, value })
+            }
+            return results
+        }
+
+        // Fallback: JSON+base64
         const results: {key: string, value: string}[] = await da.json()
         return results.map(r => ({ key: r.key, value: Buffer.from(r.value, 'base64') }))
     }

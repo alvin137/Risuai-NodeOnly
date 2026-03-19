@@ -149,34 +149,21 @@
   }
 
   function revokeViewerUrl() {
-    if (viewerUrl) {
-      URL.revokeObjectURL(viewerUrl)
-      viewerUrl = ''
-    }
+    viewerUrl = ''
   }
 
-  async function loadViewerAsset(id: string) {
+  function loadViewerAsset(id: string) {
     revokeViewerUrl()
-    viewerLoading = true
+    viewerLoading = false
     viewerError = ''
-    try {
-      const asset = await getInlayAssetBlob(id)
-      if (!asset) {
-        viewerError = language.playground.inlayLoadingOriginal
-        return
-      }
-      viewerUrl = URL.createObjectURL(asset.data)
-    } catch (error) {
-      viewerError = `${error}`
-    } finally {
-      viewerLoading = false
-    }
+    // Use direct /api/asset/ URL — browser handles caching via HTTP headers
+    viewerUrl = `/api/asset/${Buffer.from('inlay/' + id, 'utf-8').toString('hex')}`
   }
 
-  async function openViewer(id: string) {
+  function openViewer(id: string) {
     viewerOpen = true
     viewerId = id
-    await loadViewerAsset(id)
+    loadViewerAsset(id)
   }
 
   function closeViewer() {
@@ -187,11 +174,11 @@
     revokeViewerUrl()
   }
 
-  async function goToNeighbor(offset: -1 | 1) {
+  function goToNeighbor(offset: -1 | 1) {
     if (viewerIndex < 0) return
     const nextItem = sortedItems[viewerIndex + offset]
     if (!nextItem) return
-    await openViewer(nextItem.id)
+    openViewer(nextItem.id)
   }
 
   async function downloadCurrent(item: InlayExplorerItem) {
@@ -225,7 +212,7 @@
     if (viewerId === id) {
       const currentIndex = sortedItems.findIndex((item) => item.id === id)
       const nextItem = sortedItems[currentIndex + 1] ?? sortedItems[currentIndex - 1] ?? null
-      if (nextItem) await openViewer(nextItem.id)
+      if (nextItem) openViewer(nextItem.id)
       else closeViewer()
     }
   }
@@ -400,9 +387,9 @@
           {selection.has(item.id) ? 'border-blue-500' : 'border-darkborderc hover:border-darkborderc/60'}"
         onclick={() => openViewer(item.id)}
       >
-        <!-- Thumbnail -->
-        {#if item.thumb?.data}
-          <img alt={item.name} class="w-full h-full object-cover" src={item.thumb.data} />
+        <!-- Thumbnail: use direct /api/asset/ URL for HTTP caching -->
+        {#if item.hasThumb}
+          <img alt={item.name} class="w-full h-full object-cover" src={`/api/asset/${Buffer.from('inlay_thumb/' + item.id, 'utf-8').toString('hex')}`} loading="lazy" />
         {:else}
           <div class="w-full h-full flex items-center justify-center text-textcolor2/40">
             <ImageIcon size={28} />

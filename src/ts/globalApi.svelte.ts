@@ -270,6 +270,7 @@ export async function saveDb() {
     let previousPresetIds = getPresetEntityIds()
     let previousModuleIds = getModuleEntityIds()
     let previousCharacterChatIds = getCharacterChatIds()
+    let lastBackupTime: number | null = null
 
     $effect.root(() => {
 
@@ -395,7 +396,10 @@ export async function saveDb() {
                 entitySaves.push(forageStorage.saveSettings(encodeEntity(rootObj)))
             }
 
-            // Changed characters
+            // Changed characters — only save chats that actually changed or are new
+            const dirtyChatIds = new Set<string>(
+                toSave.chat.map(([, chatId]) => chatId)
+            )
             for (const chaId of toSave.character) {
                 const char = db.characters.find(c => c.chaId === chaId)
                 if (char) {
@@ -408,7 +412,10 @@ export async function saveDb() {
                         }
                     }
                     for (const chat of char.chats ?? []) {
-                        entitySaves.push(forageStorage.saveChat(chaId, chat.id, encodeEntity(chat)))
+                        // Save only if chat was modified or is newly created
+                        if (dirtyChatIds.has(chat.id) || !previousChatIds.has(chat.id)) {
+                            entitySaves.push(forageStorage.saveChat(chaId, chat.id, encodeEntity(chat)))
+                        }
                     }
                 } else {
                     entitySaves.push(forageStorage.deleteCharacter(chaId))
@@ -447,8 +454,13 @@ export async function saveDb() {
             // ── End entity API saves ────────────────────────────────────────
 
             await forageStorage.setItem('database/database.bin', dbData)
-            await forageStorage.setItem(`database/dbbackup-${(Date.now() / 100).toFixed()}.bin`, dbData)
-            await getDbBackups()
+            // Backups are written at a slower cadence (5 min) to avoid
+            // doubling every 500 ms save's write volume.
+            if (!lastBackupTime || Date.now() - lastBackupTime >= 5 * 60 * 1000) {
+                lastBackupTime = Date.now()
+                await forageStorage.setItem(`database/dbbackup-${(Date.now() / 100).toFixed()}.bin`, dbData)
+                await getDbBackups()
+            }
             savetrys = 0
             await saveDbKei()
             await sleep(500)

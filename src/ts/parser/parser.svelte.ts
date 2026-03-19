@@ -11,7 +11,7 @@ import css, { type CssAtRuleAST } from '@adobe/css-tools'
 import { selectedCharID } from '../stores.svelte';
 import { calcString } from '../process/infunctions';
 import { findCharacterbyId, getPersonaPrompt, getUserIcon, getUserName, pickHashRand, replaceAsync} from '../util';
-import { getInlayAssetBlob } from '../process/files/inlays';
+
 import { getModuleAssets, getModuleLorebooks, getModules } from '../process/modules';
 import hljs from 'highlight.js/lib/core'
 import 'highlight.js/styles/atom-one-dark.min.css'
@@ -664,6 +664,11 @@ function trimmer(str:string){
 const blobUrlCache = new Map<string, { url: string; type: string }>()
 const inlayImageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif']
 
+/** Build a direct-serve URL for a KV key via /api/asset/ */
+function assetUrl(kvKey: string): string {
+    return `/api/asset/${Buffer.from(kvKey, 'utf-8').toString('hex')}`
+}
+
 export function parseInlayAssets(data:string){
     const inlayMatch = data.match(/{{(inlay|inlayed|inlayeddata)::(.+?)}}/g)
     if(inlayMatch){
@@ -711,59 +716,55 @@ async function processInlayQueue() {
     if (isResolvingPlaceholders || resolveQueue.length === 0) return
     isResolvingPlaceholders = true
 
-    // Process up to 3 simultaneously
+    // Process all queued items immediately — no server fetch needed,
+    // just build direct /api/asset/ URLs. The browser handles caching
+    // via Cache-Control: immutable headers on the asset endpoint.
     while (resolveQueue.length > 0) {
-        const batch = resolveQueue.splice(0, 3)
-        await Promise.allSettled(batch.map(async ({ el, id }) => {
+        const batch = resolveQueue.splice(0, 20)
+        for (const { el, id } of batch) {
             try {
-                // Check if element is still in the DOM
-                if (!el.parentNode) return
+                if (!el.parentNode) continue
 
-                const asset = await getInlayAssetBlob(id)
-                if (asset?.data) {
-                    const url = URL.createObjectURL(asset.data)
-                    blobUrlCache.set(id, { url, type: asset.type })
+                const url = assetUrl(`inlay/${id}`)
+                // Default to 'image' — covers ~95% of inlays.
+                // /api/asset/ serves the correct MIME type regardless.
+                const type = blobUrlCache.get(id)?.type ?? 'image'
+                blobUrlCache.set(id, { url, type })
 
-                    // Check again if element is still present after async work
-                    if (!el.parentNode) return
-
-                    switch (asset.type) {
-                        case 'image':
-                            if (DBState.db.hideAllImages) { el.remove(); break; }
-                            const img = document.createElement('img')
-                            img.src = url
-                            img.style.animation = 'risu-fade-in 0.3s ease-out'
-                            el.replaceWith(img)
-                            break
-                        case 'video': {
-                            const video = document.createElement('video')
-                            video.controls = true
-                            const source = document.createElement('source')
-                            source.src = url
-                            source.type = 'video/mp4'
-                            video.appendChild(source)
-                            el.replaceWith(video)
-                            break
-                        }
-                        case 'audio': {
-                            const audio = document.createElement('audio')
-                            audio.controls = true
-                            const source = document.createElement('source')
-                            source.src = url
-                            source.type = 'audio/mpeg'
-                            audio.appendChild(source)
-                            el.replaceWith(audio)
-                            break
-                        }
+                switch (type) {
+                    case 'image':
+                        if (DBState.db.hideAllImages) { el.remove(); break }
+                        const img = document.createElement('img')
+                        img.src = url
+                        img.style.animation = 'risu-fade-in 0.3s ease-out'
+                        el.replaceWith(img)
+                        break
+                    case 'video': {
+                        const video = document.createElement('video')
+                        video.controls = true
+                        const source = document.createElement('source')
+                        source.src = url
+                        source.type = 'video/mp4'
+                        video.appendChild(source)
+                        el.replaceWith(video)
+                        break
                     }
-                } else {
-                    if (el.parentNode) el.textContent = ''
+                    case 'audio': {
+                        const audio = document.createElement('audio')
+                        audio.controls = true
+                        const source = document.createElement('source')
+                        source.src = url
+                        source.type = 'audio/mpeg'
+                        audio.appendChild(source)
+                        el.replaceWith(audio)
+                        break
+                    }
                 }
             } catch (e) {
                 console.error(`[Inlay] Failed to load ${id}`, e)
                 if (el.parentNode) el.textContent = ''
             }
-        }))
+        }
     }
 
     isResolvingPlaceholders = false
@@ -868,11 +869,25 @@ export async function ParseMarkdown(
     return trimMarkdown(data)
 }
 
+// LRU cache for DOMPurify + decodeStyle results.
+// Chat re-renders hit the same message text repeatedly; this avoids redundant DOM parsing.
+const trimCache = new Map<string, string>()
+const TRIM_CACHE_MAX = 200
+
 export function trimMarkdown(data:string){
-    return decodeStyle(DOMPurify.sanitize(data, {
+    let cached = trimCache.get(data)
+    if (cached !== undefined) return cached
+    cached = decodeStyle(DOMPurify.sanitize(data, {
         ADD_TAGS: ["iframe", "style", "risu-style", "x-em", 'annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt'],
         ADD_ATTR: ["allow", "allowfullscreen", "frameborder", "scrolling", "risu-ctrl" ,"risu-btn", 'risu-trigger', 'risu-mark', 'risu-id', 'x-hl-lang', 'x-hl-text', 'data-inlay-id', 'data-inlay-type'],
     }))
+    if (trimCache.size >= TRIM_CACHE_MAX) {
+        // evict oldest entry
+        const firstKey = trimCache.keys().next().value
+        if (firstKey !== undefined) trimCache.delete(firstKey)
+    }
+    trimCache.set(data, cached)
+    return cached
 }
 
 const metaCodes = [

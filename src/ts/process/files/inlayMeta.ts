@@ -37,6 +37,30 @@ class NodeInlayMetaStorage {
         }
     }
 
+    async getItems(ids: string[]): Promise<Record<string, InlayAssetMeta>> {
+        const result: Record<string, InlayAssetMeta> = {}
+        if (!Array.isArray(ids) || ids.length === 0) return result
+        try {
+            const rows = await this.nodeStorage.getItems(ids.map((id) => this.serverKey(id)))
+            for (const row of rows) {
+                try {
+                    const id = row.key.replace(INLAY_META_PREFIX, '')
+                    const raw = JSON.parse(new TextDecoder().decode(row.value))
+                    const createdAt = typeof raw?.createdAt === 'number' ? raw.createdAt : 0
+                    const updatedAt = typeof raw?.updatedAt === 'number' ? raw.updatedAt : createdAt
+                    const charId = typeof raw?.charId === 'string' ? raw.charId : undefined
+                    const chatId = typeof raw?.chatId === 'string' ? raw.chatId : undefined
+                    result[id] = { createdAt, updatedAt, charId, chatId }
+                } catch {
+                    // skip corrupt meta entries
+                }
+            }
+        } catch {
+            // best-effort batch read
+        }
+        return result
+    }
+
     async removeItem(id: string): Promise<void> {
         try {
             await this.nodeStorage.removeItem(this.serverKey(id))
@@ -47,20 +71,9 @@ class NodeInlayMetaStorage {
 
     async entries(): Promise<[string, InlayAssetMeta][]> {
         const allKeys = await this.nodeStorage.keys(INLAY_META_PREFIX)
-        const entries: [string, InlayAssetMeta][] = []
         const ids = allKeys.map((k) => k.replace(INLAY_META_PREFIX, ''))
-        const batchSize = 200
-        for (let i = 0; i < ids.length; i += batchSize) {
-            const batch = ids.slice(i, i + batchSize)
-            const metas = await Promise.all(batch.map(async (id) => {
-                try { return await this.getItem(id) } catch { return null }
-            }))
-            for (let j = 0; j < batch.length; j++) {
-                const meta = metas[j]
-                if (meta) entries.push([batch[j], meta])
-            }
-        }
-        return entries
+        const metas = await this.getItems(ids)
+        return Object.entries(metas)
     }
 }
 
@@ -84,6 +97,10 @@ export async function listInlayMetaEntries(): Promise<[string, InlayAssetMeta][]
 
 export async function getInlayMeta(id: string): Promise<InlayAssetMeta | null> {
     return await getStorage().getItem(id)
+}
+
+export async function getInlayMetasBatch(ids: string[]): Promise<Record<string, InlayAssetMeta>> {
+    return await getStorage().getItems(ids)
 }
 
 export function buildInlayMeta(existingMeta?: InlayAssetMeta | null): InlayAssetMeta {
