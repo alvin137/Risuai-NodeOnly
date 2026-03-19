@@ -14,6 +14,10 @@ const db = new Database(dbPath);
 // WAL mode: better concurrent read performance, single-writer
 db.pragma('journal_mode = WAL');
 db.pragma('synchronous = NORMAL');
+db.pragma('cache_size = -64000');       // 64 MB (default 2 MB) — reduce disk I/O for large blobs
+db.pragma('temp_store = MEMORY');       // keep temp tables in RAM
+db.pragma('busy_timeout = 5000');       // wait up to 5 s on lock contention
+db.pragma('mmap_size = 268435456');     // 256 MB memory-mapped I/O for faster reads
 
 // ─── KV table (replaces /save/ hex files) ────────────────────────────────────
 db.exec(`
@@ -111,6 +115,8 @@ const stmtKvList   = db.prepare(`SELECT key FROM kv`);
 const stmtKvPrefix = db.prepare(`SELECT key FROM kv WHERE key LIKE ? ESCAPE '\\'`);
 const stmtKvPrefixSizes = db.prepare(`SELECT key, LENGTH(value) as size FROM kv WHERE key LIKE ? ESCAPE '\\'`);
 const stmtKvDelPrefix = db.prepare(`DELETE FROM kv WHERE key LIKE ? ESCAPE '\\'`);
+const stmtKvSize      = db.prepare(`SELECT LENGTH(value) as size FROM kv WHERE key = ?`);
+const stmtKvUpdatedAt = db.prepare(`SELECT updated_at FROM kv WHERE key = ?`);
 
 function kvGet(key) {
     const row = stmtKvGet.get(key);
@@ -123,6 +129,16 @@ function kvSet(key, value) {
 
 function kvDel(key) {
     stmtKvDel.run(key);
+}
+
+function kvSize(key) {
+    const row = stmtKvSize.get(key);
+    return row ? row.size : null;
+}
+
+function kvGetUpdatedAt(key) {
+    const row = stmtKvUpdatedAt.get(key);
+    return row ? row.updated_at : null;
 }
 
 function kvDelPrefix(prefix) {
@@ -188,7 +204,7 @@ function clearEntities() {
 module.exports = {
     db,
     // KV
-    kvGet, kvSet, kvDel, kvList, kvDelPrefix, kvListWithSizes,
+    kvGet, kvSet, kvDel, kvList, kvDelPrefix, kvListWithSizes, kvSize, kvGetUpdatedAt,
     // Characters
     charGet:  (id) => { const r = stmtCharGet.get(id); return r ? r.data : null; },
     charSet:  (id, data) => stmtCharSet.run(id, data, Date.now()),
