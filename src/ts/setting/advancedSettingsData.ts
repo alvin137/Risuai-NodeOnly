@@ -1,5 +1,6 @@
 
 import type { SettingItem } from './types';
+import { loadPlugins } from '../plugins/plugins.svelte';
 export const advancedSettingsItems: SettingItem[] = [
     { type: 'header', id: 'adv.header', labelKey: 'advancedSettings', options: { level: 'h2' }, classes: '!mb-0' },
     { type: 'header', id: 'adv.warn', labelKey: 'advancedSettingsWarn', options: { level: 'warning' } },
@@ -128,6 +129,13 @@ export const advancedSettingsItems: SettingItem[] = [
     {
         id: 'adv.cot', type: 'check', labelKey: 'cot', bindKey: 'chainOfThought',
         condition: (ctx) => ctx.db.showUnrecommended, helpKey: 'customChainOfThought', helpUnrecommended: true, classes: 'mt-4'
+    },
+    {
+        id: 'adv.allowV2Plugin', type: 'check', labelKey: 'allowV2Plugin', bindKey: 'allowV2Plugin',
+        condition: (ctx) => ctx.db.showUnrecommended, helpKey: 'allowV2Plugin', helpUnrecommended: true, classes: 'mt-4',
+        onChange: () => {
+            void loadPlugins();
+        }
     },
 
     // More Toggles

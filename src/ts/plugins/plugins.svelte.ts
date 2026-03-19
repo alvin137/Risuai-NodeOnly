@@ -898,7 +898,18 @@ export async function loadV2Plugin(plugins: RisuPlugin[]) {
             data = plugin.script
             console.log('Loading V2.0 Plugin', plugin.name)
 
-            console.warn(`Plugin 2.0 is removed and no longer supported. Please update plugin "${plugin.name}" to API version 3.0`)
+            if(DBState.db.allowV2Plugin){
+                try {
+                    new Function(createRealScript(data))()
+                } catch (error) {
+                    console.error(error)
+                }
+
+                console.warn(`Plugin 2.0 support is deprecated and disabled by default. Please update plugin "${plugin.name}" to API version 3.0`)
+            }
+            else{
+                console.warn(`Plugin 2.0 is disabled by default. Enable deprecated V2.0 plugin support in advanced settings to run plugin "${plugin.name}", and please update it to API version 3.0`)
+            }
         }
     }
 }

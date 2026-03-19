@@ -198,6 +198,9 @@ export function setDatabase(data:Database){
     if(checkNullish(data.showUnrecommended)){
         data.showUnrecommended = false
     }
+    if(checkNullish(data.allowV2Plugin)){
+        data.allowV2Plugin = false
+    }
     if(checkNullish(data.elevenLabKey)){
         data.elevenLabKey = ''
     }
@@ -793,6 +796,7 @@ export interface Database{
     useSayNothing:boolean
     didFirstSetup: boolean
     showUnrecommended:boolean
+    allowV2Plugin:boolean
     elevenLabKey:string
     voicevoxUrl:string
     useExperimental:boolean
