@@ -1,17 +1,7 @@
-import {
-    writeFile,
-    BaseDirectory,
-    readFile,
-    exists,
-    mkdir,
-    readDir,
-    remove
-} from "@tauri-apps/plugin-fs"
 import { changeFullscreen, checkNullish, sleep } from "./util"
 import { v4 as uuidv4 } from 'uuid';
 import { get } from "svelte/store";
 import { setDatabase, defaultSdDataFunc, getDatabase } from "./storage/database.svelte";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { checkRisuUpdate } from "./update";
 import { MobileGUI, botMakerMode, selectedCharID, loadedStore, DBState, LoadingStatusState } from "./stores.svelte";
 import { loadPlugins } from "./plugins/plugins.svelte";
@@ -41,10 +31,9 @@ import {
     setUsingSw,
     checkCharOrder
 } from "./globalApi.svelte";
-import { isTauri } from "./platform";
 import { registerModelDynamic } from "./model/modellist";
 
-const appWindow = isTauri ? getCurrentWebviewWindow() : null
+const appWindow = null
 
 /**
  * Loads the application data.
@@ -53,57 +42,7 @@ export async function loadData() {
     const loaded = get(loadedStore)
     if (!loaded) {
         try {
-            if (isTauri) {
-                LoadingStatusState.text = "Checking Files..."
-                appWindow.maximize()
-                if (!await exists('', { baseDir: BaseDirectory.AppData })) {
-                    await mkdir('', { baseDir: BaseDirectory.AppData })
-                }
-                if (!await exists('database', { baseDir: BaseDirectory.AppData })) {
-                    await mkdir('database', { baseDir: BaseDirectory.AppData })
-                }
-                if (!await exists('assets', { baseDir: BaseDirectory.AppData })) {
-                    await mkdir('assets', { baseDir: BaseDirectory.AppData })
-                }
-                if (!await exists('database/database.bin', { baseDir: BaseDirectory.AppData })) {
-                    await writeFile('database/database.bin', encodeRisuSaveLegacy({}), { baseDir: BaseDirectory.AppData });
-                }
-                try {
-                    LoadingStatusState.text = "Reading Save File..."
-                    const readed = await readFile('database/database.bin', { baseDir: BaseDirectory.AppData })
-                    LoadingStatusState.text = "Cleaning Unnecessary Files..."
-                    getDbBackups() //this also cleans the backups
-                    LoadingStatusState.text = "Decoding Save File..."
-                    const decoded = await decodeRisuSave(readed)
-                    setDatabase(decoded)
-                } catch (error) {
-                    LoadingStatusState.text = "Reading Backup Files..."
-                    const backups = await getDbBackups()
-                    let backupLoaded = false
-                    for (const backup of backups) {
-                        if (!backupLoaded) {
-                            try {
-                                LoadingStatusState.text = `Reading Backup File ${backup}...`
-                                const backupData = await readFile(`database/dbbackup-${backup}.bin`, { baseDir: BaseDirectory.AppData })
-                                setDatabase(
-                                    await decodeRisuSave(backupData)
-                                )
-                                backupLoaded = true
-                            } catch (error) {
-                                console.error(error)
-                            }
-                        }
-                    }
-                    if (!backupLoaded) {
-                        throw "Your save file is corrupted"
-                    }
-                }
-                LoadingStatusState.text = "Checking Update..."
-                await checkRisuUpdate()
-                await changeFullscreen()
-
-            }
-            else {
+            {
                 await forageStorage.Init()
 
                 LoadingStatusState.text = "Loading Local Save File..."
@@ -504,98 +443,43 @@ async function cleanChunks() {
     }
 
     const uncleanable = new Set(getUncleanables(db))
-    if (isTauri) {
-        const assets = await readDir('assets', { baseDir: BaseDirectory.AppData })
-        console.log(assets)
-        for (const asset of assets) {
-            try {
-                const n = getBasename(asset.name)
-                if (!uncleanable.has(n)) {
-                    await remove('assets/' + asset.name, { baseDir: BaseDirectory.AppData })
-                }
-            } catch (error) {
-                console.log('error', asset.name)
+    const indexes = await forageStorage.keys()
+    const characterIds = new Set<string>(
+        db.characters.map((v) => v.chaId)
+    )
+    for (const asset of indexes) {
+        if (asset.startsWith('assets/')) {
+            const n = getBasename(asset)
+            if(!uncleanable.has(n)) {
+                await forageStorage.removeItem(asset)
             }
         }
-
-        const remotes = await readDir('remotes', { baseDir: BaseDirectory.AppData })
-
-        const remoteUncleanables = new Set<string>(
-            db.characters.map((v) => v.chaId)
-        )
-        for (const remote of remotes) {
-            try {
-                const name = getBasename(remote.name).slice(0, -10) //remove .local.bin
-                const fexists = remoteUncleanables.has(name)
-                if(!fexists){
-
-                    let okayToDelete = false
-                    try {
-                        const metaPath = 'remotes/' + remote.name + '.meta'
-                        const metaExists = await exists(metaPath, { baseDir: BaseDirectory.AppData })
-                        if (metaExists) {
-                            const meta = await readFile(metaPath, { baseDir: BaseDirectory.AppData })
-                            const metaJson = JSON.parse(new TextDecoder().decode(meta))
-                            const lastUsed = metaJson.lastUsed as number
-
-                            if(Date.now() - lastUsed > 1000 * 60 * 60 * 24 * 7) { //not used for 7 days
-                                okayToDelete = true
-                            }
+        else if (asset.startsWith('remotes/')) {
+            const name = getBasename(asset).slice(0, -10) //remove .local.bin
+            const exists = characterIds.has(name)
+            if(!exists){
+                let okayToDelete = false
+                try {
+                    const metaPath = asset + '.meta'
+                    const metaExists = (await forageStorage.keys()).includes(metaPath)
+                    if (metaExists) {
+                        const metaData: Uint8Array = await forageStorage.getItem(metaPath) as unknown as Uint8Array
+                        const metaJson = JSON.parse(new TextDecoder().decode(metaData))
+                        const lastUsed = metaJson.lastUsed as number
+                        if(Date.now() - lastUsed > 1000 * 60 * 60 * 24 * 7) { //not used for 7 days
+                            okayToDelete = true
                         }
-                        else{
-                            //write meta for next time
-                            const metaJson = {
-                                lastUsed: Date.now()
-                            }
-                            await writeFile(metaPath, new TextEncoder().encode(JSON.stringify(metaJson)), { baseDir: BaseDirectory.AppData })
-                        }
-                    } catch (error) {}
-                    await remove('remotes/' + remote.name, { baseDir: BaseDirectory.AppData })
-                }
-            } catch (error) {
-                console.log('error', remote.name)
-            }
-        }
-    }
-    else {
-        const indexes = await forageStorage.keys()
-        const characterIds = new Set<string>(
-            db.characters.map((v) => v.chaId)
-        )
-        for (const asset of indexes) {
-            if (asset.startsWith('assets/')) {
-                const n = getBasename(asset)
-                if(!uncleanable.has(n)) {
-                    await forageStorage.removeItem(asset)
-                }
-            }
-            else if (asset.startsWith('remotes/')) {
-                const name = getBasename(asset).slice(0, -10) //remove .local.bin
-                const exists = characterIds.has(name)
-                if(!exists){
-                    let okayToDelete = false
-                    try {
-                        const metaPath = asset + '.meta'
-                        const metaExists = (await forageStorage.keys()).includes(metaPath)
-                        if (metaExists) {
-                            const metaData: Uint8Array = await forageStorage.getItem(metaPath) as unknown as Uint8Array
-                            const metaJson = JSON.parse(new TextDecoder().decode(metaData))
-                            const lastUsed = metaJson.lastUsed as number
-                            if(Date.now() - lastUsed > 1000 * 60 * 60 * 24 * 7) { //not used for 7 days
-                                okayToDelete = true
-                            }
-                        }
-                        else{
-                            //write meta for next time
-                            const metaJson = {
-                                lastUsed: Date.now()
-                            }
-                            await forageStorage.setItem(metaPath, new TextEncoder().encode(JSON.stringify(metaJson)))
-                        }
-                    } catch (error) {}
-                    if (okayToDelete) {
-                        await forageStorage.removeItem(asset)
                     }
+                    else{
+                        //write meta for next time
+                        const metaJson = {
+                            lastUsed: Date.now()
+                        }
+                        await forageStorage.setItem(metaPath, new TextEncoder().encode(JSON.stringify(metaJson)))
+                    }
+                } catch (error) {}
+                if (okayToDelete) {
+                    await forageStorage.removeItem(asset)
                 }
             }
         }

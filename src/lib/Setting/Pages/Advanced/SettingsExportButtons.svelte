@@ -5,7 +5,7 @@
     import { alertMd, alertNormal } from "src/ts/alert";
     import { downloadFile, getRequestLog } from "src/ts/globalApi.svelte";
     import { getDatabase } from "src/ts/storage/database.svelte";
-    import { isNodeServer, isTauri } from "src/ts/platform";
+    import { isNodeServer } from "src/ts/platform";
 
 </script>
 
@@ -59,7 +59,7 @@ Show Statistics
 
         //@ts-expect-error meta is not defined in Database type, added for settings export report
         db.meta = {
-            isTauri: isTauri,
+            isTauri: false,
             isNodeServer: isNodeServer,
             protocol: location.protocol
         }

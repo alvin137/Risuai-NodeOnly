@@ -12,7 +12,6 @@ import { defaultColorScheme, type ColorScheme } from '../gui/colorscheme';
 import type { PromptItem, PromptSettings } from '../process/prompt';
 import type { OobaChatCompletionRequestParams } from '../model/ooba';
 import { type HypaV3Settings, type HypaV3Preset, createHypaV3Preset } from '../process/memory/hypav3'
-import { isTauri, isNodeServer } from "src/ts/platform"
 
 //APP_VERSION_POINT is to locate the app version in the database file for version bumping
 export let appVer = "2026.2.291" //<APP_VERSION_POINT>
@@ -633,10 +632,6 @@ export function setDatabase(data:Database){
     data.newMessageButtonStyle ??= 'bottom-center'
     data.echoMessage ??= "Echo Message"
     data.echoDelay ??= 0
-    if(!isNodeServer && !isTauri){
-        //this is intended to forcely reduce the size of the database in web
-        data.promptInfoInsideChat = false
-    }
     data.createFolderOnBranch ??= true
     data.hamburgerButtonBottom ??= false
     data.dynamicModelRegistry ??= true

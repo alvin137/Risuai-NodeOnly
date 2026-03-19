@@ -2,16 +2,12 @@ import { get, writable, type Writable } from "svelte/store"
 import type { Database, Message } from "./storage/database.svelte"
 import { getDatabase } from "./storage/database.svelte"
 import { selectedCharID } from "./stores.svelte"
-import {open} from '@tauri-apps/plugin-dialog'
-import { readFile } from "@tauri-apps/plugin-fs"
-import { basename } from "@tauri-apps/api/path"
 import { createBlankChar, getCharImage } from "./characters"
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { isIOS, isTauri } from "src/ts/platform"
+import { isIOS } from "src/ts/platform"
 import type { Attachment } from "svelte/attachments"
 import { mount, unmount, type Snippet } from "svelte"
 import PopupList from "src/lib/UI/PopupList.svelte"
-const appWindow = isTauri ? getCurrentWebviewWindow() : null
+const appWindow = null
 
 export interface Messagec extends Message{
     index: number
@@ -45,57 +41,19 @@ export function checkNullish(data:any){
     return data === undefined || data === null
 }
 
-const domSelect = true
 export async function selectSingleFile(ext:string[]){
-    if(domSelect){
-        const v = await selectFileByDom(ext, 'single')
-        const file = v[0]
-        return {name: file.name,data:await readFileAsUint8Array(file)}
-    }
-
-    const selected = await open({
-        filters: [{
-            name: ext.join(', '),
-            extensions: ext
-        }]
-    });
-    if (Array.isArray(selected)) {
-        return null
-    } else if (selected === null) {
-        return null
-    } else {
-        return {name: await basename(selected),data:await readFile(selected)}
-    }
+    const v = await selectFileByDom(ext, 'single')
+    const file = v[0]
+    return {name: file.name,data:await readFileAsUint8Array(file)}
 }
 
 export async function selectMultipleFile(ext:string[]){
-    if(!isTauri){
-        const v = await selectFileByDom(ext, 'multiple')
-        let arr:{name:string, data:Uint8Array}[] = []
-        for(const file of v){
-            arr.push({name: file.name,data:await readFileAsUint8Array(file)})
-        }
-        return arr
+    const v = await selectFileByDom(ext, 'multiple')
+    let arr:{name:string, data:Uint8Array}[] = []
+    for(const file of v){
+        arr.push({name: file.name,data:await readFileAsUint8Array(file)})
     }
-
-    const selected = await open({
-        filters: [{
-            name: ext.join(', '),
-            extensions: ext,
-        }],
-        multiple: true
-    });
-    if (Array.isArray(selected)) {
-        let arr:{name:string, data:Uint8Array}[] = []
-        for(const file of selected){
-            arr.push({name: await basename(file),data:await readFile(file)})
-        }
-        return arr
-    } else if (selected === null) {
-        return null
-    } else {
-        return [{name: await basename(selected),data:await readFile(selected)}]
-    }
+    return arr
 }
 
 export const replacePlaceholders = (msg:string, name:string) => {

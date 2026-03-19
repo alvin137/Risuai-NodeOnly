@@ -1,20 +1,7 @@
-import {
-    writeFile,
-    BaseDirectory,
-    readFile,
-    exists,
-    mkdir,
-    readDir,
-    remove
-} from "@tauri-apps/plugin-fs"
 import { changeFullscreen, checkNullish, sleep } from "./util"
-import { convertFileSrc, invoke } from "@tauri-apps/api/core"
 import { v4 as uuidv4, v4 } from 'uuid';
-import { appDataDir, join } from "@tauri-apps/api/path";
 import { get } from "svelte/store";
-import { open } from '@tauri-apps/plugin-shell'
 import { setDatabase, type Database, defaultSdDataFunc, getDatabase, appVer, getCurrentCharacter } from "./storage/database.svelte";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { checkRisuUpdate } from "./update";
 import { MobileGUI, botMakerMode, selectedCharID, loadedStore, DBState, LoadingStatusState, selIdState, ReloadGUIPointer, bodyIntercepterStore } from "./stores.svelte";
 import { loadPlugins } from "./plugins/plugins.svelte";
@@ -29,22 +16,18 @@ import { AutoStorage } from "./storage/autoStorage";
 import { updateAnimationSpeed } from "./gui/animation";
 import { updateColorScheme, updateTextThemeAndCSS } from "./gui/colorscheme";
 import { autoServerBackup, saveDbKei } from "./kei/backup";
-import { save } from "@tauri-apps/plugin-dialog";
-import { listen } from '@tauri-apps/api/event'
 import { language } from "src/lang";
 import { startObserveDom } from "./observer.svelte";
 import { updateGuisize } from "./gui/guisize";
 import { updateLorebooks } from "./characters";
 import { initMobileGesture } from "./hotkey";
-import { fetch as TauriHTTPFetch } from '@tauri-apps/plugin-http';
 import { moduleUpdate } from "./process/modules";
 import type { AccountStorage } from "./storage/accountStorage";
 import { makeColdData } from "./process/coldstorage.svelte";
-import { isTauri, isNodeServer } from "./platform";
 
 export const forageStorage = new AutoStorage()
 
-const appWindow = isTauri ? getCurrentWebviewWindow() : null
+const appWindow = null
 
 interface fetchLog {
     body: string
@@ -75,21 +58,14 @@ export async function downloadFile(name: string, dat: Uint8Array | ArrayBuffer |
         a.remove()
     }
 
-    if (isTauri) {
-        await writeFile(name, data, { baseDir: BaseDirectory.Download })
-    }
-    else {
-        const blob = new Blob([data], { type: 'application/octet-stream' })
-        const url = URL.createObjectURL(blob)
+    const blob = new Blob([data], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
 
-        downloadURL(url, name)
+    downloadURL(url, name)
 
-        setTimeout(() => {
-            URL.revokeObjectURL(url)
-        }, 10000)
-
-
-    }
+    setTimeout(() => {
+        URL.revokeObjectURL(url)
+    }, 10000)
 }
 
 let fileCache: {
@@ -109,23 +85,6 @@ let checkedPaths: string[] = []
  * @returns {Promise<string>} - A promise that resolves to the source URL of the file.
  */
 export async function getFileSrc(loc: string) {
-    if (isTauri) {
-        if (loc.startsWith('assets')) {
-            if (appDataDirPath === '') {
-                appDataDirPath = await appDataDir();
-            }
-            const cached = pathCache[loc]
-            if (cached) {
-                return convertFileSrc(cached)
-            }
-            else {
-                const joined = await join(appDataDirPath, loc)
-                pathCache[loc] = joined
-                return convertFileSrc(joined)
-            }
-        }
-        return convertFileSrc(loc)
-    }
     if (forageStorage.isAccount && loc.startsWith('assets')) {
         return hubURL + `/rs/` + loc
     }
@@ -194,8 +153,6 @@ export async function getFileSrc(loc: string) {
     }
 }
 
-let appDataDirPath = ''
-
 /**
  * Reads an image file and returns its data.
  * 
@@ -203,18 +160,7 @@ let appDataDirPath = ''
  * @returns {Promise<Uint8Array>} - A promise that resolves to the data of the image file.
  */
 export async function readImage(data: string) {
-    if (isTauri) {
-        if (data.startsWith('assets')) {
-            if (appDataDirPath === '') {
-                appDataDirPath = await appDataDir();
-            }
-            return await readFile(await join(appDataDirPath, data))
-        }
-        return await readFile(data)
-    }
-    else {
-        return (await forageStorage.getItem(data) as unknown as Uint8Array)
-    }
+    return (await forageStorage.getItem(data) as unknown as Uint8Array)
 }
 
 /**
@@ -241,20 +187,12 @@ export async function saveAsset(data: Uint8Array, customId: string = '', fileNam
     if (fileName && fileName.split('.').length > 0) {
         fileExtension = fileName.split('.').pop()
     }
-    if (isTauri) {
-        await writeFile(`assets/${id}.${fileExtension}`, data, {
-            baseDir: BaseDirectory.AppData
-        });
-        return `assets/${id}.${fileExtension}`
+    let form = `assets/${id}.${fileExtension}`
+    const replacer = await forageStorage.setItem(form, data)
+    if (replacer) {
+        return replacer
     }
-    else {
-        let form = `assets/${id}.${fileExtension}`
-        const replacer = await forageStorage.setItem(form, data)
-        if (replacer) {
-            return replacer
-        }
-        return form
-    }
+    return form
 }
 
 /**
@@ -264,12 +202,7 @@ export async function saveAsset(data: Uint8Array, customId: string = '', fileNam
  * @returns {Promise<Uint8Array>} - A promise that resolves to the data of the loaded asset file.
  */
 export async function loadAsset(id: string) {
-    if (isTauri) {
-        return await readFile(id, { baseDir: BaseDirectory.AppData })
-    }
-    else {
-        return await forageStorage.getItem(id) as unknown as Uint8Array
-    }
+    return await forageStorage.getItem(id) as unknown as Uint8Array
 }
 
 let lastSave = ''
@@ -426,19 +359,12 @@ export async function saveDb() {
                 continue
             }
             const dbData = new Uint8Array(encoded)
-            if (isTauri) {
-                await writeFile('database/database.bin', dbData, { baseDir: BaseDirectory.AppData });
-                await writeFile(`database/dbbackup-${(Date.now() / 100).toFixed()}.bin`, dbData, { baseDir: BaseDirectory.AppData });
+            await forageStorage.setItem('database/database.bin', dbData)
+            if (!forageStorage.isAccount) {
+                await forageStorage.setItem(`database/dbbackup-${(Date.now() / 100).toFixed()}.bin`, dbData)
             }
-            else {
-
-                await forageStorage.setItem('database/database.bin', dbData)
-                if (!forageStorage.isAccount) {
-                    await forageStorage.setItem(`database/dbbackup-${(Date.now() / 100).toFixed()}.bin`, dbData)
-                }
-                if (forageStorage.isAccount) {
-                    await sleep(3000)
-                }
+            if (forageStorage.isAccount) {
+                await sleep(3000)
             }
             if (!forageStorage.isAccount) {
                 await getDbBackups()
@@ -466,41 +392,18 @@ export async function saveDb() {
  * @returns {Promise<number[]>} - A promise that resolves to an array of backup timestamps.
  */
 export async function getDbBackups() {
-    let db = getDatabase()
-    if (db?.account?.useSync && !isTauri && !isNodeServer) {
-        return []
-    }
-    if (isTauri) {
-        const keys = await readDir('database', { baseDir: BaseDirectory.AppData })
-        let backups: number[] = []
-        for (const key of keys) {
-            if (key.name.startsWith("dbbackup-")) {
-                let da = key.name.substring(9)
-                da = da.substring(0, da.length - 4)
-                backups.push(parseInt(da))
-            }
-        }
-        backups.sort((a, b) => b - a)
-        while (backups.length > 20) {
-            const last = backups.pop()
-            await remove(`database/dbbackup-${last}.bin`, { baseDir: BaseDirectory.AppData })
-        }
-        return backups
-    }
-    else {
-        const keys = await forageStorage.keys()
+    const keys = await forageStorage.keys()
 
-        const backups = keys
-            .filter(key => key.startsWith('database/dbbackup-'))
-            .map(key => parseInt(key.slice(18, -4)))
-            .sort((a, b) => b - a);
+    const backups = keys
+        .filter(key => key.startsWith('database/dbbackup-'))
+        .map(key => parseInt(key.slice(18, -4)))
+        .sort((a, b) => b - a);
 
-        while (backups.length > 20) {
-            const last = backups.pop()
-            await forageStorage.removeItem(`database/dbbackup-${last}.bin`)
-        }
-        return backups
+    while (backups.length > 20) {
+        const last = backups.pop()
+        await forageStorage.removeItem(`database/dbbackup-${last}.bin`)
     }
+    return backups
 }
 
 let usingSw = false
@@ -619,11 +522,7 @@ export async function globalFetch(url: string, arg: GlobalFetchArgs = {}): Promi
         if (arg.abortSignal?.aborted) { return { ok: false, data: 'aborted', headers: {}, status: 400 }; }
 
         const urlHost = new URL(url).hostname
-        const forcePlainFetch = ((knownHostes.includes(urlHost) && !isTauri) || db.usePlainFetch || arg.plainFetchForce) && !arg.plainFetchDeforce
-
-        if (knownHostes.includes(urlHost) && !isTauri && !isNodeServer) {
-            return { ok: false, headers: {}, status: 400, data: 'You are trying local request on web version. This is not allowed due to browser security policy. Use the desktop version instead, or use a tunneling service like ngrok and set the CORS to allow all.' };
-        }
+        const forcePlainFetch = ((knownHostes.includes(urlHost)) || db.usePlainFetch || arg.plainFetchForce) && !arg.plainFetchDeforce
 
         if(arg.interceptor){
             for (const interceptor of bodyIntercepterStore) {
@@ -642,9 +541,6 @@ export async function globalFetch(url: string, arg: GlobalFetchArgs = {}): Promi
         //userScriptFetch is provided by userscript
         if (window.userScriptFetch) {
             return await fetchWithUSFetch(url, arg);
-        }
-        if (isTauri) {
-            return await fetchWithTauri(url, arg);
         }
         return await fetchWithProxy(url, arg);
 
@@ -734,26 +630,6 @@ async function fetchWithUSFetch(url: string, arg: GlobalFetchArgs): Promise<Glob
 }
 
 /**
- * Performs a fetch request using Tauri.
- * 
- * @param {string} url - The URL to fetch.
- * @param {GlobalFetchArgs} arg - The arguments for the fetch request.
- * @returns {Promise<GlobalFetchResult>} - The result of the fetch request.
- */
-async function fetchWithTauri(url: string, arg: GlobalFetchArgs): Promise<GlobalFetchResult> {
-    try {
-        const headers = { 'Content-Type': 'application/json', ...arg.headers };
-        const response = await TauriHTTPFetch(new URL(url), { body: JSON.stringify(arg.body), headers, method: arg.method ?? "POST", signal: arg.abortSignal });
-        const data = arg.rawResponse ? new Uint8Array(await response.arrayBuffer()) : await response.json();
-        const ok = response.status >= 200 && response.status < 300;
-        addFetchLogInGlobalFetch(data, ok, url, arg, response.status);
-        return { ok, data, headers: Object.fromEntries(response.headers), status: response.status };
-    } catch (error) {
-
-    }
-}
-
-/**
  * Performs a fetch request using a proxy.
  * 
  * @param {string} url - The URL to fetch.
@@ -762,7 +638,7 @@ async function fetchWithTauri(url: string, arg: GlobalFetchArgs): Promise<Global
  */
 async function fetchWithProxy(url: string, arg: GlobalFetchArgs): Promise<GlobalFetchResult> {
     try {
-        const furl = !isTauri && !isNodeServer ? `${hubURL}/proxy2` : `/proxy2`;
+        const furl = `/proxy2`;
         arg.headers["Content-Type"] ??= arg.body instanceof URLSearchParams ? "application/x-www-form-urlencoded" : "application/json";
         const headers = {
             "risu-header": encodeURIComponent(JSON.stringify(arg.headers)),
@@ -773,11 +649,9 @@ async function fetchWithProxy(url: string, arg: GlobalFetchArgs): Promise<Global
         };
 
         // Add risu-auth header for Node.js server
-        if (isNodeServer) {
-            const auth = localStorage.getItem('risuauth');
-            if (auth) {
-                headers["risu-auth"] = auth;
-            }
+        const auth = localStorage.getItem('risuauth');
+        if (auth) {
+            headers["risu-auth"] = auth;
         }
 
         const body = arg.body instanceof URLSearchParams ? arg.body.toString() : JSON.stringify(arg.body);
@@ -1058,12 +932,7 @@ export function getFetchLogs() {
  * @param {string} url - The URL to open.
  */
 export function openURL(url: string) {
-    if (isTauri) {
-        open(url)
-    }
-    else {
-        window.open(url, "_blank")
-    }
+    window.open(url, "_blank")
 }
 
 /**
@@ -1083,47 +952,10 @@ function formDataToString(formData: FormData): string {
 }
 
 /**
- * A writer class for Tauri environment.
- */
-export class TauriWriter {
-    path: string
-    firstWrite: boolean = true
-
-    /**
-     * Creates an instance of TauriWriter.
-     * 
-     * @param {string} path - The file path to write to.
-     */
-    constructor(path: string) {
-        this.path = path
-    }
-
-    /**
-     * Writes data to the file.
-     * 
-     * @param {Uint8Array} data - The data to write.
-     */
-    async write(data: Uint8Array) {
-        await writeFile(this.path, data, {
-            append: !this.firstWrite
-        })
-        this.firstWrite = false
-    }
-
-    /**
-     * Closes the writer. (No operation for TauriWriter)
-     */
-    async close() {
-        // do nothing
-    }
-}
-
-
-/**
  * Class representing a local writer.
  */
 export class LocalWriter {
-    writer: WritableStreamDefaultWriter | TauriWriter
+    writer: WritableStreamDefaultWriter
 
     /**
      * Initializes the writer.
@@ -1133,19 +965,6 @@ export class LocalWriter {
      * @returns {Promise<boolean>} - A promise that resolves to a boolean indicating success.
      */
     async init(name = 'Binary', ext = ['bin']): Promise<boolean> {
-        if (isTauri) {
-            const filePath = await save({
-                filters: [{
-                    name: name,
-                    extensions: ext
-                }]
-            });
-            if (!filePath) {
-                return false
-            }
-            this.writer = new TauriWriter(filePath)
-            return true
-        }
         const streamSaver = await import('streamsaver')
         const writableStream = streamSaver.createWriteStream(name + '.' + ext[0])
         this.writer = writableStream.getWriter()
@@ -1292,19 +1111,6 @@ let streamedFetchListening = false
  */
 let capStreamedFetch: StreamedFetchPlugin | undefined
 
-if (isTauri) {
-    listen('streamed_fetch', (event) => {
-        try {
-            const parsed = JSON.parse(event.payload as string)
-            const id = parsed.id
-            nativeFetchData[id]?.push(parsed)
-        } catch (error) {
-            console.error(error)
-        }
-    }).then((v) => {
-        streamedFetchListening = true
-    })
-}
 
 /**
  * A class to manage a buffer that can be appended to and deappended from.
@@ -1466,7 +1272,7 @@ export async function fetchNative(url: string, arg: {
     }
 
     const db = getDatabase()
-    let throughProxy = (!isTauri) && (!isNodeServer) && (!db.usePlainFetch)
+    let throughProxy = false
     let fetchLogIndex = addFetchLog({
         body: new TextDecoder().decode(realBody),
         headers: arg.headers,
@@ -1484,101 +1290,6 @@ export async function fetchNative(url: string, arg: {
             signal: arg.signal
         })
     }
-    else if (isTauri) {
-        fetchIndex++
-        if (arg.signal && arg.signal.aborted) {
-            throw new Error('aborted')
-        }
-        if (fetchIndex >= 100000) {
-            fetchIndex = 0
-        }
-        let fetchId = fetchIndex.toString().padStart(5, '0')
-        nativeFetchData[fetchId] = []
-        let resolved = false
-
-        let error = ''
-        while (!streamedFetchListening) {
-            await sleep(100)
-        }
-        if (isTauri) {
-            invoke('streamed_fetch', {
-                id: fetchId,
-                url: url,
-                headers: JSON.stringify(headers),
-                body: realBody ? Buffer.from(realBody).toString('base64') : '',
-                method: arg.method
-            }).then((res) => {
-                try {
-                    const parsedRes = JSON.parse(res as string)
-                    if (!parsedRes.success) {
-                        error = parsedRes.body
-                        resolved = true
-                    }
-                } catch (e) {
-                    error = JSON.stringify(e)
-                    resolved = true
-                }
-            })
-        }
-        else if (capStreamedFetch) {
-            capStreamedFetch.streamedFetch({
-                id: fetchId,
-                url: url,
-                headers: headers,
-                body: realBody ? Buffer.from(realBody).toString('base64') : '',
-            }).then((res) => {
-                if (!res.success) {
-                    error = res.error
-                    resolved = true
-                }
-            })
-        }
-
-        let resHeaders: { [key: string]: string } = null
-        let status = 400
-
-        let readableStream = pipeFetchLog(fetchLogIndex, new ReadableStream<Uint8Array>({
-            async start(controller) {
-                while (!resolved || nativeFetchData[fetchId].length > 0) {
-                    if (nativeFetchData[fetchId].length > 0) {
-                        const data = nativeFetchData[fetchId].shift()
-                        if (data.type === 'chunk') {
-                            const chunk = Buffer.from(data.body, 'base64')
-                            controller.enqueue(chunk as unknown as Uint8Array)
-                        }
-                        if (data.type === 'headers') {
-                            resHeaders = data.body
-                            status = data.status
-                        }
-                        if (data.type === 'end') {
-                            resolved = true
-                        }
-                    }
-                    await sleep(10)
-                }
-                controller.close()
-            }
-        }))
-
-        while (resHeaders === null && !resolved) {
-            await sleep(10)
-        }
-
-        if (resHeaders === null) {
-            resHeaders = {}
-        }
-
-        if (error !== '') {
-            throw new Error(error)
-        }
-
-        return new Response(readableStream, {
-            headers: new Headers(resHeaders),
-            status: status
-        })
-
-
-    }
     else if (throughProxy) {
 
         const r = await fetch(hubURL + `/proxy2`, {
@@ -1588,13 +1299,13 @@ export async function fetchNative(url: string, arg: {
                 "risu-url": encodeURIComponent(url),
                 "Content-Type": "application/json",
                 "x-risu-tk": "use",
-                ...(isNodeServer && localStorage.getItem('risuauth') ? { "risu-auth": localStorage.getItem('risuauth') } : {}),
+                ...(localStorage.getItem('risuauth') ? { "risu-auth": localStorage.getItem('risuauth') } : {}),
                 ...(DBState?.db?.requestLocation && { "risu-location": DBState.db.requestLocation }),
             } : {
                 "risu-header": encodeURIComponent(JSON.stringify(headers)),
                 "risu-url": encodeURIComponent(url),
                 "Content-Type": "application/json",
-                ...(isNodeServer && localStorage.getItem('risuauth') ? { "risu-auth": localStorage.getItem('risuauth') } : {}),
+                ...(localStorage.getItem('risuauth') ? { "risu-auth": localStorage.getItem('risuauth') } : {}),
                 ...(DBState?.db?.requestLocation && { "risu-location": DBState.db.requestLocation }),
             },
             method: arg.method,
@@ -1692,9 +1403,7 @@ export class BlankWriter {
 
 export async function loadInternalBackup() {
 
-    const keys = isTauri ? (await readDir('database', { baseDir: BaseDirectory.AppData })).map((v) => {
-        return v.name
-    }) : (await forageStorage.keys())
+    const keys = await forageStorage.keys()
     let internalBackups: string[] = []
     for (const key of keys) {
         if (key.includes('dbbackup-')) {
@@ -1719,9 +1428,7 @@ export async function loadInternalBackup() {
 
     const selectedBackup = internalBackups[alertResult]
 
-    const data = isTauri ? (
-        await readFile('database/' + selectedBackup, { baseDir: BaseDirectory.AppData })
-    ) : (await forageStorage.getItem(selectedBackup))
+    const data = await forageStorage.getItem(selectedBackup)
 
     setDatabase(
         await decodeRisuSave(Buffer.from(data) as unknown as Uint8Array)

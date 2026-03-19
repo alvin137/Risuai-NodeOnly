@@ -2,7 +2,6 @@ import { get } from "svelte/store"
 import { parseChatML } from "../parser/chatML";
 import { getDatabase, type character, type customscript, type groupChat } from "../storage/database.svelte"
 import { globalFetch } from "../globalApi.svelte"
-import { isTauri, isNodeServer } from "src/ts/platform"
 import { alertError } from "../alert"
 import { requestChatData } from "../process/request/request"
 import { doingChat, type OpenAIChat } from "../process/index.svelte"
@@ -178,7 +177,7 @@ async function translateMain(text:string, arg:{from:string, to:string, host:stri
     }
     if(db.useExperimentalGoogleTranslator){
 
-        const hqAvailable = isTauri || isNodeServer || userScriptFetch
+        const hqAvailable = true
 
         if(hqAvailable){
             try {

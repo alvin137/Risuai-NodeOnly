@@ -9,7 +9,6 @@
     import NumberInput from "src/lib/UI/GUI/NumberInput.svelte";
     import { alertNormal, alertSelect } from "src/ts/alert";
     import { downloadFile } from "src/ts/globalApi.svelte";
-    import { isTauri } from "src/ts/platform"
     import { languageEnglish } from "src/lang/en";
     import TextInput from "src/lib/UI/GUI/TextInput.svelte";
     import TextAreaInput from "src/lib/UI/GUI/TextAreaInput.svelte";
@@ -96,9 +95,6 @@
     </SelectInput>
 
     {#if DBState.db.translatorType === 'deepl'}
-        {#if !isTauri}
-            <span class="text-draculared text-xs ml-2">{language.webdeeplwarn}</span>
-        {/if}
         <span class="text-textcolor mt-4">{language.deeplKey}</span>
         <TextInput bind:value={DBState.db.deeplOptions.key} />
 

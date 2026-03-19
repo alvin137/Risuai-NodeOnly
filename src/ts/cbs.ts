@@ -1869,7 +1869,7 @@ export function registerCBS(arg:CBSRegisterArg) {
                     return isMobile ? '1' : '0'
                 }
                 case 'local':{
-                    return isTauri ? '1' : '0'
+                    return '0'
                 }
                 case 'node':{
                     return isNodeServer ? '1' : '0'
@@ -1920,7 +1920,7 @@ export function registerCBS(arg:CBSRegisterArg) {
                     return '🫖'
                 }
                 case 'risutype':{
-                    return isTauri ? 'local' : isNodeServer ? 'node' : 'web'
+                    return 'node'
                 }
                 case 'maxcontext':{
                     return db.maxContext.toString()

@@ -1,13 +1,4 @@
-import {
-    writeFile,
-    BaseDirectory,
-    readFile,
-    exists,
-    mkdir,
-    remove
-} from "@tauri-apps/plugin-fs"
 import { forageStorage } from "../globalApi.svelte"
-import { isTauri, isNodeServer } from "src/ts/platform"
 import { DBState } from "../stores.svelte"
 import type { NodeStorage } from "../storage/nodeStorage"
 import { fetchProtectedResource } from "../sionyw"
@@ -43,7 +34,7 @@ async function getColdStorageItem(key:string) {
         }
         return null
     }
-    else if(isNodeServer){
+    else{
         try {
             const storage = forageStorage.realStorage as NodeStorage
             const f = await storage.getItem('coldstorage/' + key)
@@ -54,36 +45,6 @@ async function getColdStorageItem(key:string) {
             return JSON.parse(text)
         }
         catch (error) {
-            return null
-        }
-    }
-    else if(isTauri){
-        try {
-            const f = await readFile('./coldstorage/'+key+'.json', {
-                baseDir: BaseDirectory.AppData
-            })
-            const text = new TextDecoder().decode(await decompress(new Uint8Array(f)))
-            return JSON.parse(text)
-        } catch (error) {
-            return null
-        }
-    }
-    else{
-        //use opfs
-        try {
-            const opfs = await navigator.storage.getDirectory()
-            const file = await opfs.getFileHandle('coldstorage_' + key+'.json')
-            if(!file){
-                return null
-            }
-            const d = await file.getFile()
-            if(!d){
-                return null
-            }
-            const buf = await d.arrayBuffer()
-            const text = new TextDecoder().decode(await decompress(new Uint8Array(buf)))
-            return JSON.parse(text)
-        } catch (error) {
             return null
         }
     }
@@ -119,7 +80,7 @@ async function setColdStorageItem(key:string, value:any) {
         }
         return
     }
-    else if(isNodeServer){
+    else{
         try {
             const storage = forageStorage.realStorage as NodeStorage
             await storage.setItem('coldstorage/' + key, compressed)
@@ -128,48 +89,10 @@ async function setColdStorageItem(key:string, value:any) {
             console.error(error)
         }
     }
-
-    else if(isTauri){
-        try {
-            if(!(await exists('./coldstorage'))){
-                await mkdir('./coldstorage', { recursive: true, baseDir: BaseDirectory.AppData })
-            }
-            await writeFile('./coldstorage/'+key+'.json', compressed, { baseDir: BaseDirectory.AppData })
-        } catch (error) {
-            console.error(error)
-        }
-    }
-    else{
-        //use opfs
-        try {
-            const opfs = await navigator.storage.getDirectory()
-            const file = await opfs.getFileHandle('coldstorage_' + key+'.json', { create: true })
-            const writable = await file.createWritable()
-            await writable.write(compressed as any)
-            await writable.close()
-        } catch (error) {
-            console.error(error)
-        }
-    }
 }
 
 async function removeColdStorageItem(key:string) {
-    if(isTauri){
-        try {
-            await remove('./coldstorage/'+key+'.json')
-        } catch (error) {
-            console.error(error)
-        }
-    }
-    else{
-        //use opfs
-        try {
-            const opfs = await navigator.storage.getDirectory()
-            await opfs.removeEntry('coldstorage_' + key+'.json')
-        } catch (error) {
-            console.error(error)
-        }
-    }
+    // no-op for node server
 }
 
 export async function makeColdData(){

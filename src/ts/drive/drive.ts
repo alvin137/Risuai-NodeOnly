@@ -1,10 +1,7 @@
 import { alertError, alertInput, alertNormal, alertSelect, alertStore } from "../alert";
 import { getDatabase, type Database } from "../storage/database.svelte";
 import { forageStorage, getUncleanables, openURL } from "../globalApi.svelte";
-import { isTauri } from "src/ts/platform"
-import { BaseDirectory, exists, readFile, readDir, writeFile } from "@tauri-apps/plugin-fs";
 import { language } from "../../lang";
-import { relaunch } from '@tauri-apps/plugin-process';
 import { sleep } from "../util";
 import { hubURL } from "../characterCards";
 import { decodeRisuSave, encodeRisuSaveLegacy } from "../storage/risuSave";
@@ -28,12 +25,7 @@ export async function checkDriver(type:'save'|'load'|'loadtauri'|'savetauri'|'re
     else{
         
         try {
-            if(isTauri){
-                openURL(authorizationUrl)
-            }
-            else{
-                window.open(authorizationUrl)
-            }
+            window.open(authorizationUrl)
             let code = await alertInput(language.pasteAuthCode)
             if(code.includes(' ')){
                 code = code.substring(code.lastIndexOf(' ')).trim()
@@ -126,41 +118,20 @@ async function backupDrive(ACCESS_TOKEN:string) {
         return d.name
     })
 
-    if(isTauri){
-        const assets = await readDir('assets', {baseDir: BaseDirectory.AppData})
-        let i = 0;
-        for(let asset of assets){
-            i += 1;
-            alertStore.set({
-                type: "wait",
-                msg: `Uploading Backup... (${i} / ${assets.length})`
-            })
-            const key = asset.name
-            if(!key || !key.endsWith('.png')){
-                continue
-            }
-            const formatedKey = newFormatKeys(key)
-            if(!fileNames.includes(formatedKey)){
-                await createFileInFolder(ACCESS_TOKEN, formatedKey, await readFile('assets/' + asset.name, {baseDir: BaseDirectory.AppData}))
-            }
-        }
-    }
-    else{
-        const keys = await forageStorage.keys()
+    const keys = await forageStorage.keys()
 
-        for(let i=0;i<keys.length;i++){
-            alertStore.set({
-                type: "wait",
-                msg: `Uploading Backup... (${i} / ${keys.length})`
-            })
-            const key = keys[i]
-            if(!key.endsWith('.png')){
-                continue
-            }
-            const formatedKey = newFormatKeys(key)
-            if(!fileNames.includes(formatedKey)){
-                await createFileInFolder(ACCESS_TOKEN, formatedKey, await forageStorage.getItem(key) as unknown as Uint8Array)
-            }
+    for(let i=0;i<keys.length;i++){
+        alertStore.set({
+            type: "wait",
+            msg: `Uploading Backup... (${i} / ${keys.length})`
+        })
+        const key = keys[i]
+        if(!key.endsWith('.png')){
+            continue
+        }
+        const formatedKey = newFormatKeys(key)
+        if(!fileNames.includes(formatedKey)){
+            await createFileInFolder(ACCESS_TOKEN, formatedKey, await forageStorage.getItem(key) as unknown as Uint8Array)
         }
     }
 
@@ -199,16 +170,11 @@ async function loadDrive(ACCESS_TOKEN:string, mode: 'backup'|'sync'):Promise<voi
         if(db?.account?.useSync){
             return false
         }
-        if(isTauri){
-            return await exists(`assets/` + images, {baseDir: BaseDirectory.AppData})
+        if(!loadedForageKeys){
+            foragekeys = await forageStorage.keys()
+            loadedForageKeys = true
         }
-        else{
-            if(!loadedForageKeys){
-                foragekeys = await forageStorage.keys()
-                loadedForageKeys = true
-            }
-            return foragekeys.includes('assets/' + images)
-        }
+        return foragekeys.includes('assets/' + images)
     }
     const fileNames = files.map((d) => {
         return d.name
@@ -310,13 +276,7 @@ async function loadDrive(ACCESS_TOKEN:string, mode: 'backup'|'sync'):Promise<voi
                             for(const file of files){
                                 if(file.name === formatedImage){
                                     const fData = await getFileData(ACCESS_TOKEN, file.id)
-                                    if(isTauri){
-                                        await writeFile(`assets/` + images, fData ,{baseDir: BaseDirectory.AppData})
-        
-                                    }
-                                    else{
-                                        await forageStorage.setItem('assets/' + images, fData)
-                                    }
+                                    await forageStorage.setItem('assets/' + images, fData)
                                     tries = 3
                                 }
                             }
@@ -335,22 +295,12 @@ async function loadDrive(ACCESS_TOKEN:string, mode: 'backup'|'sync'):Promise<voi
         db.didFirstSetup = true
         const dbData = encodeRisuSaveLegacy(db, 'compression')
 
-        if(isTauri){
-            await writeFile('database/database.bin', dbData, {baseDir: BaseDirectory.AppData})
-            relaunch()
-            alertStore.set({
-                type: "wait",
-                msg: "Success, Refreshing your app."
-            })
-        }
-        else{
-            await forageStorage.setItem('database/database.bin', dbData)
-            location.search = ''
-            alertStore.set({
-                type: "wait",
-                msg: "Success, Refreshing your app."
-            })
-        }
+        await forageStorage.setItem('database/database.bin', dbData)
+        location.search = ''
+        alertStore.set({
+            type: "wait",
+            msg: "Success, Refreshing your app."
+        })
     }
     else if(mode === 'backup'){
         location.search = ''

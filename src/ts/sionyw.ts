@@ -1,8 +1,7 @@
 import { hubURL } from "./characterCards";
 import { fetchNative } from "./globalApi.svelte";
 import { DBState } from "./stores.svelte";
-import { readFile, BaseDirectory, writeFile } from "@tauri-apps/plugin-fs";
-import { isTauri } from "src/ts/platform"
+const BaseDirectory = { AppData: 0 } as const;
 import * as client from 'openid-client'
 import { getKeypairStore, saveKeypairStore } from "./util";
 
@@ -63,7 +62,7 @@ export async function fetchProtectedResource(url: string, options: RequestInit =
     return fetchProtectedResourceSPA(url, options, arg)
 }
 
-const readFileInsecure = isTauri ? readFile : (path:string, options:any) => {
+const readFileInsecure = (path:string, options:any) => {
     const data = localStorage.getItem(path)
     if(!data){
         throw new Error("File not found")
@@ -71,7 +70,7 @@ const readFileInsecure = isTauri ? readFile : (path:string, options:any) => {
     return Buffer.from(data, 'base64')
 }
 
-const writeFileUnSecure = isTauri ? writeFile : (path:string, data:Uint8Array, options:any) => {
+const writeFileUnSecure = (path:string, data:Uint8Array, options:any) => {
     localStorage.setItem(path, Buffer.from(data).toString('base64'))
 }
 
