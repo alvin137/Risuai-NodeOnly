@@ -490,6 +490,8 @@ const reverseProxyFunc = async (req, res, next) => {
         });
         return;
     }
+    let originalResponse;
+    try {
     const header = req.headers['risu-header'] ? JSON.parse(decodeURIComponent(req.headers['risu-header'])) : req.headers;
     if (req.headers['x-risu-tk'] && !header['x-risu-tk']) {
         header['x-risu-tk'] = req.headers['x-risu-tk'];
@@ -512,8 +514,6 @@ const reverseProxyFunc = async (req, res, next) => {
             header['authorization'] = `Bearer ${authCode}`
         }
     }
-    let originalResponse;
-    try {
         let requestBody = undefined;
         if (req.method !== 'GET' && req.method !== 'HEAD') {
             if (Buffer.isBuffer(req.body) || typeof req.body === 'string') {
@@ -571,6 +571,8 @@ const reverseProxyFunc_get = async (req, res, next) => {
         });
         return;
     }
+    let originalResponse;
+    try {
     const header = req.headers['risu-header'] ? JSON.parse(decodeURIComponent(req.headers['risu-header'])) : req.headers;
     if (req.headers['x-risu-tk'] && !header['x-risu-tk']) {
         header['x-risu-tk'] = req.headers['x-risu-tk'];
@@ -581,8 +583,6 @@ const reverseProxyFunc_get = async (req, res, next) => {
     if(!header['x-forwarded-for']){
         header['x-forwarded-for'] = req.ip
     }
-    let originalResponse;
-    try {
         // make request to original server
         originalResponse = await fetch(urlParam, {
             method: 'GET',
