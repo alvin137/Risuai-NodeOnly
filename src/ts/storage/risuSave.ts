@@ -669,7 +669,7 @@ export function calculateHash(node: any): number {
     }
 }
 
-export function normalizeJSON(value: any): any {
+export function normalizeJSON(value: any, seen?: WeakSet<object>): any {
     if (value === null || value === undefined) return null;
     if (typeof value !== 'object') {
         if (typeof value === 'number' && !isFinite(value)) return null;
@@ -681,13 +681,19 @@ export function normalizeJSON(value: any): any {
     }
     if (value instanceof Date) return value.toISOString();
     if (value instanceof RegExp || value instanceof Error) return {};
+    if (!seen) seen = new WeakSet();
+    if (seen.has(value)) {
+        console.warn('[normalizeJSON] Circular reference detected and replaced with null')
+        return null;
+    }
+    seen.add(value);
     if (Array.isArray(value)) {
         const result: any[] = [];
         for (const item of value) {
             if (item === undefined) {
                 result.push(null);
             } else {
-                const normalized = normalizeJSON(item);
+                const normalized = normalizeJSON(item, seen);
                 result.push(normalized === undefined ? null : normalized);
             }
         }
@@ -698,7 +704,7 @@ export function normalizeJSON(value: any): any {
         if (Object.prototype.hasOwnProperty.call(value, key)) {
             const propValue = value[key];
             if (propValue !== undefined) {
-                const normalized = normalizeJSON(propValue);
+                const normalized = normalizeJSON(propValue, seen);
                 if (normalized !== undefined)
                     result[key] = normalized;
             }

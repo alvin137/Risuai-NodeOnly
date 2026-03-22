@@ -382,7 +382,9 @@ export async function saveDb() {
             saveTimeoutExecute()
         })
         $effect(() => {
-            $state.snapshot(DBState.db.modules)
+            try { $state.snapshot(DBState.db.modules) } catch (e) {
+                console.warn('[Save] $state.snapshot(modules) failed, possible circular reference in module data:', e)
+            }
             if (!didInitModulesEffect) {
                 didInitModulesEffect = true
                 return

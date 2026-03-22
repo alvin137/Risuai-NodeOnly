@@ -10,7 +10,7 @@ import { isIOS } from "./platform";
  */
 
 const rfdcClone = rfdc({
-  circles:false,
+  circles:true,
 })
 function safeStructuredClone<T>(data:T):T{
   try {

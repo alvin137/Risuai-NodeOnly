@@ -169,7 +169,9 @@ $effect.root(() => {
         }
     })
     $effect(() => {
-        $state.snapshot(DBState.db.modules)
+        try { $state.snapshot(DBState.db.modules) } catch (e) {
+            console.warn('[ModuleUpdate] $state.snapshot(modules) failed, possible circular reference in module data:', e)
+        }
         DBState?.db?.enabledModules
         DBState?.db?.enabledModules?.length
         DBState?.db?.characters?.[selIdState.selId]?.chats?.[DBState?.db?.characters?.[selIdState.selId]?.chatPage]?.modules?.length
