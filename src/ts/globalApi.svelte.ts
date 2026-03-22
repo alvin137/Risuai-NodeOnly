@@ -1572,29 +1572,40 @@ export async function fetchNative(url: string, arg: {
         })
     }
 
-    const proxyHeaders: Record<string, string> = {
-        "risu-header": encodeURIComponent(JSON.stringify(headers)),
-        "risu-url": encodeURIComponent(url),
-        "risu-auth": await forageStorage.createAuth(),
-        ...(arg.useRisuTk ? { "x-risu-tk": "use" } : {}),
-        ...(DBState?.db?.requestLocation ? { "risu-location": DBState.db.requestLocation } : {}),
+    // Try direct fetch first (upstream behavior), fall back to proxy on CORS/network error
+    try {
+        return await fetch(url, {
+            body: realBody as any,
+            headers: headers,
+            method: arg.method,
+            signal: arg.signal,
+        })
+    } catch (e) {
+        if (arg.signal?.aborted) throw e
+        const proxyHeaders: Record<string, string> = {
+            "risu-header": encodeURIComponent(JSON.stringify(headers)),
+            "risu-url": encodeURIComponent(url),
+            "risu-auth": await forageStorage.createAuth(),
+            ...(arg.useRisuTk ? { "x-risu-tk": "use" } : {}),
+            ...(DBState?.db?.requestLocation ? { "risu-location": DBState.db.requestLocation } : {}),
+        }
+
+        if (realBody) {
+            proxyHeaders["Content-Type"] = headers["Content-Type"] ?? headers["content-type"] ?? "application/octet-stream"
+        }
+
+        const r = await fetch(`/proxy2`, {
+            body: realBody as any,
+            headers: proxyHeaders,
+            method: arg.method,
+            signal: arg.signal
+        })
+
+        return new Response(r.body, {
+            headers: r.headers,
+            status: r.status
+        })
     }
-
-    if (realBody) {
-        proxyHeaders["Content-Type"] = headers["Content-Type"] ?? headers["content-type"] ?? "application/octet-stream"
-    }
-
-    const r = await fetch(`/proxy2`, {
-        body: realBody as any,
-        headers: proxyHeaders,
-        method: arg.method,
-        signal: arg.signal
-    })
-
-    return new Response(r.body, {
-        headers: r.headers,
-        status: r.status
-    })
 }
 
 /**
