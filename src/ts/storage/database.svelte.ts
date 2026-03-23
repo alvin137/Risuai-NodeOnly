@@ -754,7 +754,17 @@ function getEnabledModuleDefinitions(db:Database, char:character|groupChat, chat
     return modules
 }
 
-export function getDefinedPromptToggleKeys(db:Database, char:character|groupChat, chat:Chat){
+
+// ─────────────────────────────────────────────────────────────────────
+// Toggle Preset
+// ─────────────────────────────────────────────────────────────────────
+
+export interface TogglePreset {
+    name: string
+    values: Record<string, string>   // toggle_key → value
+}
+
+export function getToggleKeys(db:Database = getDatabase(), char:character|groupChat = getCurrentCharacter(), chat:Chat = getCurrentChat()):string[]{
     const moduleToggleTemplate = getEnabledModuleDefinitions(db, char, chat)
         .map((module) => module.customModuleToggle ?? '')
         .filter(Boolean)
@@ -762,7 +772,8 @@ export function getDefinedPromptToggleKeys(db:Database, char:character|groupChat
     return parseToggleKeysFromTemplate(`${db.customPromptTemplateToggle ?? ''}\n${moduleToggleTemplate}`)
 }
 
-export function snapshotPromptToggleValues(db:Database, keys:string[]){
+export function snapshotToggleValues(db:Database = getDatabase()):Record<string, string>{
+    const keys = getToggleKeys(db)
     const values:Record<string, string> = {}
     for(const key of keys){
         const value = db.globalChatVariables[key]
@@ -773,7 +784,8 @@ export function snapshotPromptToggleValues(db:Database, keys:string[]){
     return values
 }
 
-export function applyPromptToggleValues(db:Database, values:Record<string, string>, keys:string[]){
+export function applyToggleValues(values:Record<string, string>, db:Database = getDatabase()):void{
+    const keys = getToggleKeys(db)
     for(const key of keys){
         const value = values[key]
         if(value === undefined){
@@ -784,127 +796,15 @@ export function applyPromptToggleValues(db:Database, values:Record<string, strin
     }
 }
 
-export function getCurrentPresetName(db:Database = getDatabase()){
-    const preset = db.botPresets[db.botPresetsId]
-    return preset?.name || `Preset ${db.botPresetsId}`
-}
-
-function normalizePromptOptionState(chat:Chat, db:Database, char:character|groupChat){
-    chat.modules ??= []
-    const keys = getDefinedPromptToggleKeys(db, char, chat)
-    const currentState = chat.promptOptionState
-    const normalizedValues:Record<string, string> = {}
-    for(const key of keys){
-        const value = currentState?.toggleValues?.[key]
-        if(value !== undefined){
-            normalizedValues[key] = value
-        }
-    }
-
-    if(!currentState){
-        chat.promptOptionState = {
-            version: 1,
-            toggleValues: snapshotPromptToggleValues(db, keys),
-            updatedAt: Date.now(),
-            sourcePresetId: null
-        }
-        return true
-    }
-
-    const changed =
-        currentState.version !== 1 ||
-        JSON.stringify(currentState.toggleValues ?? {}) !== JSON.stringify(normalizedValues)
-
-    if(changed){
-        chat.promptOptionState = {
-            version: 1,
-            toggleValues: normalizedValues,
-            updatedAt: Date.now(),
-            sourcePresetId: currentState.sourcePresetId ?? null
-        }
-    }
-    return changed
-}
-
-export function initializeChatPromptOptionState(chat:Chat, char = getCurrentCharacter(), db = getDatabase()){
-    if(!char || !chat){
-        return chat
-    }
-    chat.modules ??= []
-    chat.supaMemory ??= char.supaMemory ?? false
-    if(chat.promptOptionState){
-        normalizePromptOptionState(chat, db, char)
-        return chat
-    }
-    const keys = getDefinedPromptToggleKeys(db, char, chat)
-    chat.promptOptionState = {
-        version: 1,
-        toggleValues: snapshotPromptToggleValues(db, keys),
-        updatedAt: Date.now(),
-        sourcePresetId: null
-    }
-    return chat
-}
-
-export function syncCurrentChatPromptOptionState(){
-    const db = getDatabase()
-    const char = getCurrentCharacter()
+export function saveTogglesToChat():void{
     const chat = getCurrentChat()
-    if(!char || !chat){
-        return
-    }
-    chat.modules ??= []
-    const keys = getDefinedPromptToggleKeys(db, char, chat)
-    const values = snapshotPromptToggleValues(db, keys)
-    const presetName = getCurrentPresetName(db)
-    const presetToggleValues = { ...(chat.promptOptionState?.presetToggleValues ?? {}) }
-    presetToggleValues[presetName] = values
-    chat.promptOptionState = {
-        version: 1,
-        toggleValues: values,
-        presetToggleValues,
-        updatedAt: Date.now(),
-        sourcePresetId: chat.promptOptionState?.sourcePresetId ?? null
-    }
-    char.chats[char.chatPage] = chat
+    if(!chat) return
+    chat.savedToggleValues = snapshotToggleValues()
 }
 
-export function applyCurrentChatPromptOptionState(){
-    const db = getDatabase()
-    const char = getCurrentCharacter()
-    const chat = getCurrentChat()
-    if(!char || !chat){
-        return
-    }
-    normalizePromptOptionState(chat, db, char)
-    const keys = getDefinedPromptToggleKeys(db, char, chat)
-    const presetName = getCurrentPresetName(db)
-    const presetValues = chat.promptOptionState?.presetToggleValues?.[presetName]
-    const values = presetValues ?? chat.promptOptionState?.toggleValues ?? {}
-    applyPromptToggleValues(db, values, keys)
-}
-
-export function applyBoundPreset(chat:Chat){
-    if(!chat.boundPresetName){
-        return
-    }
-    const db = getDatabase()
-    const presetIndex = db.botPresets.findIndex(p => p.name === chat.boundPresetName)
-    if(presetIndex >= 0 && presetIndex !== db.botPresetsId){
-        changeToPreset(presetIndex, true, false)
-    }
-}
-
-export function migratePromptOptionStates(data: Database) {
-    for (const char of data.characters) {
-        if (!char) continue
-        char.modules ??= []
-        for (const chat of char.chats ?? []) {
-            if (!chat) continue
-            normalizePromptOptionState(chat, data, char)
-            chat.supaMemory ??= char.supaMemory ?? false
-        }
-    }
+export function loadTogglesFromChat(chat:Chat):void{
+    if(!chat?.savedToggleValues) return
+    applyToggleValues(chat.savedToggleValues)
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -971,6 +871,7 @@ export interface Database{
     waifuWidth2:number
     botPresets:botPreset[]
     botPresetsId:number
+    togglePresets?:TogglePreset[]
     sdProvider: string
     webUiUrl:string
     sdSteps:number
@@ -1876,14 +1777,6 @@ interface ComfyConfig{
 
 export type FormatingOrderItem = 'main'|'jailbreak'|'chats'|'lorebook'|'globalNote'|'authorNote'|'lastChat'|'description'|'postEverything'|'personaPrompt'
 
-export interface ChatPromptOptionState {
-    version: 1
-    toggleValues: Record<string, string>
-    presetToggleValues?: Record<string, Record<string, string>>
-    updatedAt?: number
-    sourcePresetId?: number | null
-}
-
 export interface Chat{
     message: Message[]
     note:string
@@ -1905,9 +1798,8 @@ export interface Chat{
     lastDate?:number
     bookmarks?: string[];
     bookmarkNames?: { [chatId: string]: string };
-    promptOptionState?: ChatPromptOptionState
     supaMemory?: boolean
-    boundPresetName?: string
+    savedToggleValues?: Record<string, string>
 }
 
 export interface ChatFolder{
@@ -2207,10 +2099,7 @@ export function copyPreset(id:number){
     setDatabase(db)
 }
 
-export function changeToPreset(id =0, savecurrent = true, syncToggle = true){
-    if(syncToggle){
-        syncCurrentChatPromptOptionState()
-    }
+export function changeToPreset(id =0, savecurrent = true){
     if(savecurrent){
         saveCurrentPreset()
     }
@@ -2220,7 +2109,10 @@ export function changeToPreset(id =0, savecurrent = true, syncToggle = true){
     db.botPresetsId = id
     db = setPreset(db, newPres)
     setDatabase(db)
-    applyCurrentChatPromptOptionState()
+    const chat = getCurrentChat()
+    if(chat){
+        loadTogglesFromChat(chat)
+    }
 }
 
 export function setPreset(db:Database, newPres: botPreset){

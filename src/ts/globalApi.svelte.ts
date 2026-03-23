@@ -2,7 +2,7 @@ import { changeFullscreen, checkNullish, sleep } from "./util"
 import { v4 as uuidv4, v4 } from 'uuid';
 import { tick } from "svelte";
 import { get } from "svelte/store";
-import { setDatabase, type Database, defaultSdDataFunc, getDatabase, appVer, nodeOnlyVer, getCurrentCharacter, migratePromptOptionStates, syncCurrentChatPromptOptionState, applyCurrentChatPromptOptionState, applyBoundPreset } from "./storage/database.svelte";
+import { setDatabase, type Database, defaultSdDataFunc, getDatabase, appVer, nodeOnlyVer, getCurrentCharacter, loadTogglesFromChat } from "./storage/database.svelte";
 import { checkRisuUpdate } from "./update";
 import { MobileGUI, botMakerMode, selectedCharID, loadedStore, DBState, LoadingStatusState, selIdState, ReloadGUIPointer, bodyIntercepterStore } from "./stores.svelte";
 import { loadPlugins } from "./plugins/plugins.svelte";
@@ -1716,7 +1716,6 @@ export async function loadInternalBackup() {
 
     const backupDecoded = await decodeRisuSave(Buffer.from(data) as unknown as Uint8Array)
     setDatabase(backupDecoded)
-    migratePromptOptionStates(backupDecoded)
 
     alertNormal('Loaded backup')
 
@@ -2057,13 +2056,11 @@ export function changeChatTo(IdOrIndex: string | number) {
         return
     }
 
-    syncCurrentChatPromptOptionState()
     DBState.db.characters[selIdState.selId].chatPage = index
     const newChat = DBState.db.characters[selIdState.selId].chats[index]
     if(newChat){
-        applyBoundPreset(newChat)
+        loadTogglesFromChat(newChat)
     }
-    applyCurrentChatPromptOptionState()
     ReloadGUIPointer.set(Math.random())
 }
 

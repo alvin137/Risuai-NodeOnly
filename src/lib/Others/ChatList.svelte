@@ -9,7 +9,6 @@
     import { findCharacterbyId } from "../../ts/util";
     import TextInput from "../UI/GUI/TextInput.svelte";
     import { changeChatTo, requestImmediateSave } from "src/ts/globalApi.svelte";
-    import { initializeChatPromptOptionState } from "../../ts/storage/database.svelte";
     import { v4 } from "uuid";
 
     let editMode = $state(false)
@@ -77,9 +76,9 @@
                 const cha = DBState.db.characters[$selectedCharID]
                 const len = DBState.db.characters[$selectedCharID].chats.length
                 let chats = DBState.db.characters[$selectedCharID].chats
-                const newChat = initializeChatPromptOptionState({
+                const newChat = {
                     message:[], note:'', name:`New Chat ${len + 1}`, localLore:[], fmIndex: -1, id: v4()
-                }, cha)
+                }
                 chats.unshift(newChat)
                 if(cha.type === 'group'){
                     cha.characters.map((c) => {
