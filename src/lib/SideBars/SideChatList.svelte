@@ -413,10 +413,6 @@
                                 }
                                 break
                             }
-                            case 2:{
-                                changeChatTo(i)
-                                createMultiuserRoom()
-                            }
                         }
                     }}>
                         <MenuIcon size={18}/>
