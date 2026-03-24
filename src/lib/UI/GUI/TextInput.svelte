@@ -31,6 +31,7 @@
         disabled={disabled}
         oninput={oninput}
         onchange={onchange}
+        onkeydown={onkeydown}
         list={list}
     />
 {:else}
@@ -64,6 +65,7 @@
         disabled={disabled}
         oninput={oninput}
         onchange={onchange}
+        onkeydown={onkeydown}
     />
 {/if}
 
@@ -83,6 +85,7 @@
         marginTop?: boolean;
         oninput?: FormEventHandler<HTMLInputElement>
         onchange?: FormEventHandler<HTMLInputElement>;
+        onkeydown?: (event: KeyboardEvent) => any;
         fullwidth?: boolean;
         fullh?: boolean;
         className?: string;
@@ -102,6 +105,7 @@
         marginTop = false,
         oninput,
         onchange,
+        onkeydown,
         fullwidth = false,
         fullh = false,
         className = '',

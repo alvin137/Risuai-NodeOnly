@@ -5,10 +5,10 @@
     import { language } from "src/lang";
     import type { PromptItem } from "src/ts/process/prompt";
     import type { character, groupChat } from "src/ts/storage/database.svelte";
-    import { getCurrentChat, snapshotToggleValues, applyToggleValues, saveTogglesToChat, type TogglePreset } from "src/ts/storage/database.svelte";
-    import { alertInput, alertConfirm, alertNormal, alertTogglePresets } from "src/ts/alert";
+    import { getCurrentChat, snapshotToggleValues, saveTogglesToChat } from "src/ts/storage/database.svelte";
+    import { alertConfirm, alertNormal, alertTogglePresets } from "src/ts/alert";
     import { tooltip } from "src/ts/gui/tooltip";
-    import { PinIcon, SaveIcon, BookmarkIcon, FolderOpenIcon } from "@lucide/svelte";
+    import { PinIcon, SaveIcon, FolderHeartIcon } from "@lucide/svelte";
     import Accordion from '../UI/Accordion.svelte'
     import CheckInput from "../UI/GUI/CheckInput.svelte";
     import SelectInput from "../UI/GUI/SelectInput.svelte";
@@ -25,12 +25,19 @@
 
     let currentChat = $derived(DBState.db.characters[$selectedCharID]?.chats?.[DBState.db.characters[$selectedCharID]?.chatPage])
     let isPinned = $derived(!!currentChat?.savedToggleValues)
-    let isDirty = $derived.by(() => {
+    let dirtyCount = $derived.by(() => {
         const saved = currentChat?.savedToggleValues
-        if (!saved) return false
+        if (!saved) return 0
         const current = snapshotToggleValues()
-        return JSON.stringify(saved) !== JSON.stringify(current)
+        const allKeys = new Set([...Object.keys(saved), ...Object.keys(current)])
+        const norm = (v: string | undefined) => v ?? ''
+        let count = 0
+        for (const key of allKeys) {
+            if (norm(saved[key]) !== norm(current[key])) count++
+        }
+        return count
     })
+    let isDirty = $derived(dirtyCount > 0)
 
     async function pinToChat() {
         const chat = getCurrentChat()
@@ -51,17 +58,7 @@
         alertNormal(language.togglePinSaved)
     }
 
-    async function saveAsPreset() {
-        const name = await alertInput(language.togglePresetNamePrompt)
-        if (!name) return
-        DBState.db.togglePresets ??= []
-        DBState.db.togglePresets.push({
-            name,
-            values: snapshotToggleValues()
-        })
-    }
-
-    async function loadPreset() {
+    async function openPresetList() {
         await alertTogglePresets()
     }
 
@@ -96,6 +93,18 @@
         return templateUsesJailbreakToggle(template)
     })
 
+    function isToggleDirty(key: string): boolean {
+        const saved = currentChat?.savedToggleValues
+        if (!saved) return false
+        const fullKey = `toggle_${key}`
+        const current = DBState.db.globalChatVariables[fullKey] ?? undefined
+        const savedVal = saved[fullKey] ?? undefined
+        if (current === savedVal) return false
+        const norm = (v: string | undefined) => v ?? ''
+        return norm(current) !== norm(savedVal)
+    }
+
+
     let groupedToggles = $derived.by(() => {
         const ungrouped = parseToggleSyntax(DBState.db.customPromptTemplateToggle + getModuleToggles())
 
@@ -127,7 +136,7 @@
                 </Accordion>
             </div>
         {:else if toggle.type === 'select'}
-            <div class="w-full flex gap-2 mt-2 items-center" class:justify-end={$MobileGUI} >
+            <div class="w-full flex gap-2 mt-2 items-center rounded-md px-1 -mx-1 transition-colors" class:justify-end={$MobileGUI} class:bg-red-900={isToggleDirty(toggle.key)} class:bg-opacity-15={isToggleDirty(toggle.key)}>
                 <span>{toggle.value}</span>
                 <SelectInput className="w-32" bind:value={DBState.db.globalChatVariables[`toggle_${toggle.key}`]}>
                     {#each toggle.options as option, i}
@@ -136,12 +145,12 @@
                 </SelectInput>
             </div>
         {:else if toggle.type === 'text'}
-            <div class="w-full flex gap-2 mt-2 items-center" class:justify-end={$MobileGUI}>
+            <div class="w-full flex gap-2 mt-2 items-center rounded-md px-1 -mx-1 transition-colors" class:justify-end={$MobileGUI} class:bg-red-900={isToggleDirty(toggle.key)} class:bg-opacity-15={isToggleDirty(toggle.key)}>
                 <span>{toggle.value}</span>
                 <TextInput className="w-32" bind:value={DBState.db.globalChatVariables[`toggle_${toggle.key}`]} />
             </div>
         {:else if toggle.type === 'textarea'}
-            <div class="w-full flex gap-2 mt-2 items-start" class:justify-end={$MobileGUI}>
+            <div class="w-full flex gap-2 mt-2 items-start rounded-md px-1 -mx-1 transition-colors" class:justify-end={$MobileGUI} class:bg-red-900={isToggleDirty(toggle.key)} class:bg-opacity-15={isToggleDirty(toggle.key)}>
                 <span class="mt-1.5">{toggle.value}</span>
                 <TextAreaInput className="w-32" height='20' bind:value={DBState.db.globalChatVariables[`toggle_${toggle.key}`]} />
             </div>
@@ -160,7 +169,7 @@
                 </div>
             {/if}
         {:else}
-            <div class="w-full flex mt-2 items-center" class:justify-end={$MobileGUI}>
+            <div class="w-full flex mt-2 items-center rounded-md px-1 -mx-1 transition-colors" class:justify-end={$MobileGUI} class:bg-red-900={isToggleDirty(toggle.key)} class:bg-opacity-15={isToggleDirty(toggle.key)}>
                 <CheckInput check={DBState.db.globalChatVariables[`toggle_${toggle.key}`] === '1'} reverse={reverse} name={toggle.value} onChange={() => {
                     DBState.db.globalChatVariables[`toggle_${toggle.key}`] = DBState.db.globalChatVariables[`toggle_${toggle.key}`] === '1' ? '0' : '1'
                 }} />
@@ -177,10 +186,10 @@
             <PinIcon size={16} />
         </button>
         <button class="flex-1 min-w-0 flex items-center justify-center gap-1.5 py-2 px-4 rounded-md border text-md transition-colors shadow-xs"
-            class:bg-green-700={isDirty}
-            class:border-green-600={isDirty}
+            class:bg-red-900={isDirty}
+            class:border-red-800={isDirty}
             class:text-white={isDirty}
-            class:hover:bg-green-600={isDirty}
+            class:hover:bg-red-800={isDirty}
             class:cursor-pointer={isDirty}
             class:bg-darkbutton={!isDirty}
             class:border-darkborderc={!isDirty}
@@ -190,7 +199,7 @@
             use:tooltip={language.togglePinUpdate}
             onclick={isDirty ? updatePin : undefined}>
             <SaveIcon size={16} class="shrink-0" />
-            <span class="truncate">{language.togglePinUpdateLabel}</span>
+            <span class="truncate">{isDirty ? dirtyCount : language.togglePinUpdateLabel}</span>
         </button>
     {:else}
         <button class="flex-1 min-w-0 flex items-center justify-center gap-1.5 py-2 px-4 rounded-md border border-darkborderc bg-darkbutton hover:bg-selected text-textcolor2 text-md cursor-pointer transition-colors shadow-xs"
@@ -201,14 +210,9 @@
         </button>
     {/if}
     <button class="flex items-center justify-center px-3 rounded-md border border-darkborderc bg-darkbutton hover:bg-selected text-textcolor2 cursor-pointer transition-colors shadow-xs"
-        use:tooltip={language.toggleSaveAsPreset}
-        onclick={saveAsPreset}>
-        <BookmarkIcon size={16} />
-    </button>
-    <button class="flex items-center justify-center px-3 rounded-md border border-darkborderc bg-darkbutton hover:bg-selected text-textcolor2 cursor-pointer transition-colors shadow-xs"
-        use:tooltip={language.toggleLoadPreset}
-        onclick={loadPreset}>
-        <FolderOpenIcon size={16} />
+        use:tooltip={language.togglePresetList}
+        onclick={openPresetList}>
+        <FolderHeartIcon size={16} />
     </button>
 </div>
 

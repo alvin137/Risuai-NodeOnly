@@ -1,7 +1,7 @@
 import { get } from "svelte/store"
 import { alertMd, alertSelect, alertToast, alertWait, doingAlert, alertRequestLogs } from "./alert"
 import { changeToPreset as changeToPreset2, getDatabase  } from "./storage/database.svelte"
-import { alertStore, MobileGUIStack, MobileSideBar, openPersonaList, openPresetList, OpenRealmStore, PlaygroundStore, QuickSettings, SafeModeStore, selectedCharID, settingsOpen } from "./stores.svelte"
+import { alertStore, MobileGUIStack, MobileSideBar, openPersonaList, openPresetList, openHypaV3PresetList, OpenRealmStore, PlaygroundStore, QuickSettings, SafeModeStore, selectedCharID, settingsOpen } from "./stores.svelte"
 import { language } from "src/lang"
 import { updateTextThemeAndCSS } from "./gui/colorscheme"
 import { defaultHotkeys } from "./defaulthotkeys"
@@ -318,18 +318,26 @@ export function initHotkey(){
     }, true)
 }
 
-async function quickMenu(){
-    const selStr = await alertSelect([
+export async function quickMenu(){
+    const db = getDatabase()
+    const showHypaV3 = db.hypaV3 && db.hypaV3Presets?.length > 1
+
+    const options = [
         language.presets,
         language.persona,
+        ...(showHypaV3 ? [language.longTermMemory + ' ' + language.presets] : []),
         language.cancel
-    ])
-    const sel = parseInt(selStr)
+    ]
+
+    const sel = parseInt(await alertSelect(options))
     if(sel === 0){
         openPresetList.set(!get(openPresetList))
     }
     if(sel === 1){
         openPersonaList.set(!get(openPersonaList))
+    }
+    if(showHypaV3 && sel === 2){
+        openHypaV3PresetList.set(true)
     }
 }
 

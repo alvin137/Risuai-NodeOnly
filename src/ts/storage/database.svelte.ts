@@ -762,6 +762,7 @@ function getEnabledModuleDefinitions(db:Database, char:character|groupChat, chat
 export interface TogglePreset {
     name: string
     values: Record<string, string>   // toggle_key → value
+    promptPresetName?: string        // name of the prompt preset active when saved
 }
 
 export function getToggleKeys(db:Database = getDatabase(), char:character|groupChat = getCurrentCharacter(), chat:Chat = getCurrentChat()):string[]{
@@ -773,6 +774,16 @@ export function getToggleKeys(db:Database = getDatabase(), char:character|groupC
 }
 
 export function snapshotToggleValues(db:Database = getDatabase()):Record<string, string>{
+    const values:Record<string, string> = {}
+    for(const [key, value] of Object.entries(db.globalChatVariables)){
+        if(key.startsWith('toggle_') && value !== undefined){
+            values[key] = value
+        }
+    }
+    return values
+}
+
+export function snapshotCurrentToggleValues(db:Database = getDatabase()):Record<string, string>{
     const keys = getToggleKeys(db)
     const values:Record<string, string> = {}
     for(const key of keys){
@@ -786,6 +797,7 @@ export function snapshotToggleValues(db:Database = getDatabase()):Record<string,
 
 export function applyToggleValues(values:Record<string, string>, db:Database = getDatabase()):void{
     const keys = getToggleKeys(db)
+    // Apply current preset's keys (reset if not in saved values)
     for(const key of keys){
         const value = values[key]
         if(value === undefined){
@@ -793,6 +805,12 @@ export function applyToggleValues(values:Record<string, string>, db:Database = g
             continue
         }
         db.globalChatVariables[key] = value
+    }
+    // Restore orphan toggle values from other presets
+    for(const [key, value] of Object.entries(values)){
+        if(!keys.includes(key)){
+            db.globalChatVariables[key] = value
+        }
     }
 }
 
