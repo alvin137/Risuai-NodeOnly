@@ -12,7 +12,7 @@ import { decodeRisuSave, encodeRisuSaveLegacy } from "./storage/risuSave";
 import { updateAnimationSpeed } from "./gui/animation";
 import { updateColorScheme, updateTextThemeAndCSS } from "./gui/colorscheme";
 import { autoServerBackup } from "./kei/backup";
-import { changeLanguage, language } from "src/lang";
+import { applyEarlyLanguage, changeLanguage, language } from "src/lang";
 import { startObserveDom } from "./observer.svelte";
 import { updateGuisize } from "./gui/guisize";
 import { updateLorebooks } from "./characters";
@@ -39,6 +39,7 @@ export async function loadData() {
     const loaded = get(loadedStore)
     if (!loaded) {
         try {
+            applyEarlyLanguage()
             let createdFreshDatabase = false
             {
                 await forageStorage.Init()

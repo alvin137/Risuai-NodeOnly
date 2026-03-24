@@ -32,4 +32,16 @@ export function changeLanguage(lang:string){
     else{
         language = languageEnglish
     }
+    try { localStorage.setItem('risu-lang', lang) } catch {}
+}
+
+/**
+ * Apply cached language before DB is loaded.
+ * This allows pre-auth UI (e.g. password prompt) to appear in the user's language.
+ */
+export function applyEarlyLanguage(){
+    try {
+        const cached = localStorage.getItem('risu-lang')
+        if(cached) changeLanguage(cached)
+    } catch {}
 }
