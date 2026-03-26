@@ -1805,28 +1805,47 @@ app.get('/api/backup/export', async (req, res, next) => {
         res.setHeader('content-length', totalBytes);
         res.setHeader('x-risu-backup-assets', namespacedEntries.length);
 
+        let closed = false;
+        res.once('close', () => { closed = true; });
+
+        function waitForDrain() {
+            if (closed) return Promise.resolve();
+            return new Promise(resolve => {
+                function done() {
+                    res.removeListener('drain', done);
+                    res.removeListener('close', done);
+                    resolve();
+                }
+                res.once('drain', done);
+                res.once('close', done);
+            });
+        }
+
         for (const entry of namespacedEntries) {
+            if (closed) break;
             const value = entry.kind === 'kv'
                 ? kvGet(entry.key)
                 : await fs.readFile(entry.sourcePath);
+            if (closed) break;
             if (value) {
                 const ok = res.write(encodeBackupEntry(entry.backupName, value));
                 if (!ok) {
-                    await new Promise(resolve => res.once('drain', resolve));
+                    await waitForDrain();
+                    if (closed) break;
                 }
             }
         }
 
-        if (dbSize) {
+        if (!closed && dbSize) {
             const dbValue = kvGet('database/database.bin');
             if (dbValue) {
                 const ok = res.write(encodeBackupEntry('database.risudat', dbValue));
                 if (!ok) {
-                    await new Promise(resolve => res.once('drain', resolve));
+                    await waitForDrain();
                 }
             }
         }
-        res.end();
+        if (!closed) res.end();
     } catch (error) {
         next(error);
     }
