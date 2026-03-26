@@ -594,7 +594,7 @@ export async function saveDb() {
                 try {
                     if (shouldWriteBackup) {
                         await forageStorage.setItem(`database/dbbackup-${(Date.now() / 100).toFixed()}.bin`, backupData)
-                        await getDbBackups()
+                        await getDbBackups(backupData.byteLength)
                     }
                     await saveDbKei()
                 } catch (error) {
@@ -683,7 +683,7 @@ export async function saveDb() {
  * 
  * @returns {Promise<number[]>} - A promise that resolves to an array of backup timestamps.
  */
-export async function getDbBackups() {
+export async function getDbBackups(currentDbSize?: number) {
     const keys = await forageStorage.keys()
 
     const backups = keys
@@ -691,7 +691,12 @@ export async function getDbBackups() {
         .map(key => parseInt(key.slice(18, -4)))
         .sort((a, b) => b - a);
 
-    while (backups.length > 20) {
+    const BACKUP_BUDGET = 500 * 1024 * 1024 // 500MB
+    const maxBackups = currentDbSize
+        ? Math.min(20, Math.max(3, Math.floor(BACKUP_BUDGET / currentDbSize)))
+        : 20
+
+    while (backups.length > maxBackups) {
         const last = backups.pop()
         await forageStorage.removeItem(`database/dbbackup-${last}.bin`)
     }
