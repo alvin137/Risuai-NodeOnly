@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { DynamicGUI, settingsOpen, sideBarStore, openPresetList, openPersonaList, openHypaV3PresetList, MobileGUI, CustomGUISettingMenuStore, loadedStore, alertStore, LoadingStatusState, bookmarkListOpen, popupStore, easyPanelStore } from './ts/stores.svelte';
+    import { DynamicGUI, settingsOpen, sideBarStore, openPresetList, openPersonaList, openHypaV3PresetList, openThemePresetList, MobileGUI, CustomGUISettingMenuStore, loadedStore, alertStore, LoadingStatusState, bookmarkListOpen, popupStore, easyPanelStore } from './ts/stores.svelte';
     import Sidebar from './lib/SideBars/Sidebar.svelte';
     import { DBState } from './ts/stores.svelte';
     import ChatScreen from './lib/ChatScreens/ChatScreen.svelte';
@@ -15,6 +15,7 @@
     import { language } from './lang';
     import SavePopupIconComp from './lib/Others/SavePopupIcon.svelte';
     import Botpreset from './lib/Setting/botpreset.svelte';
+    import Themepreset from './lib/Setting/themepreset.svelte';
     import ListedPersona from './lib/Setting/listedPersona.svelte';
     import ListedHypaV3Preset from './lib/Setting/listedHypaV3Preset.svelte';
     import MobileHeader from './lib/Mobile/MobileHeader.svelte';
@@ -211,6 +212,9 @@
     {/if}
     {#if $openPresetList}
         <Botpreset close={() => {$openPresetList = false}} />
+    {/if}
+    {#if $openThemePresetList}
+        <Themepreset close={() => {$openThemePresetList = false}} />
     {/if}
     {#if $openPersonaList}
         <ListedPersona close={() => {$openPersonaList = false}} />

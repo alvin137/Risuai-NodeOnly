@@ -712,6 +712,7 @@ export const languageKorean = {
     "backupLoadConfirm2": "정말로, 정말로 백업을 불러오시겠습니까? 현재 데이터가 모두 사라집니다!",
     "others": "기타",
     "presets": "프리셋",
+    "themePresets": "테마 프리셋",
     "imageGeneration": "이미지 생성",
     "provider": "공급자",
     "key": "키",

@@ -826,6 +826,7 @@ export const languageEnglish = {
     backupLoadConfirm2: "Do you really, really want to load backup? All datas will be lost!",
     others: "Others",
     presets: "Presets",
+    themePresets: "Theme Presets",
     imageGeneration: "Image Generation",
     provider: "Provider",
     key: "Key",
