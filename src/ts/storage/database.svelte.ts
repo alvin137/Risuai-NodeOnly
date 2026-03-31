@@ -679,6 +679,7 @@ export function setDatabase(data:Database){
     data.localNetworkTimeoutSec ??= 600
     if (typeof data.localNetworkTimeoutSec !== 'number' || Number.isNaN(data.localNetworkTimeoutSec)) data.localNetworkTimeoutSec = 600
     data.loadouts ??= []
+    data.pluginCustomStorage ??= {}
     changeLanguage(data.language)
     setDatabaseLite(data)
 }

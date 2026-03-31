@@ -358,6 +358,9 @@ export async function saveDb() {
         let didInitRootEffect = false
         let didInitBotPresetEffect = false
         let didInitModulesEffect = false
+        let didInitLoadoutsEffect = false
+        let didInitPluginsEffect = false
+        let didInitPluginStorageEffect = false
         let didInitGeneralEffect = false
 
         const debounceTime = 500; // 500 milliseconds
@@ -434,16 +437,28 @@ export async function saveDb() {
         })
         $effect(() => {
             $state.snapshot(DBState.db.loadouts)
+            if (!didInitLoadoutsEffect) {
+                didInitLoadoutsEffect = true
+                return
+            }
             changeTracker.loadouts = true
             saveTimeoutExecute()
         })
         $effect(() => {
             $state.snapshot(DBState.db.plugins)
+            if (!didInitPluginsEffect) {
+                didInitPluginsEffect = true
+                return
+            }
             changeTracker.plugins = true
             saveTimeoutExecute()
         })
         $effect(() => {
             $state.snapshot(DBState.db.pluginCustomStorage)
+            if (!didInitPluginStorageEffect) {
+                didInitPluginStorageEffect = true
+                return
+            }
             changeTracker.pluginCustomStorage = true
             saveTimeoutExecute()
         })
