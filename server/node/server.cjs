@@ -111,7 +111,6 @@ const sslPath = path.join(process.cwd(), 'server/node/ssl/certificate');
 const hubURL = 'https://sv.risuai.xyz';
 
 let password = ''
-let knownPublicKeysHashes = []
 
 // Ensure /save/ exists for password file and migration source
 const savePath = path.join(process.cwd(), "save")
@@ -122,6 +121,21 @@ if(!existsSync(savePath)){
 const passwordPath = path.join(process.cwd(), 'save', '__password')
 if(existsSync(passwordPath)){
     password = readFileSync(passwordPath, 'utf-8')
+}
+
+// ── NodeOnly: server-side JWT (HMAC-SHA256) ─────────────────────────────────
+// Upstream uses client-side ECDSA JWT via crypto.subtle, which requires
+// Secure Context (HTTPS or localhost). NodeOnly needs HTTP remote access,
+// so we moved JWT signing/verification to the server using HMAC-SHA256.
+// If upstream changes its auth flow, this section needs manual sync.
+// Related: createServerJwt(), checkAuth(), /api/login, /api/token/refresh
+const jwtSecretPath = path.join(savePath, '__jwt_secret')
+let jwtSecret
+if (existsSync(jwtSecretPath)) {
+    jwtSecret = readFileSync(jwtSecretPath, 'utf-8').trim()
+} else {
+    jwtSecret = nodeCrypto.randomBytes(64).toString('hex')
+    writeFileSync(jwtSecretPath, jwtSecret, 'utf-8')
 }
 
 const authCodePath = path.join(process.cwd(), 'save', '__authcode')
@@ -1206,7 +1220,7 @@ app.get('/', async (req, res, next) => {
     }
 })
 
-async function checkAuth(req, res, returnOnlyStatus = false){
+async function checkAuth(req, res, returnOnlyStatus = false, {allowExpired = false} = {}){
     try {
         const authHeader = req.headers['risu-auth'];
 
@@ -1232,42 +1246,27 @@ async function checkAuth(req, res, returnOnlyStatus = false){
         //alg, typ
         const jsonHeader = JSON.parse(Buffer.from(jsonHeaderB64, 'base64url').toString('utf-8'));
 
-        //iat, exp, pub
+        //iat, exp
         const jsonPayload = JSON.parse(Buffer.from(jsonPayloadB64, 'base64url').toString('utf-8'));
-
-        //signature
-        const signature = Buffer.from(signatureB64, 'base64url');
 
         
         //check expiration
-        const now = Math.floor(Date.now() / 1000);
-        if(jsonPayload.exp < now){
-            console.log('Token expired')
-            if(returnOnlyStatus){
-                return false;
+        if(!allowExpired){
+            const now = Math.floor(Date.now() / 1000);
+            if(jsonPayload.exp < now){
+                console.log('Token expired')
+                if(returnOnlyStatus){
+                    return false;
+                }
+                res.status(400).send({
+                    error:'Token Expired'
+                });
+                return false
             }
-            res.status(400).send({
-                error:'Token Expired'
-            });
-            return false
         }
 
-        //check if public key is known
-        const pubKeyHash = await hashJSON(jsonPayload.pub)
-        if(!knownPublicKeysHashes.includes(pubKeyHash)){
-            console.log('Unknown public key')
-            if(returnOnlyStatus){
-                return false;
-            }
-            res.status(400).send({
-                error:'Unknown Public Key'
-            });
-            return false
-        }
-
-        //check signature
-        if(jsonHeader.alg !== "ES256"){
-            //only support ECDSA for now
+        //check signature (HMAC-SHA256)
+        if(jsonHeader.alg !== "HS256"){
             console.log('Unsupported algorithm')
             if(returnOnlyStatus){
                 return false;
@@ -1278,26 +1277,12 @@ async function checkAuth(req, res, returnOnlyStatus = false){
             return false
         }
 
-        const isValid = await crypto.subtle.verify(
-            {
-                name: 'ECDSA',
-                hash: {name: 'SHA-256'},
-            },
-            await crypto.subtle.importKey(
-                'jwk',
-                jsonPayload.pub,
-                {
-                    name: 'ECDSA',
-                    namedCurve: 'P-256',
-                },
-                false,
-                ['verify']
-            ),
-            signature,
-            Buffer.from(`${jsonHeaderB64}.${jsonPayloadB64}`)
-        );
+        const expectedSig = nodeCrypto.createHmac('sha256', jwtSecret)
+            .update(`${jsonHeaderB64}.${jsonPayloadB64}`)
+            .digest()
+        const actualSig = Buffer.from(signatureB64, 'base64url')
 
-        if(!isValid){
+        if(expectedSig.length !== actualSig.length || !nodeCrypto.timingSafeEqual(expectedSig, actualSig)){
             console.log('Invalid signature')
             if(returnOnlyStatus){
                 return false;
@@ -1307,8 +1292,7 @@ async function checkAuth(req, res, returnOnlyStatus = false){
             });
             return false
         }
-        
-        return true   
+        return true
     } catch (error) {
         console.log(error)
         if(returnOnlyStatus){
@@ -1747,10 +1731,16 @@ app.get('/api/test_auth', authRouteLimiter, async(req, res) => {
         res.send({status: 'unset'})
     }
     else if(!await checkAuth(req, res, true)){
-        res.send({status: 'incorrect'})
+        // JWT missing/invalid – fall back to session cookie (survives page refresh)
+        const sessionToken = parseSessionCookie(req)
+        if (sessionToken && (sessions.get(sessionToken) ?? 0) > Date.now()) {
+            res.send({status: 'success', token: createServerJwt()})
+        } else {
+            res.send({status: 'incorrect'})
+        }
     }
     else{
-        res.send({status: 'success'})
+        res.send({status: 'success', token: createServerJwt()})
     }
 })
 
@@ -1760,12 +1750,17 @@ app.post('/api/login', loginRouteLimiter, async (req, res) => {
         return;
     }
     if(req.body.password && req.body.password.trim() === password.trim()){
-        knownPublicKeysHashes.push(await hashJSON(req.body.publicKey))
-        res.send({status:'success'})
+        res.send({status:'success', token: createServerJwt()})
     }
     else{
         res.status(400).send({error: 'Password incorrect'})
     }
+})
+
+// NodeOnly: token refresh endpoint (pairs with server-side JWT)
+app.post('/api/token/refresh', async (req, res) => {
+    if (!await checkAuth(req, res, false, {allowExpired: true})) return
+    res.json({ token: createServerJwt() })
 })
 
 // ── Session cookie issuance (F-0) ──────────────────────────────────────────

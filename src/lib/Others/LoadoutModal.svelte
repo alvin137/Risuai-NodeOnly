@@ -92,174 +92,192 @@
     }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
+{#snippet loadoutCard(loadout: Loadout)}
+    <div
+        class="flex items-center gap-1 rounded-md bg-white/5 hover:bg-white/10 transition-colors"
+    >
+        <button
+            class="flex-1 min-w-0 text-left flex flex-col px-3 py-2.5"
+            onclick={() => onSelect(loadout)}
+        >
+            <span class="text-sm font-medium text-white/90 truncate"
+                >{loadout.name}</span
+            >
+            <span
+                class="flex items-center gap-2 mt-0.5 text-xs text-white/40 flex-wrap"
+            >
+                {#if loadout.presetName}
+                    <span
+                        >Preset: <span class="text-white/60"
+                            >{loadout.presetName}</span
+                        ></span
+                    >
+                {/if}
+                <span>{formatDate(loadout.lastUsed)}</span>
+            </span>
+        </button>
+        <button
+            class="shrink-0 pr-1 py-2.5 transition-colors {loadout.favorite
+                ? 'text-yellow-400'
+                : 'text-white/20 hover:text-white/50'}"
+            onclick={(e) => toggleFavorite(loadout, e)}
+            aria-label={loadout.favorite ? "Unfavorite" : "Favorite"}
+            title={loadout.favorite ? "Unfavorite" : "Favorite"}
+        >
+            <StarIcon
+                size={15}
+                fill={loadout.favorite ? "currentColor" : "none"}
+            />
+        </button>
+        <button
+            class="shrink-0 pr-3 py-2.5 transition-colors hover:text-red-400/50 text-white/20"
+            onclick={(e) => removeLoadout(loadout)}
+            aria-label={"Remove"}
+            title={"Remove"}
+        >
+            <TrashIcon
+                size={15}
+            />
+        </button>
+    </div>
+{/snippet}
+
 <div
-    class="fixed top-0 left-0 w-full h-full bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
-    onclick={() => close()}
+    class="fixed inset-0 z-40 bg-black/60 flex justify-center items-center"
+    role="presentation"
+    onclick={(e) => {
+        if (e.target === e.currentTarget) close();
+    }}
 >
     <div
-        class="bg-darkbg rounded-lg p-4 w-11/12 max-w-2xl max-h-[85vh] flex flex-col gap-3"
-        onclick={(e) => e.stopPropagation()}
+        class="bg-darkbg rounded-lg flex flex-col w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-xl"
     >
-        <!-- Header -->
-        <div class="flex items-center justify-between">
-            <h2 class="text-xl font-bold text-textcolor">Loadout</h2>
-            <button
-                class="text-textcolor2 hover:text-red-500 cursor-pointer"
-                onclick={() => close()}
+        <div
+            class="flex items-center justify-between px-5 py-3 border-b border-white/10 shrink-0"
+        >
+            <span class="text-base font-semibold text-white/90"
+                >Select Loadout</span
             >
-                <XIcon size={20} />
+            <button
+                class="text-white/50 hover:text-white/90 transition-colors"
+                onclick={close}
+                aria-label="Close"
+            >
+                <XIcon size={18} />
             </button>
         </div>
 
-        <!-- Apply Options -->
-        <div class="flex flex-wrap gap-2 text-sm">
-            {#each Object.entries(loadOptionLabels) as [key, label]}
-                <label class="flex items-center gap-1 text-textcolor2">
-                    <input type="checkbox" bind:checked={loadOptions[key as LoadoutApplyOption]} />
-                    {label}
-                </label>
+        <div class="flex items-center gap-2 px-5 py-2.5 border-b border-white/10 shrink-0 flex-wrap">
+            <span class="text-xs text-white/40 uppercase tracking-wider font-medium mr-1">Load:</span>
+            {#each Object.keys(loadOptions) as key}
+                {@const k = key as LoadoutApplyOption}
+                <button
+                    class="px-2.5 py-1 rounded text-xs font-medium transition-colors {loadOptions[k]
+                        ? 'bg-white/15 text-white/90'
+                        : 'bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/50'}"
+                    onclick={() => loadOptions[k] = !loadOptions[k]}
+                >
+                    {loadOptionLabels[k]}
+                </button>
             {/each}
         </div>
 
-        <!-- Save New -->
-        <div class="flex gap-2">
-            <input
-                class="flex-1 bg-bgcolor border border-darkborderc rounded px-2 py-1 text-sm text-textcolor"
-                placeholder="New loadout name..."
-                bind:value={saveName}
-            />
-            <button
-                class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition text-sm flex items-center gap-1"
-                onclick={() => {
-                    if (saveName.trim()) {
-                        saveCurrentLoadout(saveName.trim());
-                        saveName = '';
-                    }
-                }}
-            >
-                <SaveIcon size={14} /> Save
-            </button>
+        <div
+            class="overflow-y-auto flex-1 px-4 py-3 flex flex-col gap-5 break-any"
+        >
+            {#if getRecentLoadouts().length > 0}
+                <section>
+                    <div
+                        class="flex items-center gap-1.5 mb-2 text-white/50 text-xs uppercase tracking-wider font-medium"
+                    >
+                        <ClockIcon size={13} />
+                        <span>Recently Used</span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        {#each getRecentLoadouts() as loadout (loadout.id)}
+                            {@render loadoutCard(loadout)}
+                        {/each}
+                    </div>
+                </section>
+            {/if}
+
+            {#if getCharacterLoadouts().length > 0}
+                <section>
+                    <div
+                        class="flex items-center gap-1.5 mb-2 text-white/50 text-xs uppercase tracking-wider font-medium"
+                    >
+                        <UserIcon size={13} />
+                        <span>Recently Used with This Character</span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        {#each getCharacterLoadouts() as loadout (loadout.id)}
+                            {@render loadoutCard(loadout)}
+                        {/each}
+                    </div>
+                </section>
+            {/if}
+
+            {#if getFavoriteLoadouts().length > 0}
+                <section>
+                    <div
+                        class="flex items-center gap-1.5 mb-2 text-yellow-400/70 text-xs uppercase tracking-wider font-medium"
+                    >
+                        <StarIcon size={13} />
+                        <span>Favorites</span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        {#each getFavoriteLoadouts() as loadout (loadout.id)}
+                            {@render loadoutCard(loadout)}
+                        {/each}
+                    </div>
+                </section>
+            {/if}
+
+            <section>
+                <div
+                    class="flex items-center gap-1.5 mb-2 text-white/50 text-xs uppercase tracking-wider font-medium"
+                >
+                    <ListIcon size={13} />
+                    <span>All Loadouts</span>
+                </div>
+                {#if getAllLoadouts().length === 0}
+                    <p class="text-white/30 text-sm px-1">
+                        No loadouts saved yet.
+                    </p>
+                {:else}
+                    <div class="flex flex-col gap-1">
+                        {#each getAllLoadouts() as loadout (loadout.id)}
+                            {@render loadoutCard(loadout)}
+                        {/each}
+                    </div>
+                {/if}
+            </section>
         </div>
 
-        <!-- Loadout List -->
-        <div class="flex-1 overflow-y-auto flex flex-col gap-3">
-            <!-- Recent -->
-            {#if getRecentLoadouts().length > 0}
-                <div>
-                    <div class="flex items-center gap-1 text-textcolor2 text-xs mb-1">
-                        <ClockIcon size={12} /> Recent
-                    </div>
-                    {#each getRecentLoadouts() as loadout}
-                        <button
-                            class="w-full flex items-center justify-between p-2 rounded hover:bg-bgcolor cursor-pointer text-left"
-                            onclick={() => onSelect(loadout)}
-                        >
-                            <div class="flex items-center gap-2 text-textcolor">
-                                <span class="font-medium">{loadout.name}</span>
-                                <span class="text-xs text-textcolor2">{formatDate(loadout.lastUsed)}</span>
-                            </div>
-                            <div class="flex items-center gap-1">
-                                <button class="p-1 hover:text-yellow-400" onclick={(e) => toggleFavorite(loadout, e)}>
-                                    <StarIcon size={14} fill={loadout.favorite ? 'currentColor' : 'none'} />
-                                </button>
-                                <button class="p-1 hover:text-red-400" onclick={(e) => { e.stopPropagation(); removeLoadout(loadout); }}>
-                                    <TrashIcon size={14} />
-                                </button>
-                            </div>
-                        </button>
-                    {/each}
-                </div>
-            {/if}
-
-            <!-- Character -->
-            {#if getCharacterLoadouts().length > 0}
-                <div>
-                    <div class="flex items-center gap-1 text-textcolor2 text-xs mb-1">
-                        <UserIcon size={12} /> This Character
-                    </div>
-                    {#each getCharacterLoadouts() as loadout}
-                        <button
-                            class="w-full flex items-center justify-between p-2 rounded hover:bg-bgcolor cursor-pointer text-left"
-                            onclick={() => onSelect(loadout)}
-                        >
-                            <div class="flex items-center gap-2 text-textcolor">
-                                <span class="font-medium">{loadout.name}</span>
-                                <span class="text-xs text-textcolor2">{formatDate(loadout.lastUsed)}</span>
-                            </div>
-                            <div class="flex items-center gap-1">
-                                <button class="p-1 hover:text-yellow-400" onclick={(e) => toggleFavorite(loadout, e)}>
-                                    <StarIcon size={14} fill={loadout.favorite ? 'currentColor' : 'none'} />
-                                </button>
-                                <button class="p-1 hover:text-red-400" onclick={(e) => { e.stopPropagation(); removeLoadout(loadout); }}>
-                                    <TrashIcon size={14} />
-                                </button>
-                            </div>
-                        </button>
-                    {/each}
-                </div>
-            {/if}
-
-            <!-- Favorites -->
-            {#if getFavoriteLoadouts().length > 0}
-                <div>
-                    <div class="flex items-center gap-1 text-textcolor2 text-xs mb-1">
-                        <StarIcon size={12} /> Favorites
-                    </div>
-                    {#each getFavoriteLoadouts() as loadout}
-                        <button
-                            class="w-full flex items-center justify-between p-2 rounded hover:bg-bgcolor cursor-pointer text-left"
-                            onclick={() => onSelect(loadout)}
-                        >
-                            <div class="flex items-center gap-2 text-textcolor">
-                                <span class="font-medium">{loadout.name}</span>
-                                <span class="text-xs text-textcolor2">{formatDate(loadout.lastUsed)}</span>
-                            </div>
-                            <div class="flex items-center gap-1">
-                                <button class="p-1 hover:text-yellow-400" onclick={(e) => toggleFavorite(loadout, e)}>
-                                    <StarIcon size={14} fill={loadout.favorite ? 'currentColor' : 'none'} />
-                                </button>
-                                <button class="p-1 hover:text-red-400" onclick={(e) => { e.stopPropagation(); removeLoadout(loadout); }}>
-                                    <TrashIcon size={14} />
-                                </button>
-                            </div>
-                        </button>
-                    {/each}
-                </div>
-            {/if}
-
-            <!-- All -->
-            {#if getAllLoadouts().length > 0}
-                <div>
-                    <div class="flex items-center gap-1 text-textcolor2 text-xs mb-1">
-                        <ListIcon size={12} /> All Loadouts
-                    </div>
-                    {#each getAllLoadouts() as loadout}
-                        <button
-                            class="w-full flex items-center justify-between p-2 rounded hover:bg-bgcolor cursor-pointer text-left"
-                            onclick={() => onSelect(loadout)}
-                        >
-                            <div class="flex items-center gap-2 text-textcolor">
-                                <span class="font-medium">{loadout.name}</span>
-                                <span class="text-xs text-textcolor2">{formatDate(loadout.lastUsed)}</span>
-                            </div>
-                            <div class="flex items-center gap-1">
-                                <button class="p-1 hover:text-yellow-400" onclick={(e) => toggleFavorite(loadout, e)}>
-                                    <StarIcon size={14} fill={loadout.favorite ? 'currentColor' : 'none'} />
-                                </button>
-                                <button class="p-1 hover:text-red-400" onclick={(e) => { e.stopPropagation(); removeLoadout(loadout); }}>
-                                    <TrashIcon size={14} />
-                                </button>
-                            </div>
-                        </button>
-                    {/each}
-                </div>
-            {:else}
-                <div class="text-center text-textcolor2 text-sm py-4">
-                    No loadouts saved yet. Save one above!
-                </div>
-            {/if}
+        <div class="flex items-center gap-2 px-5 py-3 border-t border-white/10 shrink-0">
+            <input
+                type="text"
+                bind:value={saveName}
+                placeholder="Loadout name…"
+                class="flex-1 min-w-0 bg-white/5 hover:bg-white/8 focus:bg-white/10 border border-white/10 focus:border-white/25 rounded px-3 py-1.5 text-sm text-white/80 placeholder:text-white/25 outline-none transition-colors"
+            />
+            <button
+                class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded bg-white/10 hover:bg-white/15 text-white/70 hover:text-white/90 text-sm font-medium transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                disabled={!saveName.trim()}
+                onclick={() => {
+                    saveCurrentLoadout(saveName.trim());
+                }}
+            >
+                <SaveIcon size={14} />
+                Save
+            </button>
         </div>
     </div>
 </div>
+
+<style>
+    .break-any {
+        word-break: normal;
+        overflow-wrap: anywhere;
+    }
+</style>
