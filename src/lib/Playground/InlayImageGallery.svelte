@@ -166,6 +166,12 @@
     loadViewerAsset(id)
   }
 
+  function handleCardKeydown(event: KeyboardEvent, id: string) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    openViewer(id)
+  }
+
   function closeViewer() {
     viewerOpen = false
     viewerId = ''
@@ -385,7 +391,10 @@
       <div
         class="relative group aspect-[2/3] rounded-lg overflow-hidden bg-darkbg border cursor-pointer select-none transition-colors
           {selection.has(item.id) ? 'border-blue-500' : 'border-darkborderc hover:border-darkborderc/60'}"
+        role="button"
+        tabindex="0"
         onclick={() => openViewer(item.id)}
+        onkeydown={(event) => handleCardKeydown(event, item.id)}
       >
         <!-- Thumbnail: use direct /api/asset/ URL for HTTP caching -->
         {#if item.type === 'image'}
@@ -431,17 +440,17 @@
           {#if getCharacterName(item)}
             <p class="text-white/60 text-[10px] truncate leading-tight">{getCharacterName(item)}</p>
           {/if}
-          <div class="flex gap-1.5 mt-1.5 justify-end" onclick={(e) => e.stopPropagation()}>
+          <div class="flex gap-1.5 mt-1.5 justify-end">
             <button
               class="w-6 h-6 rounded bg-white/15 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
-              onclick={() => downloadCurrent(item)}
+              onclick={(e) => { e.stopPropagation(); downloadCurrent(item) }}
               title={language.download}
             >
               <Download size={11} />
             </button>
             <button
               class="w-6 h-6 rounded bg-red-500/30 hover:bg-red-500/70 flex items-center justify-center text-white transition-colors"
-              onclick={() => deleteAsset(item.id, item.name)}
+              onclick={(e) => { e.stopPropagation(); deleteAsset(item.id, item.name) }}
               title={language.playground.inlayDelete}
             >
               <Trash2 size={11} />

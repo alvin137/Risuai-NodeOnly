@@ -518,15 +518,6 @@ export async function requestOpenAI(arg:RequestDataArgumentExtended):Promise<req
     }
     if(arg.useStreaming){
         body.stream = true
-        let urlHost = new URL(replacerURL).host
-        if(urlHost.includes("localhost") || urlHost.includes("172.0.0.1") || urlHost.includes("0.0.0.0")){
-            if(!isNodeServer){
-                return {
-                    type: 'fail',
-                    result: 'You are trying local request on streaming. this is not allowed dude to browser/os security policy. turn off streaming.',
-                }
-            }
-        }
 
         if(arg.previewBody){
             return {

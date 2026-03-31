@@ -78,17 +78,8 @@ export async function importCharacterProcess(f:{
             msg: 'Loading... (Reading)'
         })
 
-        let charXMode:'normal'|'skippable'|'signal' = 'normal'
-        let signal = ''
-        
         const importer = new CharXImporter()
         importer.alertInfo = true
-        if(charXMode === 'skippable'){
-            importer.skipSaving = true
-        }
-        if(charXMode === 'signal'){
-            importer.hashSignal = signal
-        }
         await importer.parse(f.data)
         const cardData = importer.cardData
         if(!cardData){
