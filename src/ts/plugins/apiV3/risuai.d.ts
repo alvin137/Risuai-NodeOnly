@@ -1795,6 +1795,29 @@ interface RisuaiPluginAPI {
      */
     getTranslationCache(key: string): Promise<string | null>;
 
+
+    // ========== Model Requesters ==========
+
+    /**
+     * Runs a request through a specified LLM model with given messages and options.
+     * @param options - Options for the LLM request
+     * @param options.messages - Array of chat messages to send to the model
+     * @param options.staticModel - Optional static model name to use (e.g., 'gpt-4')
+     * @param options.mode - Request mode
+     * @returns The model's response, which may be a string or a stream depending on the mode
+     */
+    runLLMModel(options: {
+        messages: any[];
+        staticModel?: string;
+        mode: string;
+    }): Promise<any>;
+
+    /**
+     * Sends a chat message as if it were sent by the user, triggering the normal chat processing flow.
+     * @param message - The chat message to send, if string is a blank message, it will trigger the send action without adding a new message.
+     */
+    sendChat(message: string): Promise<void>;
+
     /**
      * Registers a listener for a named plugin channel (IPC between plugins).
      * @param channelName - The channel name to listen on (scoped to this plugin)

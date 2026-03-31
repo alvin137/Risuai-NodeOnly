@@ -16,6 +16,11 @@ import { getLLMCache, searchLLMCache } from "src/ts/translator/translator";
 import { hasher } from "src/ts/parser/parser.svelte";
 import { LLMFlags, LLMFormat, LLMProvider, LLMTokenizer, type LLMModel } from "src/ts/model/types";
 import { readPersistentJson, writePersistentJson } from "src/ts/storage/persistentKv";
+import { sendChat as processSendChat, doingChat } from "src/ts/process/index.svelte";
+import { getModelInfo } from "src/ts/model/modellist";
+import type { ModelModeExtended } from "src/ts/process/request/shared";
+import { requestChatDataMain } from "src/ts/process/request/request";
+import type { OpenAIChat } from "src/ts/process/index.svelte";
 
 /*
     V3 API for RisuAI Plugins
@@ -558,7 +563,7 @@ type PluginV3ProviderOptions = PluginV2ProviderOptions & {
 
 export const customV3ProviderMetaStore:LLMModel[] = []
 
-const getPluginPermission = async (pluginName: string, permissionDesc: 'fetchLogs'|'db'|'mainDom'|'replacer'|'provider', reconfirm: boolean|'periodically' = false) => {
+const getPluginPermission = async (pluginName: string, permissionDesc: 'fetchLogs'|'db'|'mainDom'|'replacer'|'provider'|'sendChat', reconfirm: boolean|'periodically' = false) => {
     await ensurePluginPermissionStateLoaded()
     let pluginHash = ''
 
@@ -600,6 +605,7 @@ const getPluginPermission = async (pluginName: string, permissionDesc: 'fetchLog
         : permissionDesc === 'mainDom' ? language.mainDomAccessConsent.replace("{}", pluginName)
         : permissionDesc === 'replacer' ? language.replacerPermissionConsent.replace("{}", pluginName)
         : permissionDesc === 'provider' ? language.providerPermissionConsent.replace("{}", pluginName)
+        : permissionDesc === 'sendChat' ? language.sendChatConsent.replace("{}", pluginName)
         : `Error`
     if(alertTitle === 'Error'){
         return false;
@@ -1169,6 +1175,62 @@ const makeRisuaiAPIV3 = (iframe:HTMLIFrameElement,plugin:RisuPlugin) => {
                     'keys': '_keysSafeLocalStorage',
                 }
             }
+        },
+        runLLMModel: async (options: {
+            mode: ModelModeExtended
+            messages: OpenAIChat[]
+            staticModel?: string
+        }) => {
+            return requestChatDataMain({
+                formated: options.messages,
+                bias: {},
+                staticModel: options.staticModel,
+
+                //Executing plugin provider is block because it can be used for loopholes for ipc right now.
+                blockPlugins: true
+            }, options.mode)
+        },
+        sendChat: async (message: string) => {
+            const conf = await getPluginPermission(plugin.name, 'sendChat');
+            if(!conf){
+                return false;
+            }
+
+            if(typeof message !== 'string'){
+                throw new Error("Message must be a string");
+            }
+
+            if(get(doingChat)){
+                throw new Error("A chat is already in progress");
+            }
+
+            const charId = get(selectedCharID);
+            const char = DBState.db.characters[charId];
+            if(!char){
+                throw new Error("No character selected");
+            }
+
+            const chat = char.chats[char.chatPage];
+            if(!chat){
+                throw new Error("No active chat found");
+            }
+
+            if(message){
+                chat.message.push({
+                    role: 'user',
+                    data: message,
+                    time: Date.now(),
+                });
+            }
+
+            if(getModelInfo(DBState.db.aiModel).id.startsWith('pluginmodel:::')){
+                // Executing plugin provider is block because it can be used for loopholes for ipc right now.
+                throw new Error("Sending chat with plugin-based model is currently blocked");
+            }
+
+            await processSendChat(-1, {});
+
+            return true;
         },
         addPluginChannelListener: (channelName: string, callback: Function) => {
             pluginChannel.set(plugin.name + channelName, callback);
