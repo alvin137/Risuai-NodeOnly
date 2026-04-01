@@ -18,6 +18,9 @@ const RisuSaveType = {
     REMOTE: 6,
     CHARACTER_WITHOUT_CHAT: 7,
     ROOT_COMPONENT: 8,
+    PLUGINS: 9,
+    LOADOUTS: 10,
+    PLUGIN_STORAGE: 11,
 };
 
 // Packr/Unpackr instances
@@ -249,6 +252,18 @@ class RisuSaveDecoder {
                 }
                 case RisuSaveType.MODULES: {
                     db.modules = JSON.parse(this.blocks[key].content);
+                    break;
+                }
+                case RisuSaveType.PLUGINS: {
+                    db.plugins = JSON.parse(this.blocks[key].content);
+                    break;
+                }
+                case RisuSaveType.LOADOUTS: {
+                    db.loadouts = JSON.parse(this.blocks[key].content);
+                    break;
+                }
+                case RisuSaveType.PLUGIN_STORAGE: {
+                    db.pluginCustomStorage = JSON.parse(this.blocks[key].content);
                     break;
                 }
                 case RisuSaveType.ROOT_COMPONENT: {
