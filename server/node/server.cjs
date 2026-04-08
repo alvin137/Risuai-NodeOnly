@@ -161,6 +161,22 @@ function stripChatsFromDb(dbObj) {
  * Reassemble a full database from a stripped DB + fullChatStore.
  * Replaces stubs with full chats from the store. Returns a new object.
  */
+function mergeChatStubWithFullChat(stub, fullChat) {
+    if (!fullChat) {
+        return stub;
+    }
+    if (!stub || !stub._stub) {
+        return fullChat;
+    }
+    return {
+        ...fullChat,
+        id: stub.id || fullChat.id || '',
+        name: stub.name,
+        lastDate: stub.lastDate,
+        folderId: stub.folderId,
+    };
+}
+
 function reassembleFullDb(strippedDb) {
     if (!strippedDb?.characters || !fullChatStore) return strippedDb;
     const full = { ...strippedDb };
@@ -172,7 +188,7 @@ function reassembleFullDb(strippedDb) {
             ...char,
             chats: char.chats.map(chat => {
                 if (chat && chat._stub && chat.id) {
-                    return charChats.get(chat.id) || chat;
+                    return mergeChatStubWithFullChat(chat, charChats.get(chat.id));
                 }
                 return chat;
             }),
@@ -3323,7 +3339,7 @@ app.post('/api/migrate/save-folder/execute', async (req, res, next) => {
             res.status(400).json({ error: 'Cannot access directory' });
             return;
         }
-        const result = importHexFilesFromDir(resolved);
+        const result = await importHexFilesFromDir(resolved);
         res.json({ ok: true, imported: result.imported });
     } catch (error) {
         res.status(400).json({ error: error.message || 'Import failed' });
@@ -3384,7 +3400,7 @@ app.post('/api/migrate/save-folder/upload', async (req, res, next) => {
             return;
         }
 
-        const result = importHexEntries(entries);
+        const result = await importHexEntries(entries);
         res.json({ ok: true, imported: result.imported });
     } catch (error) {
         res.status(400).json({ error: error.message || 'Import failed' });

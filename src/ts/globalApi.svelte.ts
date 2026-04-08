@@ -267,6 +267,14 @@ export async function saveDb() {
     let gotChannel = false
     const sessionID = v4()
     let saveInFlight: Promise<void> | null = null
+    const knownChatIdsByCharacter = new Map<string, Set<string>>(
+        (getDatabase()?.characters ?? [])
+            .filter(character => character?.chaId)
+            .map(character => [
+                character.chaId,
+                new Set((character.chats ?? []).map(chat => chat?.id).filter(Boolean)),
+            ])
+    )
     let channel: BroadcastChannel
     if (window.BroadcastChannel) {
         channel = new BroadcastChannel('risu-db')
@@ -366,6 +374,7 @@ export async function saveDb() {
         let didInitPluginsEffect = false
         let didInitPluginStorageEffect = false
         let didInitGeneralEffect = false
+        let trackedActiveChatKey = ''
 
         const debounceTime = 500; // 500 milliseconds
         let saveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -484,22 +493,15 @@ export async function saveDb() {
                         $state.snapshot(DBState.db.characters[selIdState][key])
                     }
                 }
-                // Only track chat list structure (add/remove/reorder), not chat content
-                // Map to stub-like summaries so placeholder→full hydration doesn't trigger character dirty
-                $state.snapshot(DBState.db.characters[selIdState].chats.map(c => ({ id: c.id, name: c.name })))
+                // Track stub metadata and chat ordering for database.bin persistence.
+                $state.snapshot(DBState.db.characters[selIdState].chats.map(c => ({
+                    id: c.id,
+                    name: c.name,
+                    lastDate: c.lastDate,
+                    folderId: c.folderId,
+                })))
                 if (changeTracker.character[0] !== DBState.db.characters[selIdState]?.chaId) {
                     changeTracker.character.unshift(DBState.db.characters[selIdState]?.chaId)
-                }
-                const activeChaId = DBState.db.characters[selIdState]?.chaId
-                const activeChatId = DBState.db.characters[selIdState]?.chats[DBState.db.characters[selIdState]?.chatPage]?.id
-                // Skip chat dirty tracking during hydration
-                if (activeChaId && activeChatId && !isHydrating(activeChaId, activeChatId)) {
-                    if (
-                        changeTracker.chat[0]?.[0] !== activeChaId ||
-                        changeTracker.chat[0]?.[1] !== activeChatId
-                    ) {
-                        changeTracker.chat.unshift([activeChaId, activeChatId])
-                    }
                 }
             }
             if (!didInitGeneralEffect) {
@@ -507,6 +509,40 @@ export async function saveDb() {
                 changeTracker.character = []
                 changeTracker.chat = []
                 return
+            }
+            saveTimeoutExecute()
+        })
+        $effect(() => {
+            const activeChar = DBState?.db?.characters?.[selIdState]
+            const activeChat = activeChar?.chats?.[activeChar?.chatPage]
+            if (activeChat) {
+                $state.snapshot(activeChat)
+            }
+
+            const activeChaId = activeChar?.chaId ?? ''
+            const activeChatId = activeChat?.id ?? ''
+            const activeKey = activeChaId && activeChatId ? `${activeChaId}|${activeChatId}` : ''
+
+            if (!activeKey) {
+                trackedActiveChatKey = ''
+                return
+            }
+
+            // Selecting a different chat establishes a new baseline; only later edits are dirty.
+            if (trackedActiveChatKey !== activeKey) {
+                trackedActiveChatKey = activeKey
+                return
+            }
+
+            if (isHydrating(activeChaId, activeChatId)) {
+                return
+            }
+
+            if (
+                changeTracker.chat[0]?.[0] !== activeChaId ||
+                changeTracker.chat[0]?.[1] !== activeChatId
+            ) {
+                changeTracker.chat.unshift([activeChaId, activeChatId])
             }
             saveTimeoutExecute()
         })
@@ -529,6 +565,57 @@ export async function saveDb() {
         changeTracker.plugins = changeTracker.plugins || toSave.plugins
         changeTracker.pluginCustomStorage = changeTracker.pluginCustomStorage || toSave.pluginCustomStorage
         changeTracker.root = changeTracker.root || toSave.root
+    }
+
+    function collectChatsToPersist(db: Database, toSave: toSaveType): [string, string][] {
+        const chatsToPersist: [string, string][] = []
+        const seen = new Set<string>()
+        const pushChat = (chaId: string, chatId: string) => {
+            if (!chaId || !chatId) return
+            const key = `${chaId}|${chatId}`
+            if (seen.has(key)) return
+            seen.add(key)
+            chatsToPersist.push([chaId, chatId])
+        }
+
+        for (const [chaId, chatId] of toSave.chat) {
+            pushChat(chaId, chatId)
+        }
+
+        for (const chaId of toSave.character) {
+            const char = db.characters.find(c => c?.chaId === chaId)
+            if (!char) continue
+            const knownChatIds = knownChatIdsByCharacter.get(chaId) ?? new Set<string>()
+            for (const chat of char.chats ?? []) {
+                if (!chat?.id || chat._placeholder) continue
+                if (!knownChatIds.has(chat.id)) {
+                    pushChat(chaId, chat.id)
+                }
+            }
+        }
+
+        return chatsToPersist
+    }
+
+    function updateKnownChatsAfterSuccessfulSave(db: Database, toSave: toSaveType) {
+        for (const chaId of toSave.character) {
+            const char = db.characters.find(c => c?.chaId === chaId)
+            if (!char) {
+                knownChatIdsByCharacter.delete(chaId)
+                continue
+            }
+            knownChatIdsByCharacter.set(
+                chaId,
+                new Set((char.chats ?? []).map(chat => chat?.id).filter(Boolean))
+            )
+        }
+
+        for (const [chaId, chatId] of toSave.chat) {
+            if (!chaId || !chatId) continue
+            const knownChatIds = knownChatIdsByCharacter.get(chaId) ?? new Set<string>()
+            knownChatIds.add(chatId)
+            knownChatIdsByCharacter.set(chaId, knownChatIds)
+        }
     }
 
     async function rebaseTrackedLocalChangesOnLatestServerDb(conflictEtag: string | null, db: Database, toSave: toSaveType) {
@@ -622,7 +709,7 @@ export async function saveDb() {
 
         // ── Save changed chat content to server ─────────────────────────
         const failedChats: [string, string][] = []
-        for (const [chaId, chatId] of toSave.chat) {
+        for (const [chaId, chatId] of collectChatsToPersist(db, toSave)) {
             const char = db.characters.find(c => c.chaId === chaId)
             if (!char) continue
             const chatIndex = char.chats.findIndex(c => c.id === chatId)
@@ -686,6 +773,8 @@ export async function saveDb() {
                 await patcher.init(decodedDb)
             }
         }
+
+        updateKnownChatsAfterSuccessfulSave(db, toSave)
 
         if (newEtag) {
             forageStorage.setDbEtag(newEtag)

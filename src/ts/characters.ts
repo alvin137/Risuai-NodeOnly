@@ -786,10 +786,15 @@ export function changeChar(index: number, arg:{
             const db = getDatabase()
             const char = db.characters[index]
             const capturedIndex = index
+            const capturedChatId = chat.id
             if(char){
                 void ensureChatHydrated(char.chats, char.chatPage, char.chaId).then((hydrated) => {
-                    // Only apply toggles if this character is still selected
-                    if(hydrated && get(selectedCharID) === capturedIndex) loadTogglesFromChat(hydrated)
+                    const currentChar = getDatabase().characters[capturedIndex]
+                    const activeChatId = currentChar?.chats?.[currentChar.chatPage]?.id
+                    // Only apply toggles if this character/chat is still selected
+                    if(hydrated && get(selectedCharID) === capturedIndex && activeChatId === capturedChatId) {
+                        loadTogglesFromChat(hydrated)
+                    }
                 })
             }
         } else {

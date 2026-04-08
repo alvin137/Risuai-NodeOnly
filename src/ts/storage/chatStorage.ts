@@ -112,9 +112,20 @@ export async function ensureChatHydrated(
                 return null
             }
 
+            const currentIndex = chats.findIndex(chat => chat?.id === chatId)
+            if (currentIndex === -1) {
+                console.warn(`[chatStorage] hydrate skipped: chat removed before apply (${key})`)
+                return null
+            }
+
+            const currentSlot = chats[currentIndex]
+            if (!currentSlot?._placeholder) {
+                return currentSlot
+            }
+
             // Apply to memory — mark JustApplied to suppress the reactive write-back
             hydrationJustApplied.add(key)
-            chats[index] = full
+            chats[currentIndex] = full
 
             // Wait one tick so Svelte reactivity settles before allowing dirty tracking
             await tick()
