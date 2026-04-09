@@ -129,6 +129,7 @@ function chatToStub(chat) {
     };
     if (chat.lastDate != null) stub.lastDate = chat.lastDate;
     if (chat.folderId != null) stub.folderId = chat.folderId;
+    if (chat.modules != null) stub.modules = chat.modules;
     return stub;
 }
 
@@ -190,6 +191,7 @@ function mergeChatStubWithFullChat(stub, fullChat) {
     };
     if (stub.lastDate != null) merged.lastDate = stub.lastDate;
     if (stub.folderId != null) merged.folderId = stub.folderId;
+    if (stub.modules != null) merged.modules = stub.modules;
     return merged;
 }
 

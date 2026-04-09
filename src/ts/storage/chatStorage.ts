@@ -20,6 +20,7 @@ export function stubToPlaceholder(stub: ChatStub): Chat {
     }
     if (stub.lastDate != null) placeholder.lastDate = stub.lastDate
     if (stub.folderId != null) placeholder.folderId = stub.folderId
+    if (stub.modules != null) placeholder.modules = stub.modules
     return placeholder
 }
 
@@ -35,6 +36,7 @@ export function chatToStub(chat: Chat | ChatStub): ChatStub {
     }
     if (chat.lastDate != null) stub.lastDate = chat.lastDate
     if (chat.folderId != null) stub.folderId = chat.folderId
+    if (chat.modules != null) stub.modules = chat.modules
     return stub
 }
 
