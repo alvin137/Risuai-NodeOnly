@@ -27,7 +27,7 @@
     import { registerOnnxModel } from "src/ts/process/transformers";
     import MultiLangInput from "../UI/GUI/MultiLangInput.svelte";
     import { applyModule } from "src/ts/process/modules";
-    import { exportCharacterPackage, importPackageToCharacter, scanCharacterInlayIds, getCharacterBoundPersonas } from "src/ts/characterPackage";
+    import { exportCharacterPackage, importPackageToCharacter } from "src/ts/characterPackage";
     import { exportRegex, importRegex } from "src/ts/process/scripts";
     import SliderInput from "../UI/GUI/SliderInput.svelte";
     import Toggles from "./Toggles.svelte";
@@ -38,8 +38,6 @@
     let pkgIncludeChats = $state(true)
     let pkgIncludePersona = $state(true)
     let pkgIncludeInlays = $state(false)
-    let pkgPersonaInfo = $state<string | null>(null)
-    let pkgInlayInfo = $state<string | null>(null)
     let viewSubMenu = $state(0)
     let emos:[string, string][] = $state([])
     let iconButtonSize = window.innerWidth > 360 ? 24 as const : 20 as const
@@ -85,11 +83,6 @@
         emos = DBState.db.characters[$selectedCharID].emotionImages
     });
 
-    $effect.pre(() => {
-        $selectedCharID;
-        pkgPersonaInfo = null
-        pkgInlayInfo = null
-    });
 
     $effect.pre(() => {
         const chara = DBState.db.characters[$selectedCharID]
@@ -686,27 +679,11 @@
                     <CheckInput bind:check={pkgIncludeChats} name={language.characterPackageChats + ' (json)'} margin={false} />
                     <span class="text-textcolor2 text-sm ml-2 shrink-0">{char.chats.length}{language.characterPackageChatCount}</span>
                 </div>
-                <div class="flex items-center justify-between py-1">
+                <div class="flex items-center py-1">
                     <CheckInput bind:check={pkgIncludePersona} name={language.characterPackagePersona} margin={false} />
-                    {#if pkgPersonaInfo !== null}
-                        <span class="text-textcolor2 text-sm ml-2 shrink-0">{pkgPersonaInfo}</span>
-                    {:else}
-                        <button class="text-xs text-textcolor2 ml-2 shrink-0 border border-darkborderc rounded px-2 py-0.5 hover:bg-selected transition-colors" onclick={() => {
-                            const c = DBState.db.characters[$selectedCharID] as character
-                            pkgPersonaInfo = `${getCharacterBoundPersonas(c).length}${language.characterPackageChatCount}`
-                        }}>{language.characterPackageCheckCount}</button>
-                    {/if}
                 </div>
-                <div class="flex items-center justify-between py-1">
+                <div class="flex items-center py-1">
                     <CheckInput bind:check={pkgIncludeInlays} name={language.characterPackageInlays} margin={false} />
-                    {#if pkgInlayInfo !== null}
-                        <span class="text-textcolor2 text-sm ml-2 shrink-0">{pkgInlayInfo}</span>
-                    {:else}
-                        <button class="text-xs text-textcolor2 ml-2 shrink-0 border border-darkborderc rounded px-2 py-0.5 hover:bg-selected transition-colors" onclick={() => {
-                            const c = DBState.db.characters[$selectedCharID] as character
-                            pkgInlayInfo = `${scanCharacterInlayIds(c).size}${language.characterPackageInlayCount}`
-                        }}>{language.characterPackageCheckCount}</button>
-                    {/if}
                 </div>
             {/key}
             <Button size="md" className="mt-2 w-full" onclick={async () => {
