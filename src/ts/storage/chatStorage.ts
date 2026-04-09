@@ -125,6 +125,9 @@ export async function ensureChatHydrated(
                 return currentSlot
             }
 
+            // Yield one frame so loading overlay dismissal paints before heavy DOM work
+            await new Promise<void>(r => requestAnimationFrame(() => r()))
+
             // Apply to memory — mark JustApplied to suppress the reactive write-back
             hydrationJustApplied.add(key)
             chats[currentIndex] = full

@@ -25,7 +25,8 @@ export default defineConfig(({command, mode}) => {
       tailwindcss(),
       wasm(),
       command === 'build' ? strip({
-        include: '**/*.(mjs|js|svelte|ts)'
+        include: '**/*.(mjs|js|svelte|ts)',
+        functions: ['console.log', 'console.debug', 'console.table', 'assert.*'],
       }) : null
     ],
 
