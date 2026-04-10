@@ -24,8 +24,9 @@
     let { chara = $bindable(), noContainer }: Props = $props();
 
     let currentChat = $derived(DBState.db.characters[$selectedCharID]?.chats?.[DBState.db.characters[$selectedCharID]?.chatPage])
-    let isPinned = $derived(!!currentChat?.savedToggleValues)
+    let isPinned = $derived(!DBState.db.disableToggleBinding && !!currentChat?.savedToggleValues)
     let dirtyCount = $derived.by(() => {
+        if (DBState.db.disableToggleBinding) return 0
         const saved = currentChat?.savedToggleValues
         if (!saved) return 0
         const current = snapshotToggleValues()
@@ -94,6 +95,7 @@
     })
 
     function isToggleDirty(key: string): boolean {
+        if (DBState.db.disableToggleBinding) return false
         const saved = currentChat?.savedToggleValues
         if (!saved) return false
         const fullKey = `toggle_${key}`
@@ -185,6 +187,7 @@
     {/each}
 {/snippet}
 
+{#if !DBState.db.disableToggleBinding}
 <div class="text-[11px] text-textcolor2 mt-4 px-1">{language.toggleBindingLabel}</div>
 <div class="flex gap-1 mt-1 items-stretch">
     {#if isPinned}
@@ -223,6 +226,7 @@
         <FolderHeartIcon size={16} />
     </button>
 </div>
+{/if}
 
 {#if !noContainer && groupedToggles.length > 4}
     <div class="h-48 border-darkborderc p-2 border rounded-sm flex flex-col items-start mt-2 overflow-y-auto">
