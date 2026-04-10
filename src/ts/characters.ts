@@ -1,5 +1,5 @@
 import { get, writable } from "svelte/store";
-import { saveImage, setDatabase, type character, type Chat, defaultSdDataFunc, type loreBook, getDatabase, getCharacterByIndex, setCharacterByIndex, getCurrentChat, loadTogglesFromChat } from "./storage/database.svelte";
+import { saveImage, setDatabase, type character, type Chat, defaultSdDataFunc, type loreBook, getDatabase, getCharacterByIndex, setCharacterByIndex, getCurrentChat, loadTogglesFromChat, normalizeChat } from "./storage/database.svelte";
 import { ensureChatHydrated } from "./storage/chatStorage";
 import { alertAddCharacter, alertConfirm, alertError, alertNormal, alertSelect, alertStore, alertWait } from "./alert";
 import { loadingOverlayStore, chatDeselected } from "./stores.svelte";
@@ -436,7 +436,7 @@ export async function importChat(){
                     }
                     chat.id = v4()
                 })
-                db.characters[selectedID].chats.unshift(...chats)
+                db.characters[selectedID].chats.unshift(...chats.map(c => normalizeChat(c)))
                 setDatabase(db)
                 alertNormal(language.successImport)
                 return
@@ -452,7 +452,7 @@ export async function importChat(){
                             v.localLore = []
                         }
                         v.fmIndex ??= -1
-                        return v
+                        return normalizeChat(v)
                     })))
                     setDatabase(db)
                     alertNormal(language.successImport)
@@ -467,7 +467,7 @@ export async function importChat(){
                 if(!(checkNullish(das.message) || checkNullish(das.note) || checkNullish(das.name) || checkNullish(das.localLore))){
                     das.fmIndex ??= -1
                     das.id = v4()
-                    db.characters[selectedID].chats.unshift(das)
+                    db.characters[selectedID].chats.unshift(normalizeChat(das))
                     setDatabase(db)
                     alertNormal(language.successImport)
                     return
@@ -487,7 +487,7 @@ export async function importChat(){
             const chat = doc.querySelector('.idat').textContent
             const json = JSON.parse(chat)
             if(json.message && json.note && json.name && json.localLore){
-                db.characters[selectedID].chats.unshift(json)
+                db.characters[selectedID].chats.unshift(normalizeChat(json))
                 setDatabase(db)
                 alertNormal(language.successImport)
             }
