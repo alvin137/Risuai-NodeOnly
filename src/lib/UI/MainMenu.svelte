@@ -34,11 +34,11 @@
       {/if}
       {#if $publicStatsStore}
       <div class="mt-3 flex gap-2 flex-wrap justify-center">
-        <span class="px-3 py-1 rounded-full text-sm bg-darkbg border border-selected text-textcolor2">
+        <span class="px-3 py-1 rounded-full text-xs bg-darkbg border border-selected text-textcolor2">
           👥 {language.statsUsersToday.replace('{{count}}', $publicStatsStore.dau.toLocaleString())}
           <span class="text-textcolor2/60">({language.statsYesterday.replace('{{count}}', $publicStatsStore.yesterdayDau.toLocaleString())})</span>
         </span>
-        <span class="px-3 py-1 rounded-full text-sm bg-darkbg border border-selected text-textcolor2">
+        <span class="px-3 py-1 rounded-full text-xs bg-darkbg border border-selected text-textcolor2">
           📊 {language.statsVisitsToday.replace('{{count}}', $publicStatsStore.visits.toLocaleString())}
         </span>
       </div>
@@ -82,39 +82,19 @@
       </h1>
         <div class="w-full flex gap-4 p-2 flex-wrap justify-center">
         <button class="bg-darkbg rounded-lg p-4 flex flex-col hover:bg-selected transition-colors relative lg:w-96 w-full items-start text-start" onclick={() => {
-          openURL("https://discord.gg/Exy3NrqkGm")
-        }}>
-          <h2 class="text-xl">Discord</h2>
-          <span class="text-textcolor2">
-            Join our Discord server to chat with other users and the developer.
-          </span>
-        </button>
-        <button class="bg-darkbg rounded-lg p-4 flex flex-col hover:bg-selected transition-colors relative lg:w-96 w-full items-start text-start" onclick={() => {
-          openURL("https://risuai.net")
-        }}>
-          <h2 class="text-xl">
-            Website
-          </h2>
-          <span class="text-textcolor2">
-            See the official website for the project.
-          </span>
-        </button>
-        <button class="bg-darkbg rounded-lg p-4 flex flex-col hover:bg-selected transition-colors relative lg:w-96 w-full items-start text-start" onclick={() => {
-          openURL("https://github.com/kwaroran/RisuAI")
+          openURL("https://github.com/mrbart3885/Risuai-NodeOnly")
         }}>
           <h2 class="text-xl">Github</h2>
           <span class="text-textcolor2">
             View the source code and contribute to the project.
           </span>
         </button>
-        <button class="bg-darkbg rounded-lg p-4 flex flex-col hover:bg-selected transition-colors relative lg:w-96 w-full items-start text-start" onclick={() => {
-          openURL("mailto:support@risuai.net")
-        }}>
-          <h2 class="text-xl">Email</h2>
+        <div class="bg-darkbg rounded-lg p-4 flex flex-col relative lg:w-96 w-full items-start text-start border border-yellow-600">
           <span class="text-textcolor2">
-            Contact the developer directly.
+            RisuAI NodeOnly는 공식 버전이 아닌 커뮤니티 버전입니다.
+            이슈 제보는 <button class="text-yellow-500 underline hover:text-yellow-400" onclick={() => openURL("https://arca.live/b/characterai")}>아카라이브 AI 채팅 채널</button> 또는 <button class="text-yellow-500 underline hover:text-yellow-400" onclick={() => openURL("https://github.com/mrbart3885/Risuai-NodeOnly/issues")}>Github Issues</button>에 부탁드립니다.
           </span>
-        </button>
+        </div>
       </div>
 
       {:else}
