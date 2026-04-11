@@ -600,6 +600,8 @@ export const languageVietnamese = {
     "emotion": "Tên cảm xúc",
     "value": "Giá trị",
     "reroll": "tái sinh",
+    "deleteRerollMessage": "Xóa tin nhắn tái sinh",
+    "deleteRerollMessageConfirm": "Xóa tin nhắn tái sinh đang chọn?",
     "chatList": "Danh sách trò chuyện",
     "removeChat": "Xóa tin nhắn này?",
     "loreBook": "Sách truyền thuyết",

@@ -819,11 +819,13 @@
     {#if totalPages > 1}
         <button class="flex items-center hover:text-red-500 transition-colors" onclick={async () => {
             await sleep(1)
-            onDeleteSwipe()
+            if(confirm(language.deleteRerollMessageConfirm)){
+                onDeleteSwipe()
+            }
         }}>
             <TrashIcon size={20}/>
             {#if showNames}
-                <span class="ml-1">Delete Swipe ({currentPage}/{totalPages})</span>
+                <span class="ml-1">{language.deleteRerollMessage} ({currentPage}/{totalPages})</span>
             {/if}
         </button>
     {/if}

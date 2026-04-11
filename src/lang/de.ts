@@ -600,6 +600,8 @@ export const languageGerman = {
     "emotion": "Emotionsname",
     "value": "Wert",
     "reroll": "Regenerieren",
+    "deleteRerollMessage": "Regenerierte Nachricht löschen",
+    "deleteRerollMessageConfirm": "Die aktuell ausgewählte regenerierte Nachricht löschen?",
     "chatList": "Chatliste",
     "removeChat": "Diese Nachricht entfernen?",
     "loreBook": "Lore-Buch",

@@ -600,6 +600,8 @@ export const languageChineseTraditional = {
     "emotion": "情緒名稱",
     "value": "值",
     "reroll": "重新生成",
+    "deleteRerollMessage": "刪除重新生成的訊息",
+    "deleteRerollMessageConfirm": "刪除目前選取的重新生成訊息嗎？",
     "chatList": "聊天列表",
     "removeChat": "確定要移除此訊息嗎？",
     "loreBook": "Lorebook",
