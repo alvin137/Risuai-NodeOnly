@@ -67,7 +67,13 @@ const hydrationPromises = new Map<string, Promise<Chat | null>>()
 
 export async function fetchChatFromServer(chaId: string, chatIndex: number, chatId: string): Promise<Chat | null> {
     const storage = forageStorage.realStorage
-    return storage.fetchChatContent(chaId, chatIndex, chatId)
+    const result = await storage.fetchChatContent(chaId, chatIndex, chatId)
+    // Reject stubs — they contain no message data and indicate a server-side merge gap.
+    if (result && (result as any)._stub) {
+        console.warn(`[chatStorage] fetchChatFromServer returned stub for ${chaId}/${chatId}`)
+        return null
+    }
+    return result
 }
 
 export async function saveChatToServer(chaId: string, chatIndex: number, chatId: string, chat: Chat): Promise<void> {
@@ -110,7 +116,24 @@ export async function ensureChatHydrated(
     const promise = (async () => {
         hydrationInFlight.add(key)
         try {
-            const full = await fetchChatFromServer(chaId, index, chatId)
+            // Fetch with one retry — covers transient network errors and
+            // server not having flushed pending writes yet.
+            let full: Chat | null = null
+            try {
+                full = await fetchChatFromServer(chaId, index, chatId)
+            } catch (e) {
+                console.warn(`[chatStorage] hydrate fetch failed (${key}), will retry:`, e)
+            }
+
+            if (!full) {
+                await new Promise<void>(r => setTimeout(r, 1000))
+                try {
+                    full = await fetchChatFromServer(chaId, index, chatId)
+                } catch (e) {
+                    console.warn(`[chatStorage] hydrate retry also failed (${key}):`, e)
+                }
+            }
+
             if (!full) {
                 console.error(`[chatStorage] hydrate failed: chat not found on server (${key})`)
                 return null
