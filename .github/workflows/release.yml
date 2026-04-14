@@ -167,11 +167,12 @@ jobs:
           EOF
           chmod +x portable/start.sh portable/update.sh
 
-      - name: Add updater script
+      - name: Add updater script and portable marker
         shell: bash
         run: |
           mkdir -p portable/scripts
           cp scripts/updater.cjs portable/scripts/updater.cjs 2>/dev/null || true
+          touch portable/.portable
 
       - name: Package portable (Windows)
         if: matrix.platform == 'win'
