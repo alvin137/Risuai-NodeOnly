@@ -8,6 +8,7 @@ export interface UpdateInfo {
     releaseUrl: string
     releaseName: string
     publishedAt: string
+    popupMessage?: string
     disabled?: boolean
 }
 

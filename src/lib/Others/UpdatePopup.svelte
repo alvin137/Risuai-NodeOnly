@@ -48,6 +48,12 @@
             {#if info.releaseName}
                 <p class="mt-2 text-sm text-textcolor">{info.releaseName}</p>
             {/if}
+
+            {#if info.popupMessage}
+                <div class="mt-3 text-sm text-textcolor2 leading-relaxed whitespace-pre-line border-t border-selected pt-3">
+                    {info.popupMessage}
+                </div>
+            {/if}
         </div>
 
         <!-- Footer -->
