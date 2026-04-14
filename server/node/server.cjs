@@ -2634,7 +2634,10 @@ app.post('/api/write', async (req, res, next) => {
                     kvSet(key, mergedContent);
                 } catch (e) {
                     console.error('[Write] Failed to merge chats into database.bin:', e.message);
-                    kvSet(key, fileContent);
+                    // Do NOT write stubs-only to disk — that would permanently
+                    // destroy existing full chat data. Preserve disk as-is.
+                    res.status(500).json({ error: 'Database merge failed' });
+                    return;
                 }
             } else {
                 kvSet(key, fileContent);
