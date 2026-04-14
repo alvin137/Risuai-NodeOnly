@@ -426,7 +426,10 @@ export async function saveDb() {
         })
         $effect(() => {
             DBState.db.botPresetsId
-            DBState.db.botPresets.length
+            try { $state.snapshot(DBState.db.botPresets) } catch (e) {
+                console.warn('[Save] $state.snapshot(botPresets) failed:', e)
+                return
+            }
             if (!didInitBotPresetEffect) {
                 didInitBotPresetEffect = true
                 return
@@ -1223,23 +1226,21 @@ export function getUncleanables(db: Database, uptype: 'basename' | 'pure' = 'bas
                 addUncleanable(em[1]);
             }
         }
-        if (cha.type !== 'group') {
-            if (cha.additionalAssets) {
-                for (const em of cha.additionalAssets) {
-                    addUncleanable(em[1]);
-                }
+        if (cha.additionalAssets) {
+            for (const em of cha.additionalAssets) {
+                addUncleanable(em[1]);
             }
-            if (cha.vits) {
-                const keys = Object.keys(cha.vits.files);
-                for (const key of keys) {
-                    const vit = cha.vits.files[key];
-                    addUncleanable(vit);
-                }
+        }
+        if (cha.vits) {
+            const keys = Object.keys(cha.vits.files);
+            for (const key of keys) {
+                const vit = cha.vits.files[key];
+                addUncleanable(vit);
             }
-            if (cha.ccAssets) {
-                for (const asset of cha.ccAssets) {
-                    addUncleanable(asset.uri);
-                }
+        }
+        if (cha.ccAssets) {
+            for (const asset of cha.ccAssets) {
+                addUncleanable(asset.uri);
             }
         }
     }
@@ -1305,11 +1306,9 @@ export function replaceDbResources(db: Database, replacer: { [key: string]: stri
                 cha.emotionImages[i][1] = replaceData(cha.emotionImages[i][1]);
             }
         }
-        if (cha.type !== 'group') {
-            if (cha.additionalAssets) {
-                for (let i = 0; i < cha.additionalAssets.length; i++) {
-                    cha.additionalAssets[i][1] = replaceData(cha.additionalAssets[i][1]);
-                }
+        if (cha.additionalAssets) {
+            for (let i = 0; i < cha.additionalAssets.length; i++) {
+                cha.additionalAssets[i][1] = replaceData(cha.additionalAssets[i][1]);
             }
         }
     }
@@ -1383,7 +1382,6 @@ export function checkCharOrder() {
     }
 
 
-    setDatabase(db)
 }
 
 /**

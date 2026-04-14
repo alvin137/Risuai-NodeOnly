@@ -401,8 +401,8 @@ export async function exportCharacterPackage(
     try {
         const db = getDatabase({ snapshot: true })
         const char = safeStructuredClone(db.characters[charIndex]) as character
-        if (!char || (char as any).type === 'group') {
-            alertError('Cannot export group characters as package')
+        if (!char) {
+            alertError('Character not found')
             return
         }
 

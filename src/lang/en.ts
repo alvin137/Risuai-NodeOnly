@@ -231,8 +231,6 @@ export const languageEnglish = {
         settingsCloseButtonSize: "Adjusts the size of the close (X) button in the top right corner of the settings window. Default is 24.",
         showTypingEffect: "When enabled, it will show a typing indicator while the assistant is generating a response.",
         dynamicOutputPrompt: "When enabled, the schema information will be included in the request.",
-        sourcemapTranslate:
-            "If enabled, stack traces from errors will be automatically translated to show the original source code location, using sourcemaps. This is useful for debugging.",
         realmDirectOpen: "If enabled, clicking a character in RisuRealm preview will directly open the character description.",
         openRouterProviderOrder:
             "The order of providers to use, the first provider will be used first, if the provider is not available, it will use the next provider. See datail on https://openrouter.ai/docs/guides/routing/provider-selection#ordering-specific-providers",
@@ -243,6 +241,7 @@ export const languageEnglish = {
         additionalPrompt:
             "Text that gets appended to the Main Prompt when Prompt Preprocess is enabled. Default is 'The assistant must act as {{char}}. user is {{user}}.' This helps set up basic roleplay context.",
         hideAllImagesDesc: "Hides bot icons, bot image assets, and RisuRealm cover images.",
+        hideMessagePageCountDesc: "Hides the page counter (e.g. 1/3) for regenerated messages and first message greetings. Navigation arrows and the regenerate button remain visible.",
         embedding:
             "Embedding model is used for similarity search across multiple features:\n\n" +
             "- **Long Term Memory**: HypaV2, HypaV3, Hanurai Memory, and SupaMemory (with HypaMemory enabled)\n" +
@@ -746,6 +745,11 @@ export const languageEnglish = {
     emotion: "Emotion Name",
     value: "Value",
     reroll: "Regenerate",
+    hideMessagePageCount: "Hide Message Page Counter",
+    deleteRerollMessage: "Delete Regenerated Message",
+    deleteRerollMessageConfirm: "Delete the currently selected regenerated message?",
+    rerollConfirm: "Generate a new message and add it to the list?",
+    noSwipesRerollConfirm: "There are no additional regenerated messages. Generate a new message and add it to the list?",
     chatList: "Chat List",
     removeChat: "Remove this message?",
     loreBook: "Lorebook",
@@ -1563,11 +1567,9 @@ export const languageEnglish = {
     showTypingEffect: "Show Typing Effect",
     dynamicRequest: "Dynamic Request",
     dynamicOutputPrompt: "Dynamic Output Prompt",
-    sourcemapTranslate: "Translate stack traces using sourcemaps",
     settingsCloseButtonSize: "Settings Close Button Size",
     translating: "Translating...",
-    showOriginal: "Show Original Code Address",
-    translateCode: "Translate Code Address",
+    stackTraceTranslationFailed: "Stack trace translation failed. Showing original obfuscated stack trace below.",
     apply: "Apply",
     add: "Add",
     nightlyWarning:
@@ -1738,6 +1740,50 @@ export const languageEnglish = {
     cleanupMigratedNotReady: "Migration has not been completed yet. Cannot clean up.",
     cleanupMigratedSuccess: (count: number, size: string) => `Removed ${count} files, freed ${size}.`,
     cleanupMigratedCleaning: "Cleaning up migrated files...",
+    // NanoGPT Dashboard
+    nanoGPTLoadingAccountInfo: "Loading account info…",
+    nanoGPTCreditBalance: "Credit Balance:",
+    nanoGPTSubscription: "Subscription",
+    nanoGPTGraceUntil: (date: string) => `until ${date}`,
+    nanoGPTNoActiveSubscription: "No active subscription.",
+    nanoGPTCancelsAtPeriodEnd: (date: string) => `Cancels at period end (${date})`,
+    nanoGPTWeeklyTokens: (pct: string) => `Weekly Included Input Tokens — ${pct} used`,
+    nanoGPTDailyTokens: (pct: string) => `Daily Included Input Tokens — ${pct} used`,
+    nanoGPTDailyImages: (pct: string) => `Daily Included Images — ${pct} used`,
+    nanoGPTResets: (date: string) => `Resets ${date}`,
+    nanoGPTUsed: (n: string) => `${n} used`,
+    nanoGPTRemaining: (n: string) => `${n} remaining`,
+    nanoGPTRenews: (date: string) => `Renews: ${date}`,
+    nanoGPTCouldNotLoadAccountInfo: "Could not load account info.",
+    nanoGPTWeeklyTokensLabel: "Weekly Included Input Tokens",
+    nanoGPTDailyTokensLabel: "Daily Included Input Tokens",
+    nanoGPTDailyImagesLabel: "Daily Included Images",
+    nanoGPTUsedLabel: "used",
+    nanoGPTRemainingLabel: "remaining",
+    nanoGPTResetsLabel: "Resets",
+    nanoGPTRenewsLabel: "Renews:",
+    // NanoGPT Provider Picker
+    nanoGPTProvider: "Provider",
+    nanoGPTProviderPayAsYouGoOnly: "(only available in pay-as-you-go mode)",
+    nanoGPTProviderAuto: "Auto",
+    nanoGPTProviderFree: "Free",
+    nanoGPTProviderInput: "Input",
+    nanoGPTProviderOutput: "Output",
+    nanoGPTProviderQuantization: "Quantization",
+    nanoGPTProviderUndisclosed: "Undisclosed",
+    nanoGPTProviderCache: "Cache",
+    nanoGPTProviderCacheSupported: "Supported",
+    nanoGPTProviderCacheNotSupported: "Not supported",
+    nanoGPTProviderCacheRead: "Cache read",
+    // NanoGPT Settings
+    nanoGPTUseSubscriptionEndpoint: "Use subscription endpoint & models",
+    // Model Grid
+    modelGridCouldNotLoad: "Could not load model list. Check your API key.",
+    modelGridNoModelsMatch: (q: string) => `No models match "${q}"`,
+    modelGridContext: (n: string) => `Context: ${n}`,
+    nanoGPTSelectFromList: "Select from List",
+    nanoGPTManualInput: "Manual Input",
+    nanoGPTManualModelSelect: "Manual Model Select",
 } satisfies I18nTranslation;
 
 type I18nTranslationFunction = (...args: any[]) => string;

@@ -89,10 +89,13 @@ fi
 cd "$INSTALL_DIR"
 
 info "Installing dependencies..."
-pnpm install --prod --frozen-lockfile 2>/dev/null || pnpm install --prod
+pnpm install --frozen-lockfile 2>/dev/null || pnpm install
 
 info "Building..."
 NODE_OPTIONS="--max-old-space-size=4096" pnpm build
+
+info "Removing dev dependencies..."
+pnpm prune --prod
 
 # Write version marker for update script
 echo "$TAG" > "$INSTALL_DIR/.installed-version"
