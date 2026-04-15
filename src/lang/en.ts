@@ -1720,6 +1720,7 @@ export const languageEnglish = {
     togglePresetSaveNew: "Save New Preset",
     togglePresetOverwrite: "Overwrite",
     togglePresetOverwriteConfirm: (name: string) => `Overwrite "${name}" with current toggle values?`,
+    togglePresetOverwritten: (name: string) => `Preset "${name}" overwritten.`,
     togglePresetList: "Toggle Presets",
     togglePresetMenuRename: "Rename",
     togglePresetMenuDuplicate: "Duplicate",

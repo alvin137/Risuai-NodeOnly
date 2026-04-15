@@ -1574,6 +1574,7 @@ export const languageKorean = {
     "togglePresetSaveNew": "새 프리셋 저장",
     "togglePresetOverwrite": "덮어쓰기",
     "togglePresetOverwriteConfirm": (name: string) => `"${name}"을(를) 현재 토글 값으로 덮어쓸까요?`,
+    "togglePresetOverwritten": (name: string) => `"${name}" 프리셋을 덮어썼습니다.`,
     "togglePresetList": "토글 프리셋",
     "togglePresetMenuRename": "이름 변경",
     "togglePresetMenuDuplicate": "복제",
