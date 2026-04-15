@@ -355,7 +355,7 @@ async function decodeRisuSave(data) {
 function encodeRisuSaveLegacy(data, compress = false) {
     let encoded = packr.encode(data);
     if (compress) {
-        encoded = fflate.compressSync(encoded);
+        encoded = Bun.deflateSync(encoded, { level: 5 });
         const result = new Uint8Array(encoded.length + magicCompressedHeader.length);
         result.set(magicCompressedHeader, 0);
         result.set(encoded, magicCompressedHeader.length);
