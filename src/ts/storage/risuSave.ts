@@ -4,6 +4,8 @@ import { getDatabase, presetTemplate, type Database } from "./database.svelte";
 import { forageStorage } from "../globalApi.svelte";
 import { chatToStub } from "./chatStorage";
 
+import { magicHeader, magicCompressedHeader, magicStreamCompressedHeader, magicRisuSaveHeader } from '../../../shared/constants';
+
 const packr = new Packr({
     useRecords:false
 });
@@ -17,10 +19,6 @@ const unpackr = new Unpackr({
 // NodeOnly: server cannot resolve remote blocks, always disable
 const disableRemoteSaving = () => true
 const checkedRemoteExistence = new Set<string>();
-const magicHeader = new Uint8Array([0, 82, 73, 83, 85, 83, 65, 86, 69, 0, 7]); 
-const magicCompressedHeader = new Uint8Array([0, 82, 73, 83, 85, 83, 65, 86, 69, 0, 8]);
-const magicStreamCompressedHeader = new Uint8Array([0, 82, 73, 83, 85, 83, 65, 86, 69, 0, 9]);
-const magicRisuSaveHeader = new TextEncoder().encode("RISUSAVE\0");
 
 
 async function checkCompressionStreams(){

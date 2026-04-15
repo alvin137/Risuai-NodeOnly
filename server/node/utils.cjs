@@ -1,11 +1,7 @@
 const { Packr, Unpackr, decode } = require('msgpackr');
 const fflate = require('fflate');
+const { magicHeader, magicCompressedHeader, magicStreamCompressedHeader, magicRisuSaveHeader } = require('../../shared/constants');
 
-// Magic headers for different save formats
-const magicHeader = new Uint8Array([0, 82, 73, 83, 85, 83, 65, 86, 69, 0, 7]);
-const magicCompressedHeader = new Uint8Array([0, 82, 73, 83, 85, 83, 65, 86, 69, 0, 8]);
-const magicStreamCompressedHeader = new Uint8Array([0, 82, 73, 83, 85, 83, 65, 86, 69, 0, 9]);
-const magicRisuSaveHeader = new TextEncoder().encode("RISUSAVE\0");
 
 // Save type enums (must match client-side RisuSaveType)
 const RisuSaveType = {
@@ -353,12 +349,12 @@ async function decodeRisuSave(data) {
 /**
  * Encode data using legacy format
  * @param {Object} data - The data to encode
- * @param {string} compression - Compression type ('noCompression' or 'compression')
+ * @param {boolean} compress - Compression flag
  * @returns {Uint8Array} - The encoded data
  */
-function encodeRisuSaveLegacy(data, compression = 'noCompression') {
+function encodeRisuSaveLegacy(data, compress = false) {
     let encoded = packr.encode(data);
-    if (compression === 'compression') {
+    if (compress) {
         encoded = fflate.compressSync(encoded);
         const result = new Uint8Array(encoded.length + magicCompressedHeader.length);
         result.set(magicCompressedHeader, 0);
