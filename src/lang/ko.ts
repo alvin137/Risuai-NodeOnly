@@ -181,7 +181,8 @@ export const languageKorean = {
         "hypaV3SummarizationRequestsPerMinute": "요약 시 분당 최대 수파메모리 모델 요청 수입니다. 수파메모리 모델이 보조 모델인 경우에만 적용됩니다.",
         "hypaV3SummarizationMaxConcurrent": "요약 시 최대 동시 수파메모리 모델 요청 수입니다. 수파메모리 모델이 보조 모델인 경우에만 적용됩니다.",
         "hypaV3EmbeddingRequestsPerMinute": "유사도 검색 시 분당 최대 임베딩 모델 요청 수입니다.",
-        "hypaV3EmbeddingMaxConcurrent": "유사도 검색 시 최대 동시 임베딩 모델 요청 수입니다."
+        "hypaV3EmbeddingMaxConcurrent": "유사도 검색 시 최대 동시 임베딩 모델 요청 수입니다.",
+        "useNodeOnlyScrollButton": "스크롤 시 채팅 메시지 간 이동 버튼을 표시합니다. 스크롤 중 나타나고 1.5초 후 사라집니다."
     },
     "setup": {
         "chooseProvider": "AI 제공자를 선택해 주세요",
@@ -1640,4 +1641,5 @@ export const languageKorean = {
     nanoGPTSelectFromList: "목록에서 선택",
     nanoGPTManualInput: "수동 입력",
     nanoGPTManualModelSelect: "수동 모델 선택",
+    useNodeOnlyScrollButton: "스크롤 버튼 활성화",
 } satisfies DeepPartial<typeof import('./en').languageEnglish>

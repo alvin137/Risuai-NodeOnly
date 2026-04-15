@@ -195,5 +195,13 @@ export const accessibilitySettingsItems: SettingItem[] = [
         labelKey: 'enableRisuaiProTools',
         bindKey: 'enableRisuaiProTools',
         keywords: ['pro', 'tools', 'accessibility'],
+    },
+    {
+        id: 'acc.useNodeOnlyScrollButton',
+        type: 'check',
+        labelKey: 'useNodeOnlyScrollButton',
+        bindKey: 'useNodeOnlyScrollButton',
+        helpKey: 'useNodeOnlyScrollButton',
+        keywords: ['scroll', 'button', 'navigate', 'message'],
     }
 ];

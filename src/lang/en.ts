@@ -289,6 +289,8 @@ export const languageEnglish = {
         hypaV3QueryChatCount:
             "The number of recent chat messages used as the query for similarity search. " +
             "Higher values use more chat context to determine similarity.",
+        useNodeOnlyScrollButton:
+            "Shows navigation buttons to jump between chat messages while scrolling. Buttons appear on scroll and fade out after 1.5 seconds.",
     },
     setup: {
         chooseProvider: "Choose AI Provider",
@@ -1685,6 +1687,7 @@ export const languageEnglish = {
     confirmInstallPluginViaPlugin: "You are trying to install a plugin via another plugin. This can be dangerous if the source plugin is not trustworthy. Do you want to continue?",
     risuaiProTools: "Risuai Pro Tools",
     enableRisuaiProTools: "Enable Risuai Pro Tools",
+    useNodeOnlyScrollButton: "Scroll Button",
     easyPanel: "Easy Panel",
     mainModel: "Main Model",
     epEnabled: "Easy Panel Override",
