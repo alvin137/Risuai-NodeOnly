@@ -153,7 +153,7 @@ export async function loadData() {
             setTimeout(() => {
                 cleanChunks().catch(console.error)
             }, 5_000)
-            checkRisuUpdate()
+            // checkRisuUpdate()
             if (import.meta.env.VITE_RISU_TOS === 'TRUE') {
                 alertTOS().then((a) => {
                     if (a === false) {
