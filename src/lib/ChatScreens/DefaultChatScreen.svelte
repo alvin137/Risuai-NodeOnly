@@ -1,7 +1,7 @@
 <script lang="ts">
 
     import Suggestion from './Suggestion.svelte';
-    import { CameraIcon, DatabaseIcon, GlobeIcon, ImagePlusIcon, LanguagesIcon, Laugh, MenuIcon, MicOffIcon, PackageIcon, Plus, RefreshCcwIcon, ReplyIcon, Send, StepForwardIcon, XIcon, BrainIcon, ArrowDown, SparkleIcon, ZapIcon } from "@lucide/svelte";
+    import { CameraIcon, ChevronUpIcon, ChevronDownIcon, DatabaseIcon, GlobeIcon, ImagePlusIcon, LanguagesIcon, Laugh, MenuIcon, MicOffIcon, PackageIcon, Plus, RefreshCcwIcon, ReplyIcon, Send, StepForwardIcon, XIcon, BrainIcon, ArrowDown, SparkleIcon, ZapIcon } from "@lucide/svelte";
     import { selectedCharID, PlaygroundStore, createSimpleCharacter, hypaV3ModalOpen, ScrollToMessageStore, additionalChatMenu, additionalFloatingActionButtons, easyPanelStore, chatDeselected } from "../../ts/stores.svelte";
     import { tick } from 'svelte';
     import Chat from "./Chat.svelte";
@@ -48,6 +48,8 @@
     let toggleStickers:boolean = $state(false)
     let fileInput:string[] = $state([])
     let showNewMessageButton = $state(false)
+    let showScrollNav = $state(false)
+    let scrollNavTimer: ReturnType<typeof setTimeout> | null = null
     let chatsInstance: any = $state()
     let isScrollingToMessage = $state(false)
     let { openModuleList = $bindable(false), openChatList = $bindable(false), customStyle = '' }: Props = $props();
@@ -69,6 +71,56 @@
 
     function scrollToBottom() {
         chatsInstance?.scrollToLatestMessage();
+    }
+
+    function navigateMessage(direction: 'prev' | 'next') {
+        const container = document.querySelector('.default-chat-screen')
+        if (!container) return
+        const messages = Array.from(container.querySelectorAll('[data-chat-index]'))
+            .map(el => ({ el: el as HTMLElement, idx: parseInt(el.getAttribute('data-chat-index')!) }))
+            .sort((a, b) => a.idx - b.idx)
+        if (messages.length === 0) return
+
+        const containerRect = container.getBoundingClientRect()
+        const threshold = 30
+
+        // Find the message currently at the top of the viewport
+        let current = messages[0]
+        for (const msg of messages) {
+            const rect = msg.el.getBoundingClientRect()
+            if (rect.bottom > containerRect.top + threshold) {
+                current = msg
+                break
+            }
+        }
+
+        const currentRect = current.el.getBoundingClientRect()
+
+        if (direction === 'prev') {
+            const topVisible = currentRect.top >= containerRect.top - threshold
+            if (!topVisible) {
+                // Current message top is hidden → scroll to its start
+                current.el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            } else {
+                // Already at top → go to previous message start
+                const prev = messages.find(m => m.idx === current.idx - 1)
+                if (prev) {
+                    prev.el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+            }
+        } else {
+            const bottomVisible = currentRect.bottom <= containerRect.bottom + threshold
+            if (!bottomVisible) {
+                // Current message bottom is hidden → scroll to its end
+                current.el.scrollIntoView({ behavior: 'smooth', block: 'end' })
+            } else {
+                // Already see the end → go to next message start
+                const next = messages.find(m => m.idx === current.idx + 1)
+                if (next) {
+                    next.el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+            }
+        }
     }
     $effect(() => {
         if(ScrollToMessageStore.value !== -1){
@@ -508,6 +560,28 @@
     openMenu = false
 }}>
     
+    {#if DBState.db.useNodeOnlyScrollButton && currentChat.length > 0}
+        <div
+            class="absolute right-3 bottom-16 z-40 flex flex-col rounded-lg bg-bgcolor/70 backdrop-blur-sm border border-darkborderc border-opacity-30 shadow-lg overflow-hidden transition-opacity duration-300"
+            class:opacity-0={!showScrollNav}
+            class:pointer-events-none={!showScrollNav}
+        >
+            <button
+                class="w-9 h-9 text-textcolor2 hover:text-textcolor hover:bg-darkbg/50 flex items-center justify-center transition-colors"
+                onclick={() => { showScrollNav = true; if (scrollNavTimer) clearTimeout(scrollNavTimer); scrollNavTimer = setTimeout(() => { showScrollNav = false }, 1500); navigateMessage('prev') }}
+            >
+                <ChevronUpIcon size={18} />
+            </button>
+            <div class="border-t border-darkborderc border-opacity-30"></div>
+            <button
+                class="w-9 h-9 text-textcolor2 hover:text-textcolor hover:bg-darkbg/50 flex items-center justify-center transition-colors"
+                onclick={() => { showScrollNav = true; if (scrollNavTimer) clearTimeout(scrollNavTimer); scrollNavTimer = setTimeout(() => { showScrollNav = false }, 1500); navigateMessage('next') }}
+            >
+                <ChevronDownIcon size={18} />
+            </button>
+        </div>
+    {/if}
+
     {#if showNewMessageButton}
         {#if (DBState.db.newMessageButtonStyle === 'bottom-center' || !DBState.db.newMessageButtonStyle)}
             <button class="absolute bottom-16 left-1/2 -translate-x-1/2 bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg z-50 flex items-center gap-2 hover:bg-blue-600 transition-colors" onclick={scrollToBottom}>
@@ -569,6 +643,11 @@
         </div>
     {:else}
         <div class="h-full w-full flex flex-col-reverse overflow-y-auto relative default-chat-screen" class:nodeonly-standard={DBState.db.theme === ''} onscroll={(e) => {
+            if (DBState.db.useNodeOnlyScrollButton) {
+                showScrollNav = true
+                if (scrollNavTimer) clearTimeout(scrollNavTimer)
+                scrollNavTimer = setTimeout(() => { showScrollNav = false }, 1500)
+            }
             //@ts-expect-error scrollHeight/clientHeight/scrollTop don't exist on EventTarget, but target is HTMLElement here
             const scrolled = (e.target.scrollHeight - e.target.clientHeight + e.target.scrollTop)
             if(scrolled < 100 && currentChat.length > loadPages){

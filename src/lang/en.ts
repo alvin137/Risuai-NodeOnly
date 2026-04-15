@@ -289,6 +289,8 @@ export const languageEnglish = {
         hypaV3QueryChatCount:
             "The number of recent chat messages used as the query for similarity search. " +
             "Higher values use more chat context to determine similarity.",
+        useNodeOnlyScrollButton:
+            "Shows navigation buttons to jump between chat messages while scrolling. Buttons appear on scroll and fade out after 1.5 seconds.",
     },
     setup: {
         chooseProvider: "Choose AI Provider",
@@ -1685,6 +1687,7 @@ export const languageEnglish = {
     confirmInstallPluginViaPlugin: "You are trying to install a plugin via another plugin. This can be dangerous if the source plugin is not trustworthy. Do you want to continue?",
     risuaiProTools: "Risuai Pro Tools",
     enableRisuaiProTools: "Enable Risuai Pro Tools",
+    useNodeOnlyScrollButton: "Scroll Button",
     easyPanel: "Easy Panel",
     mainModel: "Main Model",
     epEnabled: "Easy Panel Override",
@@ -1720,6 +1723,7 @@ export const languageEnglish = {
     togglePresetSaveNew: "Save New Preset",
     togglePresetOverwrite: "Overwrite",
     togglePresetOverwriteConfirm: (name: string) => `Overwrite "${name}" with current toggle values?`,
+    togglePresetOverwritten: (name: string) => `Preset "${name}" overwritten.`,
     togglePresetList: "Toggle Presets",
     togglePresetMenuRename: "Rename",
     togglePresetMenuDuplicate: "Duplicate",
@@ -1791,6 +1795,22 @@ export const languageEnglish = {
     nanoGPTSelectFromList: "Select from List",
     nanoGPTManualInput: "Manual Input",
     nanoGPTManualModelSelect: "Manual Model Select",
+    // Remote Access (Cloudflare Quick Tunnel)
+    remoteAccess: "Remote Access",
+    remoteAccessDesc: "Use a remote access link to connect to this NodeOnly server from another device.",
+    remoteAccessOpen: "Open Remote Access",
+    remoteAccessClose: "Close Remote Access",
+    remoteAccessCloseConfirm: "Close remote access? The link will expire.",
+    remoteAccessDownloading: "Downloading cloudflared...",
+    remoteAccessStarting: "Starting tunnel...",
+    remoteAccessCopyUrl: "Copy URL",
+    remoteAccessCopied: "Copied!",
+    remoteAccessDisabled: "Remote access is disabled by server configuration.",
+    remoteAccessError: "Tunnel error",
+    remoteAccessRetry: "Retry",
+    remoteAccessQrHint: "Scan QR code to connect",
+    remoteAccessWarning: "Never share the QR code or link with others. Anyone with the link can freely access your server. If accidentally shared, close the connection and create a new one.",
+    remoteAccessInfo: "The link expires when you close remote access or restart the server. A new link is generated each time. The connection stays active even if you close this page or browser.",
 } satisfies I18nTranslation;
 
 type I18nTranslationFunction = (...args: any[]) => string;

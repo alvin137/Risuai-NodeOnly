@@ -31,7 +31,18 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm build
 # ------------------------------------------------------------------------------------------
 
 FROM base AS runtime
+ARG TARGETARCH
 WORKDIR /app
+
+# Install cloudflared for remote access tunnel support
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${TARGETARCH}" \
+       -o /usr/local/bin/cloudflared \
+    && chmod +x /usr/local/bin/cloudflared \
+    && apt-get purge -y curl \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json .
 COPY --from=deps /app/node_modules /app/node_modules

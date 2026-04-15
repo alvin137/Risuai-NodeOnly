@@ -668,6 +668,7 @@ export function setDatabase(data:Database){
     data.dynamicModelRegistry ??= true
     data.saveSignatures ??= false
     data.enableRisuaiProTools ??= false
+    data.useNodeOnlyScrollButton ??= true
     data.keepSessionAlive ??= 'off'
     data.localNetworkMode ??= false
     if (typeof data.localNetworkMode !== 'boolean') data.localNetworkMode = false
@@ -1326,6 +1327,7 @@ export interface Database{
     blockquoteStyling?:boolean
     dynamicModelRegistry?:boolean
     enableRisuaiProTools?:boolean
+    useNodeOnlyScrollButton?:boolean
     epEnabled?:boolean
     seperateParametersByModel?:boolean
     disableSeperateParameterChangeOnPresetChange?:boolean

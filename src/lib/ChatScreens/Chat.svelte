@@ -325,8 +325,8 @@
                     }}
             >
                 <BotIcon size={20} />
-                <span class="ml-1">
-                    {capitalize(getModelInfo(messageGenerationInfo.model).shortName)}
+                <span class="ml-1 max-w-[288px] truncate">
+                    {capitalize(getModelInfo(messageGenerationInfo.model).shortName.replace(/^pluginmodel:::/, ''))}
                 </span>
             </button>
         {/if}
@@ -1109,7 +1109,7 @@
                     <div class="min-w-0">
                         {@render genInfo()}
                     </div>
-                    <div class="w-full sm:w-auto">
+                    <div class="w-full sm:w-auto ml-auto">
                         {@render iconButtons()}
                     </div>
                 </div>

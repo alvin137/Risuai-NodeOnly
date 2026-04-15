@@ -71,6 +71,9 @@
     let togglePresetMenuOpen: number | null = $state(null)
     let togglePresetMenuPos: {x: number, y: number} = $state({x: 0, y: 0})
 
+    function closePresets() { togglePresetMenuOpen = null; alertStore.set({ type: 'none', msg: '' }) }
+    function reopenPresets() { togglePresetMenuOpen = null; alertStore.set({ type: 'togglePresets', msg: '' }) }
+
     // Register JSON language for syntax highlighting
     if (!hljs.getLanguage('json')) {
         hljs.registerLanguage('json', json)
@@ -645,8 +648,6 @@
     </div>
 
 {:else if $alertStore.type === 'togglePresets'}
-    {@const closePresets = () => { togglePresetMenuOpen = null; alertStore.set({ type: 'none', msg: '' }) }}
-    {@const reopenPresets = () => { togglePresetMenuOpen = null; alertStore.set({ type: 'togglePresets', msg: '' }) }}
     {@const currentPromptPresetName = DBState.db.botPresets[DBState.db.botPresetsId]?.name}
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div class="fixed top-0 left-0 h-full w-full bg-black/50 flex flex-col z-50 items-center justify-center" role="button" tabindex="0" onclick={closePresets}>
@@ -749,6 +750,7 @@
                                                     DBState.db.togglePresets![idx].values = snapshotCurrentToggleValues()
                                                     DBState.db.togglePresets![idx].promptPresetName = promptPreset?.name
                                                     DBState.db.togglePresets = [...DBState.db.togglePresets!]
+                                                    await alertNormalWait((language.togglePresetOverwritten as any)(presetName))
                                                 }
                                                 reopenPresets()
                                             }}>

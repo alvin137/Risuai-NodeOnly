@@ -380,6 +380,98 @@ const BACKUP_DISK_HEADROOM = 2;
 
 let importInProgress = false;
 
+// ── Cloudflare Quick Tunnel ─────────────────────────────────────────────────
+const TUNNEL_DISABLED = process.env.RISU_TUNNEL_DISABLED === 'true';
+let tunnelProcess = null;
+let tunnelUrl = null;
+let tunnelStatus = 'off';   // 'off' | 'downloading' | 'starting' | 'running' | 'error'
+let tunnelError = null;
+let tunnelStartTimeout = null;
+
+const CLOUDFLARED_ASSETS = {
+    'darwin-arm64':  { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz', type: 'tgz' },
+    'darwin-x64':    { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz', type: 'tgz' },
+    'linux-x64':     { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64', type: 'bin' },
+    'linux-arm64':   { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64', type: 'bin' },
+    'win32-x64':     { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe', type: 'bin' },
+};
+
+function findCloudflaredBinary() {
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    const bundled = path.join(process.cwd(), 'bin', 'cloudflared' + ext);
+    if (existsSync(bundled)) return bundled;
+    try {
+        execSync(process.platform === 'win32' ? 'where cloudflared' : 'which cloudflared', { stdio: 'pipe' });
+        return 'cloudflared';
+    } catch {
+        return null;
+    }
+}
+
+function followRedirects(url) {
+    return new Promise((resolve, reject) => {
+        const mod = url.startsWith('https') ? require('https') : require('http');
+        mod.get(url, { headers: { 'User-Agent': 'risuai-nodeonly' } }, (res) => {
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                followRedirects(res.headers.location).then(resolve, reject);
+            } else if (res.statusCode === 200) {
+                resolve(res);
+            } else {
+                reject(new Error(`HTTP ${res.statusCode}`));
+            }
+        }).on('error', reject);
+    });
+}
+
+async function downloadCloudflared() {
+    const key = `${process.platform}-${process.arch}`;
+    const asset = CLOUDFLARED_ASSETS[key];
+    if (!asset) throw new Error(`Unsupported platform: ${key}`);
+
+    const ext = process.platform === 'win32' ? '.exe' : '';
+    const binDir = path.join(process.cwd(), 'bin');
+    const dest = path.join(binDir, 'cloudflared' + ext);
+
+    if (!existsSync(binDir)) require('fs').mkdirSync(binDir, { recursive: true });
+
+    console.log(`[Tunnel] Downloading cloudflared for ${key}...`);
+    const res = await followRedirects(asset.url);
+
+    if (asset.type === 'tgz') {
+        const tmpPath = path.join(binDir, '_cloudflared.tgz');
+        await new Promise((resolve, reject) => {
+            const ws = require('fs').createWriteStream(tmpPath);
+            res.pipe(ws);
+            ws.on('finish', () => { ws.close(); resolve(); });
+            ws.on('error', reject);
+        });
+        execSync(`tar -xzf "${tmpPath}" -C "${binDir}"`, { stdio: 'pipe' });
+        require('fs').unlinkSync(tmpPath);
+    } else {
+        await new Promise((resolve, reject) => {
+            const ws = require('fs').createWriteStream(dest);
+            res.pipe(ws);
+            ws.on('finish', () => { ws.close(); resolve(); });
+            ws.on('error', reject);
+        });
+    }
+
+    if (process.platform !== 'win32') require('fs').chmodSync(dest, 0o755);
+    console.log('[Tunnel] cloudflared downloaded successfully.');
+    return dest;
+}
+
+function stopTunnel() {
+    if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
+    if (tunnelProcess) {
+        try { tunnelProcess.kill('SIGTERM'); } catch {}
+        tunnelProcess = null;
+    }
+    tunnelUrl = null;
+    tunnelStatus = 'off';
+    tunnelError = null;
+}
+
 // ── Update check ─────────────────────────────────────────────────────────────
 const UPDATE_CHECK_DISABLED = process.env.RISU_UPDATE_CHECK === 'false';
 const UPDATE_CHECK_URL = process.env.RISU_UPDATE_URL || 'https://risu-update-worker.nodridan.workers.dev/check';
@@ -774,7 +866,26 @@ async function fetchLatestRelease() {
 // ── Session store for direct asset URL auth (F-0) ──────────────────────────
 // <img src="/api/asset/..."> cannot send custom headers, so we use a session
 // cookie issued after initial JWT auth. Single-user environment: Map is fine.
+// Sessions are persisted to disk so they survive server restarts.
+const SESSION_FILE = path.join(process.cwd(), 'save', '__sessions')
 const sessions = new Map() // token → expiresAt (ms)
+
+function loadSessions() {
+    try {
+        const raw = readFileSync(SESSION_FILE, 'utf-8')
+        const now = Date.now()
+        for (const [token, exp] of JSON.parse(raw)) {
+            if (exp > now) sessions.set(token, exp)
+        }
+    } catch { /* file missing or corrupt – start fresh */ }
+}
+
+function saveSessions() {
+    try { writeFileSync(SESSION_FILE, JSON.stringify([...sessions])) }
+    catch { /* non-critical */ }
+}
+
+loadSessions()
 
 function parseSessionCookie(req) {
     const cookieHeader = req.headers.cookie || ''
@@ -2338,6 +2449,7 @@ app.post('/api/session', async (req, res) => {
     for (const [t, exp] of sessions) {
         if (exp < Date.now()) sessions.delete(t)
     }
+    saveSessions()
     const maxAge = 7 * 24 * 60 * 60 // seconds
     res.setHeader('Set-Cookie', `risu-session=${token}; HttpOnly; SameSite=Strict; Max-Age=${maxAge}; Path=/`)
     res.json({ ok: true })
@@ -4077,6 +4189,8 @@ app.post('/api/self-update', async (req, res) => {
         }
 
         // 5. Replace files (follows updater.cjs Phase 1-4 pattern)
+        // Stop tunnel before replacing files to avoid file lock issues
+        stopTunnel();
         send('replacing', null, 'Replacing files...');
         const appDir = process.cwd();
         const isWin = process.platform === 'win32';
@@ -4289,6 +4403,112 @@ async function restoreBackup(backupDir, rootDir) {
     }
 }
 
+// ── Cloudflare Quick Tunnel API ──────────────────────────────────────────────
+
+app.get('/api/tunnel/status', async (req, res) => {
+    if (!await checkAuth(req, res)) return;
+    res.json({ disabled: TUNNEL_DISABLED, status: tunnelStatus, url: tunnelUrl, error: tunnelError });
+});
+
+app.post('/api/tunnel/start', async (req, res) => {
+    if (!await checkAuth(req, res)) return;
+    if (TUNNEL_DISABLED) return res.status(403).json({ error: 'Tunnel is disabled via RISU_TUNNEL_DISABLED' });
+    if (tunnelStatus === 'running' || tunnelStatus === 'starting' || tunnelStatus === 'downloading') {
+        return res.status(409).json({ error: 'Tunnel is already ' + tunnelStatus });
+    }
+
+    let cfPath = findCloudflaredBinary();
+
+    // Auto-download if not found
+    if (!cfPath) {
+        tunnelStatus = 'downloading';
+        tunnelError = null;
+        res.json({ status: 'downloading' });
+
+        try {
+            cfPath = await downloadCloudflared();
+        } catch (e) {
+            console.error('[Tunnel] Download failed:', e.message);
+            tunnelStatus = 'error';
+            tunnelError = `Failed to download cloudflared: ${e.message}`;
+            return;
+        }
+        // After download, start the tunnel (response already sent)
+        startTunnelProcess(cfPath);
+        return;
+    }
+
+    tunnelStatus = 'starting';
+    tunnelError = null;
+    tunnelUrl = null;
+    startTunnelProcess(cfPath);
+    res.json({ status: 'starting' });
+});
+
+function startTunnelProcess(cfPath) {
+    const port = process.env.PORT || 6001;
+    tunnelStatus = 'starting';
+    tunnelError = null;
+    tunnelUrl = null;
+
+    try {
+        tunnelProcess = spawn(cfPath, ['tunnel', '--url', 'http://localhost:' + port], {
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
+
+        tunnelProcess.stderr.on('data', (chunk) => {
+            const text = chunk.toString();
+            const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
+            if (match && tunnelStatus === 'starting') {
+                tunnelUrl = match[0];
+                tunnelStatus = 'running';
+                if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
+                console.log(`[Tunnel] Quick tunnel URL: ${tunnelUrl}`);
+            }
+        });
+
+        tunnelProcess.on('error', (err) => {
+            console.error('[Tunnel] Process error:', err.message);
+            tunnelStatus = 'error';
+            tunnelError = err.message;
+            tunnelProcess = null;
+            if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
+        });
+
+        tunnelProcess.on('exit', (code) => {
+            if (tunnelStatus === 'running' || tunnelStatus === 'starting') {
+                console.log(`[Tunnel] Process exited with code ${code}`);
+                tunnelStatus = 'error';
+                tunnelError = `cloudflared exited unexpectedly (code ${code})`;
+            }
+            tunnelProcess = null;
+            tunnelUrl = null;
+            if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
+        });
+
+        tunnelStartTimeout = setTimeout(() => {
+            if (tunnelStatus === 'starting') {
+                tunnelStatus = 'error';
+                tunnelError = 'Tunnel failed to start within 30 seconds';
+                if (tunnelProcess) { try { tunnelProcess.kill('SIGTERM'); } catch {} tunnelProcess = null; }
+            }
+            tunnelStartTimeout = null;
+        }, 30000);
+    } catch (e) {
+        tunnelStatus = 'error';
+        tunnelError = e.message;
+        tunnelProcess = null;
+    }
+}
+
+app.post('/api/tunnel/stop', async (req, res) => {
+    if (!await checkAuth(req, res)) return;
+    stopTunnel();
+    res.json({ status: 'off' });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function getHttpsOptions() {
 
     const keyPath = path.join(sslPath, 'server.key');
@@ -4347,6 +4567,7 @@ async function startServer() {
 for (const sig of ['SIGTERM', 'SIGINT']) {
     process.on(sig, async () => {
         console.log(`[Server] Received ${sig}, flushing pending data...`);
+        stopTunnel();
         try { await flushPendingDb(); } catch (e) { console.error('[Server] Flush error:', e); }
         try { checkpointWal('TRUNCATE'); } catch { /* non-fatal */ }
         process.exit(0);

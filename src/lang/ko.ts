@@ -181,7 +181,8 @@ export const languageKorean = {
         "hypaV3SummarizationRequestsPerMinute": "요약 시 분당 최대 수파메모리 모델 요청 수입니다. 수파메모리 모델이 보조 모델인 경우에만 적용됩니다.",
         "hypaV3SummarizationMaxConcurrent": "요약 시 최대 동시 수파메모리 모델 요청 수입니다. 수파메모리 모델이 보조 모델인 경우에만 적용됩니다.",
         "hypaV3EmbeddingRequestsPerMinute": "유사도 검색 시 분당 최대 임베딩 모델 요청 수입니다.",
-        "hypaV3EmbeddingMaxConcurrent": "유사도 검색 시 최대 동시 임베딩 모델 요청 수입니다."
+        "hypaV3EmbeddingMaxConcurrent": "유사도 검색 시 최대 동시 임베딩 모델 요청 수입니다.",
+        "useNodeOnlyScrollButton": "스크롤 시 채팅 메시지 간 이동 버튼을 표시합니다. 스크롤 중 나타나고 1.5초 후 사라집니다."
     },
     "setup": {
         "chooseProvider": "AI 제공자를 선택해 주세요",
@@ -1574,6 +1575,7 @@ export const languageKorean = {
     "togglePresetSaveNew": "새 프리셋 저장",
     "togglePresetOverwrite": "덮어쓰기",
     "togglePresetOverwriteConfirm": (name: string) => `"${name}"을(를) 현재 토글 값으로 덮어쓸까요?`,
+    "togglePresetOverwritten": (name: string) => `"${name}" 프리셋을 덮어썼습니다.`,
     "togglePresetList": "토글 프리셋",
     "togglePresetMenuRename": "이름 변경",
     "togglePresetMenuDuplicate": "복제",
@@ -1639,4 +1641,21 @@ export const languageKorean = {
     nanoGPTSelectFromList: "목록에서 선택",
     nanoGPTManualInput: "수동 입력",
     nanoGPTManualModelSelect: "수동 모델 선택",
+    useNodeOnlyScrollButton: "스크롤 버튼 활성화",
+    // 원격 접속 (Cloudflare Quick Tunnel)
+    remoteAccess: "원격 접속",
+    remoteAccessDesc: "원격 접속 링크를 사용하여 다른 기기에서 이 노드온리 서버에 접속할 수 있습니다.",
+    remoteAccessOpen: "원격 접속 열기",
+    remoteAccessClose: "원격 접속 닫기",
+    remoteAccessCloseConfirm: "원격 접속을 닫을까요? 링크가 만료됩니다.",
+    remoteAccessDownloading: "cloudflared 다운로드 중...",
+    remoteAccessStarting: "터널 시작 중...",
+    remoteAccessCopyUrl: "URL 복사",
+    remoteAccessCopied: "복사됨!",
+    remoteAccessDisabled: "서버 설정에 의해 원격 접속이 비활성화되어 있습니다.",
+    remoteAccessError: "터널 오류",
+    remoteAccessRetry: "재시도",
+    remoteAccessQrHint: "QR 코드를 스캔하여 접속하세요",
+    remoteAccessWarning: "QR 코드와 원격 링크를 절대로 다른 사람과 공유하지 마세요. 링크를 가진 누구나 서버에 자유롭게 접근할 수 있습니다. 실수로 공유한 경우, 원격 접속을 닫고 새 링크를 생성하세요.",
+    remoteAccessInfo: "원격 접속을 닫거나 서버를 종료/재시작하면 링크가 만료되며, 다시 연결하면 새로운 링크가 생성됩니다. 이 페이지나 브라우저를 닫아도 원격 접속은 유지됩니다.",
 } satisfies DeepPartial<typeof import('./en').languageEnglish>
