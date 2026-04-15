@@ -1691,7 +1691,7 @@ async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0
     await flushPendingDb();
     createBackupAndRotate();
 
-    sqliteDb.pragma('synchronous = OFF');
+    sqliteDb.exec('PRAGMA synchronous = OFF');
 
     sqliteDb.exec('BEGIN');
     kvDelPrefix('assets/');
@@ -1821,7 +1821,7 @@ async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0
         await fs.rm(backupInlayDir, { recursive: true, force: true }).catch(() => {});
         throw error;
     } finally {
-        sqliteDb.pragma('synchronous = NORMAL');
+        sqliteDb.exec('PRAGMA synchronous = NORMAL');
     }
 
     await ensureInlayDir();
@@ -3761,7 +3761,7 @@ async function importHexFilesFromDir(dirPath) {
     createBackupAndRotate();
     invalidateDbCache();
 
-    const insert = sqliteDb.prepare(
+    const insert = sqliteDb.query(
         `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`
     );
     const now = Date.now();
@@ -3789,7 +3789,7 @@ async function importHexEntries(entries) {
     createBackupAndRotate();
     invalidateDbCache();
 
-    const insert = sqliteDb.prepare(
+    const insert = sqliteDb.query(
         `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`
     );
     const now = Date.now();

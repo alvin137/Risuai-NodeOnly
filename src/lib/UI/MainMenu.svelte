@@ -8,7 +8,7 @@
     import { getRisuHub, hubAdditionalHTML } from "src/ts/characterCards";
     import RisuHubIcon from "./Realm/RealmHubIcon.svelte";
     import Title from "./Title.svelte";
-    import { updateInfoStore } from "src/ts/update";
+    import { updateInfoStore, updatePopupStore } from "src/ts/update";
 </script>
 <div class="h-full w-full flex flex-col overflow-y-auto items-center">
     {#if !$OpenRealmStore}

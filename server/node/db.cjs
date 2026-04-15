@@ -1,6 +1,6 @@
 'use strict';
 
-const Database = require('better-sqlite3');
+const { Database } = require('bun:sqlite');
 const path = require('path');
 const fs = require('fs');
 
@@ -12,12 +12,12 @@ const dbPath = path.join(saveDir, 'risuai.db');
 const db = new Database(dbPath);
 
 // WAL mode: better concurrent read performance, single-writer
-db.pragma('journal_mode = WAL');
-db.pragma('synchronous = NORMAL');
-db.pragma('cache_size = -64000');       // 64 MB (default 2 MB) — reduce disk I/O for large blobs
-db.pragma('temp_store = MEMORY');       // keep temp tables in RAM
-db.pragma('busy_timeout = 5000');       // wait up to 5 s on lock contention
-db.pragma('mmap_size = 268435456');     // 256 MB memory-mapped I/O for faster reads
+db.exec('PRAGMA journal_mode = WAL');
+db.exec('PRAGMA synchronous = NORMAL');
+db.exec('PRAGMA cache_size = -64000');       // 64 MB (default 2 MB) — reduce disk I/O for large blobs
+db.exec('PRAGMA temp_store = MEMORY');       // keep temp tables in RAM
+db.exec('PRAGMA busy_timeout = 5000');       // wait up to 5 s on lock contention
+db.exec('PRAGMA mmap_size = 268435456');     // 256 MB memory-mapped I/O for faster reads
 
 // ─── KV table (replaces /save/ hex files) ────────────────────────────────────
 db.exec(`
@@ -54,7 +54,7 @@ function migrateFromSaveDir() {
 
     console.log(`[DB] Migrating ${hexFiles.length} file(s) from /save/ to SQLite...`);
 
-    const insert = db.prepare(
+    const insert = db.query(
         `INSERT OR IGNORE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`
     );
     const now = Date.now();
@@ -79,16 +79,16 @@ function migrateFromSaveDir() {
 migrateFromSaveDir();
 
 // ─── KV operations ────────────────────────────────────────────────────────────
-const stmtKvGet    = db.prepare(`SELECT value FROM kv WHERE key = ?`);
-const stmtKvSet    = db.prepare(`INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`);
-const stmtKvDel    = db.prepare(`DELETE FROM kv WHERE key = ?`);
-const stmtKvList   = db.prepare(`SELECT key FROM kv`);
-const stmtKvPrefix = db.prepare(`SELECT key FROM kv WHERE key LIKE ? ESCAPE '\\'`);
-const stmtKvPrefixSizes = db.prepare(`SELECT key, LENGTH(value) as size FROM kv WHERE key LIKE ? ESCAPE '\\'`);
-const stmtKvDelPrefix = db.prepare(`DELETE FROM kv WHERE key LIKE ? ESCAPE '\\'`);
-const stmtKvSize      = db.prepare(`SELECT LENGTH(value) as size FROM kv WHERE key = ?`);
-const stmtKvUpdatedAt = db.prepare(`SELECT updated_at FROM kv WHERE key = ?`);
-const stmtKvCopy = db.prepare(
+const stmtKvGet    = db.query(`SELECT value FROM kv WHERE key = ?`);
+const stmtKvSet    = db.query(`INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`);
+const stmtKvDel    = db.query(`DELETE FROM kv WHERE key = ?`);
+const stmtKvList   = db.query(`SELECT key FROM kv`);
+const stmtKvPrefix = db.query(`SELECT key FROM kv WHERE key LIKE ? ESCAPE '\\'`);
+const stmtKvPrefixSizes = db.query(`SELECT key, LENGTH(value) as size FROM kv WHERE key LIKE ? ESCAPE '\\'`);
+const stmtKvDelPrefix = db.query(`DELETE FROM kv WHERE key LIKE ? ESCAPE '\\'`);
+const stmtKvSize      = db.query(`SELECT LENGTH(value) as size FROM kv WHERE key = ?`);
+const stmtKvUpdatedAt = db.query(`SELECT updated_at FROM kv WHERE key = ?`);
+const stmtKvCopy = db.query(
     `INSERT OR REPLACE INTO kv (key, value, updated_at) SELECT ?, value, ? FROM kv WHERE key = ?`
 );
 
@@ -138,7 +138,7 @@ function kvListWithSizes(prefix) {
 }
 
 function checkpointWal(mode = 'TRUNCATE') {
-    return db.pragma(`wal_checkpoint(${mode})`);
+    return db.exec(`PRAGMA wal_checkpoint(${mode})`);
 }
 
 function clearEntities() {
