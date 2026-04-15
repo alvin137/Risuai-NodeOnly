@@ -201,16 +201,18 @@ Tailscale 등 VPN을 설치하지 않아도 됩니다.
 tar -xzf RisuAI-NodeOnly-vX.X.X-*.tar.gz
 ```
 
-> 🍎 **macOS 참고**: 처음 실행 시 "개발자를 확인할 수 없습니다" 경고가 나올 수 있습니다. 이 경우 터미널에서 아래 명령어를 한 번 실행해주세요:
+> 🍎 **macOS 참고**: 처음 실행 시 "Apple에서 확인할 수 없습니다" 경고가 나올 수 있습니다. 이 경우 터미널에서 압축 해제한 폴더로 이동한 뒤 아래 명령어를 한 번 실행해주세요:
 > ```bash
-> xattr -cr RisuAI-NodeOnly-vX.X.X-macos-arm64/
+> cd RisuAI-NodeOnly-vX.X.X-macos-arm64/
+> xattr -cr .
 > ```
+> 이후에는 경고 없이 실행됩니다.
 
 **3단계: 실행**
 
 🪟 **Windows**: `RisuAI.exe`를 더블클릭하면 브라우저가 자동으로 열리며, `http://localhost:6001`로 접속됩니다.
 
-🍎 **macOS**: `RisuAI.app`을 더블클릭하면 Terminal에서 서버가 실행되고 브라우저가 자동으로 열립니다.
+🍎 **macOS**: 폴더 안의 `RisuAI.app`을 더블클릭하면 Terminal에서 서버가 실행되고 브라우저가 자동으로 열립니다.
 
 🐧 **Linux**: 터미널에서 실행:
 
