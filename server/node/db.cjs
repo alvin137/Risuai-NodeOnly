@@ -143,10 +143,10 @@ function checkpointWal(mode = 'TRUNCATE') {
 
 function clearEntities() {
     // Entity tables may still exist from previous versions — clear them during backup import
-    try {
-        db.exec(`DELETE FROM characters; DELETE FROM chats; DELETE FROM settings; DELETE FROM presets; DELETE FROM modules`);
-    } catch {
-        // Tables may not exist — ignore
+    const tables = ['characters', 'chats', 'settings', 'presets', 'modules'];
+    for (const table of tables) {
+        const exists = db.query(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`).get(table);
+        if (exists) db.exec(`DELETE FROM ${table}`);
     }
 }
 
