@@ -1,3 +1,17 @@
+This is an **Unofficial** fork of [mrbart3885/Risuai-NodeOnly](https://github.com/mrbart3885/Risuai-NodeOnly)
+
+Also **Unofficial Unofficial** fork of [kwaroran/RisuAI](https://github.com/kwaroran/RisuAI)
+
+Special thanks to the origin developers.
+
+## License
+This project is licensed under the **GPL-3.0 License** - see the [LICENSE](LICENSE) file for the details.
+(Inherited from the original [RisuAI](https://github.com/kwaroran/RisuAI) project.)
+
+---
+
+# Original Risuai-NodeOnly README
+
 > 🔗 **원본 프로젝트**: [kwaroran/RisuAI](https://github.com/kwaroran/RisuAI) — 이 프로젝트는 RisuAI를 기반으로 한 커뮤니티 개조 버전입니다.
 > 현재 원본 RisuAI **v2026.4.120** 까지의 변경사항이 반영되어 있습니다.
 
