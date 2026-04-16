@@ -2691,6 +2691,7 @@ app.get('/api/remove', async (req, res, next) => {
     }
 });
 
+// Done
 app.get('/api/list', async (req, res, next) => {
     if(!await checkAuth(req, res)){
         return;
