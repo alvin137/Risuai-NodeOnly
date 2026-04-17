@@ -62,7 +62,6 @@ export const assetApp = new Hono();
 
 // add Sessionauthmiddleware
 assetApp.get("/:hexKey", async (c) => {
-  console.log(`[Asset] Request for ${c.req.param("hexKey")}`);
   try {
     const key = Buffer.from(c.req.param("hexKey"), "hex").toString("utf-8");
     if (key.startsWith("inlay/")) {
@@ -103,7 +102,6 @@ assetApp.get("/:hexKey", async (c) => {
     }
 
     const updatedAt = kvGetUpdatedAt(key);
-    console.log(`[Asset] KV updatedAt for ${key}:`, updatedAt);
     if (updatedAt === null) return c.body(null, 404, { 'Cache-Control': 'no-store' });
 
     const etag = `"${updatedAt}"`;
