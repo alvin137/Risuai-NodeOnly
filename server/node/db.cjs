@@ -94,7 +94,7 @@ const stmtKvCopy = db.query(
 
 function kvGet(key) {
     const row = stmtKvGet.get(key);
-    return row ? row.value : null;
+    return row ? Buffer.from(row.value) : null;
 }
 
 function kvSet(key, value) {
