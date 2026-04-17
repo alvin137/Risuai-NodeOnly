@@ -11,6 +11,11 @@ const app = new Hono()
 app.use('*', csrf())
 app.use('*', logger())
 
+app.onError((err, c) => {
+  console.error('Error occurred:', err);
+  return c.json({ error: 'Internal Server Error' }, 500);
+});
+
 //api.route('/session', sessionApp);
 api.route('/asset', assetApp);
 app.route('/api', api);
