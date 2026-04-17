@@ -103,6 +103,7 @@ assetApp.get("/:hexKey", async (c) => {
     }
 
     const updatedAt = kvGetUpdatedAt(key);
+    console.log(`[Asset] KV updatedAt for ${key}:`, updatedAt);
     if (updatedAt === null) return c.body(null, 404, { 'Cache-Control': 'no-store' });
 
     const etag = `"${updatedAt}"`;
