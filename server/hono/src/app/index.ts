@@ -5,6 +5,7 @@ import api from './api.js'
 
 // import { sessionApp } from './session.js';
 import { assetApp } from './asset.js'
+import { patchApp } from './api/patch.js';
 
 const app = new Hono()
 
@@ -13,11 +14,13 @@ app.use('*', logger())
 
 app.onError((err, c) => {
   console.error('Error occurred:', err);
+  console.error("Details: ", err.stack);
   return c.json({ error: 'Internal Server Error' }, 500);
 });
 
 //api.route('/session', sessionApp);
 api.route('/asset', assetApp);
+api.route("/patch", patchApp);
 app.route('/api', api);
 
 app.all('*', async (c) => {

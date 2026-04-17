@@ -1,17 +1,14 @@
 import { Hono, type Context } from "hono";
 import { kvList } from "../utils/db.js"
+import { savePath, jwtSecret } from "../utils/util.js";
 import "./asset.js";
 
 import { mkdir, readdir } from "node:fs/promises"
 import path from "node:path";
-import { timingSafeEqual } from "node:crypto";
-import { savePath, jwtSecret } from "../utils/util.js";
+import { timingSafeEqual, randomUUID } from "node:crypto";
+
 
 const api = new Hono();
-
-
-
-let saveTimers = {};
 
 
 
@@ -42,7 +39,7 @@ let saveTimers = {};
 //   }
 // });
 
-
+//api.route("/patch", patchApp);
 
 api.get('/list', async (c) => {
     const auth = await checkAuth(c);
@@ -63,11 +60,6 @@ async function getKeysByPrefix(prefix: string): Promise<string[]> {
     return kvList(prefix);
 }
 
-function isHex(str: string) {
-  return hexRegex.test(str.toUpperCase().trim()) || str === '__password';
-}
-
-const hexRegex = /^[0-9a-fA-F]+$/;
 const inlayDir = path.join(savePath, 'inlays')
 
 interface JwtPayload {
