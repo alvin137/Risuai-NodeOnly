@@ -263,7 +263,7 @@ function encodeDataUri(buffer: Buffer, mime: string) {
     return `data:${mime || 'application/octet-stream'};base64,${Buffer.from(buffer).toString('base64')}`;
 }
 
-async function flushPendingDb() {
+export async function flushPendingDb() {
     if (saveTimers[DB_HEX_KEY]) {
         clearTimeout(saveTimers[DB_HEX_KEY]);
         delete saveTimers[DB_HEX_KEY];
@@ -299,7 +299,7 @@ async function readInlayLegacyInfo(id: string) {
     }
 }
 
-async function readInlayInfoPayload(id: string) {
+export async function readInlayInfoPayload(id: string) {
     const sidecar = await readInlaySidecar(id);
     if (sidecar) return Buffer.from(JSON.stringify(sidecar));
     const legacy = await readInlayLegacyInfo(id);
@@ -307,7 +307,7 @@ async function readInlayInfoPayload(id: string) {
     return kvGet(`inlay_info/${id}`);
 }
 
-async function readInlayAssetPayload(id: string) {
+export async function readInlayAssetPayload(id: string) {
     const file = await readInlayFile(id);
     if (!file) return null;
     const sidecar = (await readInlaySidecar(id)) || (await readInlayLegacyInfo(id));
