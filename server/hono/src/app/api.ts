@@ -10,35 +10,6 @@ import { timingSafeEqual, randomUUID } from "node:crypto";
 
 const api = new Hono();
 
-
-
-// app.get("/read", async (c) => {
-//   const url = new URL(c.req.url);
-//   const auth = await checkAuth(c);
-
-//   if (auth.status != HTTP.OK) return auth;
-
-//   const filePath = c.req.header('file-path');
-//   if (!filePath) {
-//     console.log("no path");
-//     return badRequest(c, 'File path required');
-//   }
-
-//   if (!isHex(filePath))
-//     return badRequest(c, 'Invalid Path');
-
-//   try {
-//     const key = Buffer.from(filePath, 'hex').toString('utf-8');
-//     // Flush pending patches before reading database.bin
-//     //if (key === "database/database.bin")
-//     //  await flushPendingDb();\
-//     let value = null;
-//     if (key.startsWith("inlay/")) {
-//       value = await
-//     }
-//   }
-// });
-
 //api.route("/patch", patchApp);
 
 api.get('/list', async (c) => {
