@@ -36,10 +36,6 @@ if (existsSync(jwtSecretPath)) {
     writeFileSync(jwtSecretPath, jwtSecret, 'utf-8')
 }
 
-export async function badRequest(c: Context, msg: string) {
-    return c.json({error: msg}, HTTP.BAD_REQUEST);
-}
-
 export function isHex(str: string) {
   return hexRegex.test(str.toUpperCase().trim()) || str === '__password';
 }

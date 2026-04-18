@@ -159,7 +159,7 @@ export async function readInlaySidecar(id: string) {
     }
 }
 
-function isSafeInlayId(id: string) {
+export function isSafeInlayId(id: string) {
     return typeof id === 'string' &&
         id.length > 0 &&
         !id.includes('\0') &&
@@ -257,6 +257,21 @@ export function createBackupAndRotate() {
     while (backupKeys.length > maxBackups) {
         kvDel(backupKeys.pop() || "");
     }
+}
+
+function decodeDataUri(dataUri: string) {
+    if (typeof dataUri !== 'string' || !dataUri.startsWith('data:')) {
+        throw new Error('Invalid data URI');
+    }
+    const commaIdx = dataUri.indexOf(',');
+    if (commaIdx === -1) {
+        throw new Error('Malformed data URI');
+    }
+    const meta = dataUri.substring(5, commaIdx);
+    return {
+        buffer: Buffer.from(dataUri.substring(commaIdx + 1), 'base64'),
+        mime: meta.split(';')[0] || 'application/octet-stream',
+    };
 }
 
 function encodeDataUri(buffer: Buffer, mime: string) {
@@ -716,5 +731,22 @@ export async function decodeDatabaseWithPersistentChatIds(raw: Uint8Array, optio
         migrationResult.coldStorageFailed = coldRestoreResult.failed;
     }
     return dbObj;
+}
+
+export async function listInlayFiles() {
+    await ensureInlayDir();
+    const entries = await readdir(inlayDir, { withFileTypes: true });
+    return entries
+        .filter((entry) => (
+            entry.isFile() &&
+            entry.name !== '.migrated_to_fs' &&
+            !entry.name.endsWith('.meta.json')
+        ))
+        .map((entry) => {
+            const ext = normalizeInlayExt(path.extname(entry.name).slice(1));
+            const id = entry.name.slice(0, -(ext.length + 1));
+            return { id, ext, filePath: path.join(inlayDir, entry.name) };
+        })
+        .filter((entry) => isSafeInlayId(entry.id));
 }
 

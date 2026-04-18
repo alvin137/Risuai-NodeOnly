@@ -42,71 +42,71 @@ let fullChatStore = null; // Map<chaId, Map<chatId, chatObject>> — lazy-initia
 // ETag for database.bin
 let dbEtag = null;
 
-function computeBufferEtag(buffer) {
-    return nodeCrypto.createHash('md5').update(buffer).digest('hex');
-}
+// function computeBufferEtag(buffer) {
+//     return nodeCrypto.createHash('md5').update(buffer).digest('hex');
+// }
 
-function computeDatabaseEtagFromObject(databaseObject) {
-    return computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(databaseObject)));
-}
+// function computeDatabaseEtagFromObject(databaseObject) {
+//     return computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(databaseObject)));
+// }
 
-let storageOperationQueue = Promise.resolve();
-function queueStorageOperation(operation) {
-    const operationRun = storageOperationQueue.then(operation, operation);
-    storageOperationQueue = operationRun.catch(() => {});
-    return operationRun;
-}
+// let storageOperationQueue = Promise.resolve();
+// function queueStorageOperation(operation) {
+//     const operationRun = storageOperationQueue.then(operation, operation);
+//     storageOperationQueue = operationRun.catch(() => {});
+//     return operationRun;
+// }
 
-const DB_HEX_KEY = Buffer.from('database/database.bin', 'utf-8').toString('hex');
+// const DB_HEX_KEY = Buffer.from('database/database.bin', 'utf-8').toString('hex');
 
 // ─── Server-side database backup ─────────────────────────────────────────────
-const BACKUP_BUDGET_BYTES = 500 * 1024 * 1024; // 500 MB
-const BACKUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
-let lastBackupTime = null;
+// const BACKUP_BUDGET_BYTES = 500 * 1024 * 1024; // 500 MB
+// const BACKUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+// let lastBackupTime = null;
 
-function createBackupAndRotate() {
-    const now = Date.now();
-    if (lastBackupTime && now - lastBackupTime < BACKUP_INTERVAL_MS) {
-        return;
-    }
-    lastBackupTime = now;
+// function createBackupAndRotate() {
+//     const now = Date.now();
+//     if (lastBackupTime && now - lastBackupTime < BACKUP_INTERVAL_MS) {
+//         return;
+//     }
+//     lastBackupTime = now;
 
-    const backupKey = `database/dbbackup-${(now / 100).toFixed()}.bin`;
-    kvCopyValue('database/database.bin', backupKey);
+//     const backupKey = `database/dbbackup-${(now / 100).toFixed()}.bin`;
+//     kvCopyValue('database/database.bin', backupKey);
 
-    const backupKeys = kvList('database/dbbackup-')
-        .sort((a, b) => {
-            const aTs = parseInt(a.slice(18, -4));
-            const bTs = parseInt(b.slice(18, -4));
-            return bTs - aTs;
-        });
+//     const backupKeys = kvList('database/dbbackup-')
+//         .sort((a, b) => {
+//             const aTs = parseInt(a.slice(18, -4));
+//             const bTs = parseInt(b.slice(18, -4));
+//             return bTs - aTs;
+//         });
 
-    const dbSize = kvSize('database/database.bin') || 1;
-    const maxBackups = Math.min(20, Math.max(3, Math.floor(BACKUP_BUDGET_BYTES / dbSize)));
+//     const dbSize = kvSize('database/database.bin') || 1;
+//     const maxBackups = Math.min(20, Math.max(3, Math.floor(BACKUP_BUDGET_BYTES / dbSize)));
 
-    while (backupKeys.length > maxBackups) {
-        kvDel(backupKeys.pop());
-    }
-}
+//     while (backupKeys.length > maxBackups) {
+//         kvDel(backupKeys.pop());
+//     }
+// }
 
-async function flushPendingDb() {
-    if (saveTimers[DB_HEX_KEY]) {
-        clearTimeout(saveTimers[DB_HEX_KEY]);
-        delete saveTimers[DB_HEX_KEY];
-        if (dbCache[DB_HEX_KEY]) {
-            await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin');
-        } else if (fullChatStore && fullChatStore.size > 0) {
-            // No stripped cache but chat store has data — merge and persist directly
-            const raw = kvGet('database/database.bin');
-            if (raw) {
-                const dbObj = normalizeJSON(await decodeRisuSave(raw));
-                const fullDb = reassembleFullDb(stripChatsFromDb(dbObj));
-                kvSet('database/database.bin', Buffer.from(encodeRisuSaveLegacy(fullDb)));
-            }
-        }
-        createBackupAndRotate();
-    }
-}
+// async function flushPendingDb() {
+//     if (saveTimers[DB_HEX_KEY]) {
+//         clearTimeout(saveTimers[DB_HEX_KEY]);
+//         delete saveTimers[DB_HEX_KEY];
+//         if (dbCache[DB_HEX_KEY]) {
+//             await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin');
+//         } else if (fullChatStore && fullChatStore.size > 0) {
+//             // No stripped cache but chat store has data — merge and persist directly
+//             const raw = kvGet('database/database.bin');
+//             if (raw) {
+//                 const dbObj = normalizeJSON(await decodeRisuSave(raw));
+//                 const fullDb = reassembleFullDb(stripChatsFromDb(dbObj));
+//                 kvSet('database/database.bin', Buffer.from(encodeRisuSaveLegacy(fullDb)));
+//             }
+//         }
+//         createBackupAndRotate();
+//     }
+// }
 
 function invalidateDbCache() {
     delete dbCache[DB_HEX_KEY];
@@ -120,176 +120,176 @@ function invalidateDbCache() {
 
 // ─── Chat runtime lazy load helpers ─────────────────────────────────────────
 
-function assignMissingChatIds(dbObj) {
-    let changed = false;
-    if (!dbObj?.characters) return changed;
-    for (const char of dbObj.characters) {
-        if (!char?.chats) continue;
-        for (const chat of char.chats) {
-            if (!chat || chat._stub || chat.id) continue;
-            chat.id = nodeCrypto.randomUUID();
-            changed = true;
-        }
-    }
-    return changed;
-}
+// function assignMissingChatIds(dbObj) {
+//     let changed = false;
+//     if (!dbObj?.characters) return changed;
+//     for (const char of dbObj.characters) {
+//         if (!char?.chats) continue;
+//         for (const chat of char.chats) {
+//             if (!chat || chat._stub || chat.id) continue;
+//             chat.id = nodeCrypto.randomUUID();
+//             changed = true;
+//         }
+//     }
+//     return changed;
+// }
 
-async function decodeDatabaseWithPersistentChatIds(raw, options = {}) {
-    const { createBackup = false, migrationResult = null } = options;
-    const dbObj = normalizeJSON(await decodeRisuSave(raw));
-    let needsPersist = false;
+// async function decodeDatabaseWithPersistentChatIds(raw, options = {}) {
+//     const { createBackup = false, migrationResult = null } = options;
+//     const dbObj = normalizeJSON(await decodeRisuSave(raw));
+//     let needsPersist = false;
 
-    const hadMissingIds = assignMissingChatIds(dbObj);
-    if (hadMissingIds) needsPersist = true;
+//     const hadMissingIds = assignMissingChatIds(dbObj);
+//     if (hadMissingIds) needsPersist = true;
 
-    // One-time migration: restore upstream cold storage characters to full characters.
-    // This runs when upstream data first enters NodeOnly (backup import or save folder copy).
-    // After restore, the coldstorage field is removed and the clean DB is persisted.
-    // Failed characters are promoted to safe blank characters — their KV data is preserved for manual recovery.
-    const coldRestoreResult = restoreColdStorageCharactersInDb(dbObj);
-    if (coldRestoreResult.restored > 0 || coldRestoreResult.failed > 0) needsPersist = true;
-    if (coldRestoreResult.failed > 0) {
-        console.error(`[ColdStorage] ${coldRestoreResult.failed} character(s) could not be restored and were converted to safe blank characters. Cold storage KV data is preserved.`);
-        for (const name of coldRestoreResult.failedNames) {
-            console.error(`[ColdStorage]   - "${name}"`);
-        }
-    }
+//     // One-time migration: restore upstream cold storage characters to full characters.
+//     // This runs when upstream data first enters NodeOnly (backup import or save folder copy).
+//     // After restore, the coldstorage field is removed and the clean DB is persisted.
+//     // Failed characters are promoted to safe blank characters — their KV data is preserved for manual recovery.
+//     const coldRestoreResult = restoreColdStorageCharactersInDb(dbObj);
+//     if (coldRestoreResult.restored > 0 || coldRestoreResult.failed > 0) needsPersist = true;
+//     if (coldRestoreResult.failed > 0) {
+//         console.error(`[ColdStorage] ${coldRestoreResult.failed} character(s) could not be restored and were converted to safe blank characters. Cold storage KV data is preserved.`);
+//         for (const name of coldRestoreResult.failedNames) {
+//             console.error(`[ColdStorage]   - "${name}"`);
+//         }
+//     }
 
-    if (needsPersist) {
-        kvSet('database/database.bin', Buffer.from(encodeRisuSaveLegacy(dbObj)));
-        if (createBackup) {
-            createBackupAndRotate();
-        }
-    }
-    if (migrationResult) {
-        migrationResult.coldStorageFailed = coldRestoreResult.failed;
-    }
-    return dbObj;
-}
+//     if (needsPersist) {
+//         kvSet('database/database.bin', Buffer.from(encodeRisuSaveLegacy(dbObj)));
+//         if (createBackup) {
+//             createBackupAndRotate();
+//         }
+//     }
+//     if (migrationResult) {
+//         migrationResult.coldStorageFailed = coldRestoreResult.failed;
+//     }
+//     return dbObj;
+// }
 
-/**
- * Convert a full chat to a stub (metadata only).
- */
-function chatToStub(chat) {
-    if (!chat || chat._stub) return chat;
-    const stub = {
-        id: chat.id || '',
-        name: chat.name ?? '',
-        _stub: true,
-    };
-    if (chat.lastDate != null) stub.lastDate = chat.lastDate;
-    if (chat.folderId != null) stub.folderId = chat.folderId;
-    if (chat.modules != null) stub.modules = chat.modules;
-    return stub;
-}
+// /**
+//  * Convert a full chat to a stub (metadata only).
+//  */
+// function chatToStub(chat) {
+//     if (!chat || chat._stub) return chat;
+//     const stub = {
+//         id: chat.id || '',
+//         name: chat.name ?? '',
+//         _stub: true,
+//     };
+//     if (chat.lastDate != null) stub.lastDate = chat.lastDate;
+//     if (chat.folderId != null) stub.folderId = chat.folderId;
+//     if (chat.modules != null) stub.modules = chat.modules;
+//     return stub;
+// }
 
-/**
- * Initialize fullChatStore from a decoded full database object.
- * Extracts all chat payloads into the store keyed by chaId → chatId.
- */
-function initChatStore(dbObj) {
-    fullChatStore = new Map();
-    if (!dbObj?.characters) return;
-    for (const char of dbObj.characters) {
-        if (!char?.chaId || !char.chats) continue;
-        const charChats = new Map();
-        for (const chat of char.chats) {
-            if (chat && !chat._stub) {
-                if (!chat.id) {
-                    chat.id = nodeCrypto.randomUUID();
-                }
-                charChats.set(chat.id, chat);
-            }
-        }
-        if (charChats.size > 0) {
-            fullChatStore.set(char.chaId, charChats);
-        }
-    }
-}
+// /**
+//  * Initialize fullChatStore from a decoded full database object.
+//  * Extracts all chat payloads into the store keyed by chaId → chatId.
+//  */
+// function initChatStore(dbObj) {
+//     fullChatStore = new Map();
+//     if (!dbObj?.characters) return;
+//     for (const char of dbObj.characters) {
+//         if (!char?.chaId || !char.chats) continue;
+//         const charChats = new Map();
+//         for (const chat of char.chats) {
+//             if (chat && !chat._stub) {
+//                 if (!chat.id) {
+//                     chat.id = nodeCrypto.randomUUID();
+//                 }
+//                 charChats.set(chat.id, chat);
+//             }
+//         }
+//         if (charChats.size > 0) {
+//             fullChatStore.set(char.chaId, charChats);
+//         }
+//     }
+// }
 
-/**
- * Strip full chat data from a decoded database object, replacing with stubs.
- * Returns a new object — does not mutate input.
- */
-function stripChatsFromDb(dbObj) {
-    if (!dbObj?.characters) return dbObj;
-    const stripped = { ...dbObj };
-    stripped.characters = dbObj.characters.map(char => {
-        if (!char?.chats) return char;
-        return { ...char, chats: char.chats.map(chatToStub) };
-    });
-    return stripped;
-}
+// /**
+//  * Strip full chat data from a decoded database object, replacing with stubs.
+//  * Returns a new object — does not mutate input.
+//  */
+// function stripChatsFromDb(dbObj) {
+//     if (!dbObj?.characters) return dbObj;
+//     const stripped = { ...dbObj };
+//     stripped.characters = dbObj.characters.map(char => {
+//         if (!char?.chats) return char;
+//         return { ...char, chats: char.chats.map(chatToStub) };
+//     });
+//     return stripped;
+// }
 
-/**
- * Reassemble a full database from a stripped DB + fullChatStore.
- * Replaces stubs with full chats from the store. Returns a new object.
- */
-function mergeChatStubWithFullChat(stub, fullChat) {
-    if (!fullChat) {
-        return stub;
-    }
-    if (!stub || !stub._stub) {
-        return fullChat;
-    }
-    const merged = {
-        ...fullChat,
-        id: stub.id || fullChat.id || '',
-        name: stub.name,
-    };
-    if (stub.lastDate != null) merged.lastDate = stub.lastDate;
-    if (stub.folderId != null) merged.folderId = stub.folderId;
-    if (stub.modules != null) merged.modules = stub.modules;
-    return merged;
-}
+// /**
+//  * Reassemble a full database from a stripped DB + fullChatStore.
+//  * Replaces stubs with full chats from the store. Returns a new object.
+//  */
+// function mergeChatStubWithFullChat(stub, fullChat) {
+//     if (!fullChat) {
+//         return stub;
+//     }
+//     if (!stub || !stub._stub) {
+//         return fullChat;
+//     }
+//     const merged = {
+//         ...fullChat,
+//         id: stub.id || fullChat.id || '',
+//         name: stub.name,
+//     };
+//     if (stub.lastDate != null) merged.lastDate = stub.lastDate;
+//     if (stub.folderId != null) merged.folderId = stub.folderId;
+//     if (stub.modules != null) merged.modules = stub.modules;
+//     return merged;
+// }
 
-function reassembleFullDb(strippedDb) {
-    if (!strippedDb?.characters || !fullChatStore) return strippedDb;
-    const full = { ...strippedDb };
-    full.characters = strippedDb.characters.map(char => {
-        if (!char?.chaId || !char.chats) return char;
-        const charChats = fullChatStore.get(char.chaId);
-        if (!charChats) return char;
-        return {
-            ...char,
-            chats: char.chats.map(chat => {
-                if (chat && chat._stub && chat.id) {
-                    return mergeChatStubWithFullChat(chat, charChats.get(chat.id));
-                }
-                return chat;
-            }),
-        };
-    });
-    return full;
-}
+// function reassembleFullDb(strippedDb) {
+//     if (!strippedDb?.characters || !fullChatStore) return strippedDb;
+//     const full = { ...strippedDb };
+//     full.characters = strippedDb.characters.map(char => {
+//         if (!char?.chaId || !char.chats) return char;
+//         const charChats = fullChatStore.get(char.chaId);
+//         if (!charChats) return char;
+//         return {
+//             ...char,
+//             chats: char.chats.map(chat => {
+//                 if (chat && chat._stub && chat.id) {
+//                     return mergeChatStubWithFullChat(chat, charChats.get(chat.id));
+//                 }
+//                 return chat;
+//             }),
+//         };
+//     });
+//     return full;
+// }
 
-/**
- * Ensure fullChatStore is initialized. Loads from disk if needed.
- */
-async function ensureChatStore() {
-    if (fullChatStore) return;
-    const raw = kvGet('database/database.bin');
-    if (!raw) {
-        fullChatStore = new Map();
-        return;
-    }
-    const dbObj = await decodeDatabaseWithPersistentChatIds(raw, {
-        createBackup: true,
-    });
-    initChatStore(dbObj);
-}
+// /**
+//  * Ensure fullChatStore is initialized. Loads from disk if needed.
+//  */
+// async function ensureChatStore() {
+//     if (fullChatStore) return;
+//     const raw = kvGet('database/database.bin');
+//     if (!raw) {
+//         fullChatStore = new Map();
+//         return;
+//     }
+//     const dbObj = await decodeDatabaseWithPersistentChatIds(raw, {
+//         createBackup: true,
+//     });
+//     initChatStore(dbObj);
+// }
 
-/**
- * Persist dbCache to disk with full chats merged back in.
- */
-async function persistDbCacheWithChats(filePath, decodedKey) {
-    const strippedDb = dbCache[filePath];
-    if (!strippedDb) return;
-    await ensureChatStore();
-    const fullDb = reassembleFullDb(strippedDb);
-    const data = Buffer.from(encodeRisuSaveLegacy(fullDb));
-    kvSet(decodedKey, data);
-}
+// /**
+//  * Persist dbCache to disk with full chats merged back in.
+//  */
+// async function persistDbCacheWithChats(filePath, decodedKey) {
+//     const strippedDb = dbCache[filePath];
+//     if (!strippedDb) return;
+//     await ensureChatStore();
+//     const fullDb = reassembleFullDb(strippedDb);
+//     const data = Buffer.from(encodeRisuSaveLegacy(fullDb));
+//     kvSet(decodedKey, data);
+// }
 
 function shouldCompress(req, res) {
     // Proxy/hub-proxy: pass through external responses without compression.
@@ -510,113 +510,113 @@ function getSelfUpdateAssetInfo(version) {
     return { platformName, arch, ext, filename, url };
 }
 
-function isSafeInlayId(id) {
-    return typeof id === 'string' &&
-        id.length > 0 &&
-        !id.includes('\0') &&
-        !id.includes('/') &&
-        !id.includes('\\') &&
-        id !== '.' &&
-        id !== '..';
-}
+// function isSafeInlayId(id) {
+//     return typeof id === 'string' &&
+//         id.length > 0 &&
+//         !id.includes('\0') &&
+//         !id.includes('/') &&
+//         !id.includes('\\') &&
+//         id !== '.' &&
+//         id !== '..';
+// }
 
-function normalizeInlayExt(ext) {
-    if (typeof ext !== 'string') return 'bin';
-    const normalized = ext.trim().toLowerCase().replace(/^\.+/, '').replace(/[\/\\\0]/g, '');
-    return normalized || 'bin';
-}
+// function normalizeInlayExt(ext) {
+//     if (typeof ext !== 'string') return 'bin';
+//     const normalized = ext.trim().toLowerCase().replace(/^\.+/, '').replace(/[\/\\\0]/g, '');
+//     return normalized || 'bin';
+// }
 
-const resolvedInlayDir = path.resolve(inlayDir) + path.sep;
+// const resolvedInlayDir = path.resolve(inlayDir) + path.sep;
 
-function assertInsideInlayDir(filePath) {
-    if (!path.resolve(filePath).startsWith(resolvedInlayDir)) {
-        throw new Error(`Path escapes inlay directory: ${filePath}`);
-    }
-}
+// function assertInsideInlayDir(filePath) {
+//     if (!path.resolve(filePath).startsWith(resolvedInlayDir)) {
+//         throw new Error(`Path escapes inlay directory: ${filePath}`);
+//     }
+// }
 
-function getInlayFilePath(id, ext) {
-    if (!isSafeInlayId(id)) throw new Error(`Invalid inlay id: ${id}`);
-    const p = path.join(inlayDir, `${id}.${normalizeInlayExt(ext)}`);
-    assertInsideInlayDir(p);
-    return p;
-}
+// function getInlayFilePath(id, ext) {
+//     if (!isSafeInlayId(id)) throw new Error(`Invalid inlay id: ${id}`);
+//     const p = path.join(inlayDir, `${id}.${normalizeInlayExt(ext)}`);
+//     assertInsideInlayDir(p);
+//     return p;
+// }
 
-function getInlaySidecarPath(id) {
-    if (!isSafeInlayId(id)) throw new Error(`Invalid inlay id: ${id}`);
-    const p = path.join(inlayDir, `${id}.meta.json`);
-    assertInsideInlayDir(p);
-    return p;
-}
+// function getInlaySidecarPath(id) {
+//     if (!isSafeInlayId(id)) throw new Error(`Invalid inlay id: ${id}`);
+//     const p = path.join(inlayDir, `${id}.meta.json`);
+//     assertInsideInlayDir(p);
+//     return p;
+// }
 
-async function ensureInlayDir() {
-    await fs.mkdir(inlayDir, { recursive: true });
-}
+// async function ensureInlayDir() {
+//     await fs.mkdir(inlayDir, { recursive: true });
+// }
 
-function ensureInlayDirSync() {
-    if (!existsSync(inlayDir)) {
-        mkdirSync(inlayDir, { recursive: true });
-    }
-}
+// function ensureInlayDirSync() {
+//     if (!existsSync(inlayDir)) {
+//         mkdirSync(inlayDir, { recursive: true });
+//     }
+// }
 
-function getMimeFromExt(ext, buffer) {
-    return ASSET_EXT_MIME[normalizeInlayExt(ext)] || detectMime(buffer);
-}
+// function getMimeFromExt(ext, buffer) {
+//     return ASSET_EXT_MIME[normalizeInlayExt(ext)] || detectMime(buffer);
+// }
 
-function decodeDataUri(dataUri) {
-    if (typeof dataUri !== 'string' || !dataUri.startsWith('data:')) {
-        throw new Error('Invalid data URI');
-    }
-    const commaIdx = dataUri.indexOf(',');
-    if (commaIdx === -1) {
-        throw new Error('Malformed data URI');
-    }
-    const meta = dataUri.substring(5, commaIdx);
-    return {
-        buffer: Buffer.from(dataUri.substring(commaIdx + 1), 'base64'),
-        mime: meta.split(';')[0] || 'application/octet-stream',
-    };
-}
+// function decodeDataUri(dataUri) {
+//     if (typeof dataUri !== 'string' || !dataUri.startsWith('data:')) {
+//         throw new Error('Invalid data URI');
+//     }
+//     const commaIdx = dataUri.indexOf(',');
+//     if (commaIdx === -1) {
+//         throw new Error('Malformed data URI');
+//     }
+//     const meta = dataUri.substring(5, commaIdx);
+//     return {
+//         buffer: Buffer.from(dataUri.substring(commaIdx + 1), 'base64'),
+//         mime: meta.split(';')[0] || 'application/octet-stream',
+//     };
+// }
 
-function encodeDataUri(buffer, mime) {
-    return `data:${mime || 'application/octet-stream'};base64,${Buffer.from(buffer).toString('base64')}`;
-}
+// function encodeDataUri(buffer, mime) {
+//     return `data:${mime || 'application/octet-stream'};base64,${Buffer.from(buffer).toString('base64')}`;
+// }
 
-async function readInlaySidecar(id) {
-    try {
-        const raw = await fs.readFile(getInlaySidecarPath(id), 'utf-8');
-        const parsed = JSON.parse(raw);
-        return {
-            ext: normalizeInlayExt(parsed?.ext),
-            name: typeof parsed?.name === 'string' ? parsed.name : id,
-            type: typeof parsed?.type === 'string' ? parsed.type : 'image',
-            height: typeof parsed?.height === 'number' ? parsed.height : undefined,
-            width: typeof parsed?.width === 'number' ? parsed.width : undefined,
-        };
-    } catch {
-        return null;
-    }
-}
+// async function readInlaySidecar(id) {
+//     try {
+//         const raw = await fs.readFile(getInlaySidecarPath(id), 'utf-8');
+//         const parsed = JSON.parse(raw);
+//         return {
+//             ext: normalizeInlayExt(parsed?.ext),
+//             name: typeof parsed?.name === 'string' ? parsed.name : id,
+//             type: typeof parsed?.type === 'string' ? parsed.type : 'image',
+//             height: typeof parsed?.height === 'number' ? parsed.height : undefined,
+//             width: typeof parsed?.width === 'number' ? parsed.width : undefined,
+//         };
+//     } catch {
+//         return null;
+//     }
+// }
 
-async function resolveInlayFilePath(id) {
-    if (!isSafeInlayId(id)) return null;
-    const sidecar = await readInlaySidecar(id);
-    if (sidecar) {
-        const candidate = getInlayFilePath(id, sidecar.ext);
-        try { await fs.access(candidate); return candidate; } catch {}
-    }
-    // Fallback: scan directory (covers pre-sidecar files or mismatched ext)
-    try {
-        const entries = await fs.readdir(inlayDir, { withFileTypes: true });
-        const match = entries.find((entry) => (
-            entry.isFile() &&
-            entry.name.startsWith(`${id}.`) &&
-            entry.name !== `${id}.meta.json`
-        ));
-        return match ? path.join(inlayDir, match.name) : null;
-    } catch {
-        return null;
-    }
-}
+// async function resolveInlayFilePath(id) {
+//     if (!isSafeInlayId(id)) return null;
+//     const sidecar = await readInlaySidecar(id);
+//     if (sidecar) {
+//         const candidate = getInlayFilePath(id, sidecar.ext);
+//         try { await fs.access(candidate); return candidate; } catch {}
+//     }
+//     // Fallback: scan directory (covers pre-sidecar files or mismatched ext)
+//     try {
+//         const entries = await fs.readdir(inlayDir, { withFileTypes: true });
+//         const match = entries.find((entry) => (
+//             entry.isFile() &&
+//             entry.name.startsWith(`${id}.`) &&
+//             entry.name !== `${id}.meta.json`
+//         ));
+//         return match ? path.join(inlayDir, match.name) : null;
+//     } catch {
+//         return null;
+//     }
+// }
 
 function resolveInlayFilePathSync(id) {
     if (!isSafeInlayId(id)) return null;
@@ -641,20 +641,20 @@ function resolveInlayFilePathSync(id) {
     }
 }
 
-async function readInlayFile(id) {
-    const filePath = await resolveInlayFilePath(id);
-    if (!filePath) return null;
-    const ext = normalizeInlayExt(path.extname(filePath).slice(1));
-    const buffer = await fs.readFile(filePath);
-    const stat = await fs.stat(filePath);
-    return {
-        buffer,
-        ext,
-        filePath,
-        mtimeMs: stat.mtimeMs,
-        mime: getMimeFromExt(ext, buffer),
-    };
-}
+// async function readInlayFile(id) {
+//     const filePath = await resolveInlayFilePath(id);
+//     if (!filePath) return null;
+//     const ext = normalizeInlayExt(path.extname(filePath).slice(1));
+//     const buffer = await fs.readFile(filePath);
+//     const stat = await fs.stat(filePath);
+//     return {
+//         buffer,
+//         ext,
+//         filePath,
+//         mtimeMs: stat.mtimeMs,
+//         mime: getMimeFromExt(ext, buffer),
+//     };
+// }
 
 async function writeInlaySidecar(id, info) {
     await ensureInlayDir();
@@ -732,67 +732,67 @@ function deleteInlayFileSync(id) {
     }
 }
 
-async function listInlayFiles() {
-    await ensureInlayDir();
-    const entries = await fs.readdir(inlayDir, { withFileTypes: true });
-    return entries
-        .filter((entry) => (
-            entry.isFile() &&
-            entry.name !== '.migrated_to_fs' &&
-            !entry.name.endsWith('.meta.json')
-        ))
-        .map((entry) => {
-            const ext = normalizeInlayExt(path.extname(entry.name).slice(1));
-            const id = entry.name.slice(0, -(ext.length + 1));
-            return { id, ext, filePath: path.join(inlayDir, entry.name) };
-        })
-        .filter((entry) => isSafeInlayId(entry.id));
-}
+// async function listInlayFiles() {
+//     await ensureInlayDir();
+//     const entries = await fs.readdir(inlayDir, { withFileTypes: true });
+//     return entries
+//         .filter((entry) => (
+//             entry.isFile() &&
+//             entry.name !== '.migrated_to_fs' &&
+//             !entry.name.endsWith('.meta.json')
+//         ))
+//         .map((entry) => {
+//             const ext = normalizeInlayExt(path.extname(entry.name).slice(1));
+//             const id = entry.name.slice(0, -(ext.length + 1));
+//             return { id, ext, filePath: path.join(inlayDir, entry.name) };
+//         })
+//         .filter((entry) => isSafeInlayId(entry.id));
+// }
 
-async function readInlayLegacyInfo(id) {
-    const value = kvGet(`inlay_info/${id}`);
-    if (!value) return null;
-    try {
-        const parsed = JSON.parse(value.toString('utf-8'));
-        return {
-            ext: normalizeInlayExt(parsed?.ext),
-            name: typeof parsed?.name === 'string' ? parsed.name : id,
-            type: typeof parsed?.type === 'string' ? parsed.type : 'image',
-            height: typeof parsed?.height === 'number' ? parsed.height : undefined,
-            width: typeof parsed?.width === 'number' ? parsed.width : undefined,
-        };
-    } catch {
-        return null;
-    }
-}
+// async function readInlayLegacyInfo(id) {
+//     const value = kvGet(`inlay_info/${id}`);
+//     if (!value) return null;
+//     try {
+//         const parsed = JSON.parse(value.toString('utf-8'));
+//         return {
+//             ext: normalizeInlayExt(parsed?.ext),
+//             name: typeof parsed?.name === 'string' ? parsed.name : id,
+//             type: typeof parsed?.type === 'string' ? parsed.type : 'image',
+//             height: typeof parsed?.height === 'number' ? parsed.height : undefined,
+//             width: typeof parsed?.width === 'number' ? parsed.width : undefined,
+//         };
+//     } catch {
+//         return null;
+//     }
+// }
 
-async function readInlayInfoPayload(id) {
-    const sidecar = await readInlaySidecar(id);
-    if (sidecar) return Buffer.from(JSON.stringify(sidecar));
-    const legacy = await readInlayLegacyInfo(id);
-    if (legacy) return Buffer.from(JSON.stringify(legacy));
-    return kvGet(`inlay_info/${id}`);
-}
+// async function readInlayInfoPayload(id) {
+//     const sidecar = await readInlaySidecar(id);
+//     if (sidecar) return Buffer.from(JSON.stringify(sidecar));
+//     const legacy = await readInlayLegacyInfo(id);
+//     if (legacy) return Buffer.from(JSON.stringify(legacy));
+//     return kvGet(`inlay_info/${id}`);
+// }
 
-async function readInlayAssetPayload(id) {
-    const file = await readInlayFile(id);
-    if (!file) return null;
-    const sidecar = (await readInlaySidecar(id)) || (await readInlayLegacyInfo(id));
-    const info = {
-        ext: sidecar?.ext || file.ext,
-        name: sidecar?.name || id,
-        type: sidecar?.type || 'image',
-        height: sidecar?.height,
-        width: sidecar?.width,
-    };
-    const data = info.type === 'signature'
-        ? file.buffer.toString('utf-8')
-        : encodeDataUri(file.buffer, file.mime);
-    return Buffer.from(JSON.stringify({
-        ...info,
-        data,
-    }));
-}
+// async function readInlayAssetPayload(id) {
+//     const file = await readInlayFile(id);
+//     if (!file) return null;
+//     const sidecar = (await readInlaySidecar(id)) || (await readInlayLegacyInfo(id));
+//     const info = {
+//         ext: sidecar?.ext || file.ext,
+//         name: sidecar?.name || id,
+//         type: sidecar?.type || 'image',
+//         height: sidecar?.height,
+//         width: sidecar?.width,
+//     };
+//     const data = info.type === 'signature'
+//         ? file.buffer.toString('utf-8')
+//         : encodeDataUri(file.buffer, file.mime);
+//     return Buffer.from(JSON.stringify({
+//         ...info,
+//         data,
+//     }));
+// }
 
 async function migrateInlaysToFilesystem() {
     await ensureInlayDir();
@@ -902,24 +902,24 @@ function sessionAuthMiddleware(req, res, next) {
     res.status(401).end()
 }
 
-// MIME detection by magic bytes (fallback when key has no extension)
-function detectMime(buf) {
-    if (!buf || buf.length < 12) return 'application/octet-stream'
-    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png'
-    if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg'
-    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif'
-    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
-        buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return 'image/webp'
-    if (buf[0] === 0x1a && buf[1] === 0x45) return 'video/webm'
-    if (buf.length >= 8 && buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) return 'video/mp4'
-    return 'application/octet-stream'
-}
-const ASSET_EXT_MIME = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    gif: 'image/gif', webp: 'image/webp',
-    mp4: 'video/mp4', webm: 'video/webm',
-    mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav',
-}
+// // MIME detection by magic bytes (fallback when key has no extension)
+// function detectMime(buf) {
+//     if (!buf || buf.length < 12) return 'application/octet-stream'
+//     if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png'
+//     if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg'
+//     if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return 'image/gif'
+//     if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+//         buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return 'image/webp'
+//     if (buf[0] === 0x1a && buf[1] === 0x45) return 'video/webm'
+//     if (buf.length >= 8 && buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) return 'video/mp4'
+//     return 'application/octet-stream'
+// }
+// const ASSET_EXT_MIME = {
+//     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+//     gif: 'image/gif', webp: 'image/webp',
+//     mp4: 'video/mp4', webm: 'video/webm',
+//     mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav',
+// }
 
 async function checkDiskSpace(requiredBytes) {
     try {
@@ -1428,18 +1428,18 @@ function encodeBackupEntry(name, data) {
     return Buffer.concat([nameLength, encodedName, dataLength, data]);
 }
 
-function isInvalidBackupPathSegment(name) {
-    return (
-        !name ||
-        name.includes('\0') ||
-        name.includes('\\') ||
-        name.startsWith('/') ||
-        name.includes('../') ||
-        name.includes('/..') ||
-        name === '.' ||
-        name === '..'
-    );
-}
+// function isInvalidBackupPathSegment(name) {
+//     return (
+//         !name ||
+//         name.includes('\0') ||
+//         name.includes('\\') ||
+//         name.startsWith('/') ||
+//         name.includes('../') ||
+//         name.includes('/..') ||
+//         name === '.' ||
+//         name === '..'
+//     );
+// }
 
 function parseInlayBackupName(name) {
     if (!name.startsWith('inlay/')) return null;
@@ -1462,84 +1462,84 @@ function parseInlaySidecarBackupName(name) {
     return { id };
 }
 
-function normalizeColdStorageStorageKey(nameOrKey) {
-    let key = nameOrKey;
-    if (key.startsWith('coldstorage/')) {
-        key = key.slice('coldstorage/'.length);
-    }
-    if (key.endsWith('.json')) {
-        key = key.slice(0, -'.json'.length);
-    }
-    if (!key || key.includes('/') || isInvalidBackupPathSegment(key)) {
-        throw new Error(`Invalid cold storage entry name: ${nameOrKey}`);
-    }
-    return `coldstorage/${key}`;
-}
+// function normalizeColdStorageStorageKey(nameOrKey) {
+//     let key = nameOrKey;
+//     if (key.startsWith('coldstorage/')) {
+//         key = key.slice('coldstorage/'.length);
+//     }
+//     if (key.endsWith('.json')) {
+//         key = key.slice(0, -'.json'.length);
+//     }
+//     if (!key || key.includes('/') || isInvalidBackupPathSegment(key)) {
+//         throw new Error(`Invalid cold storage entry name: ${nameOrKey}`);
+//     }
+//     return `coldstorage/${key}`;
+// }
 
-function toColdStorageBackupName(storageKey) {
-    return `${normalizeColdStorageStorageKey(storageKey)}.json`;
-}
+// function toColdStorageBackupName(storageKey) {
+//     return `${normalizeColdStorageStorageKey(storageKey)}.json`;
+// }
 
-function parseColdStorageJsonBuffer(buffer, sourceLabel, options = {}) {
-    const { allowPlainJson = false } = options;
-    try {
-        const decompressed = zlib.gunzipSync(buffer);
-        return {
-            coldData: JSON.parse(decompressed.toString('utf-8')),
-            format: 'gzip',
-        };
-    } catch (gzipError) {
-        if (!allowPlainJson) {
-            throw gzipError;
-        }
-        try {
-            return {
-                coldData: JSON.parse(buffer.toString('utf-8')),
-                format: 'plain-json',
-            };
-        } catch (jsonError) {
-            throw new Error(`[ColdStorage] failed to parse ${sourceLabel}: gzip=${gzipError.message}; json=${jsonError.message}`);
-        }
-    }
-}
+// function parseColdStorageJsonBuffer(buffer, sourceLabel, options = {}) {
+//     const { allowPlainJson = false } = options;
+//     try {
+//         const decompressed = zlib.gunzipSync(buffer);
+//         return {
+//             coldData: JSON.parse(decompressed.toString('utf-8')),
+//             format: 'gzip',
+//         };
+//     } catch (gzipError) {
+//         if (!allowPlainJson) {
+//             throw gzipError;
+//         }
+//         try {
+//             return {
+//                 coldData: JSON.parse(buffer.toString('utf-8')),
+//                 format: 'plain-json',
+//             };
+//         } catch (jsonError) {
+//             throw new Error(`[ColdStorage] failed to parse ${sourceLabel}: gzip=${gzipError.message}; json=${jsonError.message}`);
+//         }
+//     }
+// }
 
-function encodeColdStorageCanonicalBuffer(coldData) {
-    return Buffer.from(zlib.gzipSync(Buffer.from(JSON.stringify(coldData), 'utf-8')));
-}
+// function encodeColdStorageCanonicalBuffer(coldData) {
+//     return Buffer.from(zlib.gzipSync(Buffer.from(JSON.stringify(coldData), 'utf-8')));
+// }
 
-function readColdStorageJsonEntry(nameOrKey, options = {}) {
-    const { migrateLegacy = false, allowPlainJsonFallback = false } = options;
-    const canonicalKey = normalizeColdStorageStorageKey(nameOrKey);
-    const legacyBackupKey = `${canonicalKey}.json`;
+// function readColdStorageJsonEntry(nameOrKey, options = {}) {
+//     const { migrateLegacy = false, allowPlainJsonFallback = false } = options;
+//     const canonicalKey = normalizeColdStorageStorageKey(nameOrKey);
+//     const legacyBackupKey = `${canonicalKey}.json`;
 
-    let storageKey = canonicalKey;
-    let value = kvGet(canonicalKey);
-    if (!value) {
-        storageKey = legacyBackupKey;
-        value = kvGet(legacyBackupKey);
-    }
-    if (!value) {
-        return null;
-    }
+//     let storageKey = canonicalKey;
+//     let value = kvGet(canonicalKey);
+//     if (!value) {
+//         storageKey = legacyBackupKey;
+//         value = kvGet(legacyBackupKey);
+//     }
+//     if (!value) {
+//         return null;
+//     }
 
-    const parsed = parseColdStorageJsonBuffer(value, storageKey, {
-        allowPlainJson: allowPlainJsonFallback || storageKey !== canonicalKey,
-    });
+//     const parsed = parseColdStorageJsonBuffer(value, storageKey, {
+//         allowPlainJson: allowPlainJsonFallback || storageKey !== canonicalKey,
+//     });
 
-    if (migrateLegacy && (storageKey !== canonicalKey || parsed.format !== 'gzip')) {
-        kvSet(canonicalKey, encodeColdStorageCanonicalBuffer(parsed.coldData));
-        if (storageKey !== canonicalKey) {
-            kvDel(storageKey);
-        }
-    }
+//     if (migrateLegacy && (storageKey !== canonicalKey || parsed.format !== 'gzip')) {
+//         kvSet(canonicalKey, encodeColdStorageCanonicalBuffer(parsed.coldData));
+//         if (storageKey !== canonicalKey) {
+//             kvDel(storageKey);
+//         }
+//     }
 
-    return {
-        coldData: parsed.coldData,
-        storageKey,
-        canonicalKey,
-        format: parsed.format,
-    };
-}
+//     return {
+//         coldData: parsed.coldData,
+//         storageKey,
+//         canonicalKey,
+//         format: parsed.format,
+//     };
+// }
 
 function listColdStorageBackupEntries() {
     const canonicalKeys = Array.from(new Set(
@@ -2467,113 +2467,113 @@ app.post('/api/session', async (req, res) => {
  * Extract raw binary and content-type from a KV value.
  * Handles both raw binary (assets/) and JSON+base64 wrapped (inlay/) formats.
  */
-function resolveAssetPayload(key, rawValue) {
-    // inlay/ and inlay_thumb/ keys store JSON with base64 data URI
-    if (key.startsWith('inlay/') || key.startsWith('inlay_thumb/')) {
-        try {
-            const json = JSON.parse(rawValue.toString('utf-8'))
-            const dataUri = json.data
-            if (typeof dataUri === 'string' && dataUri.startsWith('data:')) {
-                // Parse "data:<mime>;base64,<payload>"
-                const commaIdx = dataUri.indexOf(',')
-                const meta = dataUri.substring(5, commaIdx) // after "data:"
-                const mime = meta.split(';')[0]
-                const binary = Buffer.from(dataUri.substring(commaIdx + 1), 'base64')
-                return { binary, contentType: mime || 'application/octet-stream' }
-            }
-            // Fallback: ext field
-            const ext = (json.ext || '').toLowerCase()
-            const mime = ASSET_EXT_MIME[ext] || 'application/octet-stream'
-            return { binary: rawValue, contentType: mime }
-        } catch {
-            // JSON parse failed — treat as raw binary
-        }
-    }
+// function resolveAssetPayload(key, rawValue) {
+//     // inlay/ and inlay_thumb/ keys store JSON with base64 data URI
+//     if (key.startsWith('inlay/') || key.startsWith('inlay_thumb/')) {
+//         try {
+//             const json = JSON.parse(rawValue.toString('utf-8'))
+//             const dataUri = json.data
+//             if (typeof dataUri === 'string' && dataUri.startsWith('data:')) {
+//                 // Parse "data:<mime>;base64,<payload>"
+//                 const commaIdx = dataUri.indexOf(',')
+//                 const meta = dataUri.substring(5, commaIdx) // after "data:"
+//                 const mime = meta.split(';')[0]
+//                 const binary = Buffer.from(dataUri.substring(commaIdx + 1), 'base64')
+//                 return { binary, contentType: mime || 'application/octet-stream' }
+//             }
+//             // Fallback: ext field
+//             const ext = (json.ext || '').toLowerCase()
+//             const mime = ASSET_EXT_MIME[ext] || 'application/octet-stream'
+//             return { binary: rawValue, contentType: mime }
+//         } catch {
+//             // JSON parse failed — treat as raw binary
+//         }
+//     }
 
-    // assets/* and others: raw binary
-    const ext = key.split('.').pop()?.toLowerCase()
-    const contentType = ASSET_EXT_MIME[ext] || detectMime(rawValue)
-    return { binary: rawValue, contentType }
-}
+//     // assets/* and others: raw binary
+//     const ext = key.split('.').pop()?.toLowerCase()
+//     const contentType = ASSET_EXT_MIME[ext] || detectMime(rawValue)
+//     return { binary: rawValue, contentType }
+// }
 
-const THUMB_MAX_SIDE = 320;
-const THUMB_QUALITY = 75;
-const THUMB_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']);
+// const THUMB_MAX_SIDE = 320;
+// const THUMB_QUALITY = 75;
+// const THUMB_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']);
 
-async function generateThumbnail(buffer) {
-    return sharp(buffer)
-        .resize(THUMB_MAX_SIDE, THUMB_MAX_SIDE, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: THUMB_QUALITY })
-        .toBuffer();
-}
+// async function generateThumbnail(buffer) {
+//     return sharp(buffer)
+//         .resize(THUMB_MAX_SIDE, THUMB_MAX_SIDE, { fit: 'inside', withoutEnlargement: true })
+//         .webp({ quality: THUMB_QUALITY })
+//         .toBuffer();
+// }
 
-app.get('/api/asset/:hexKey', sessionAuthMiddleware, async (req, res) => {
-    try {
-        const key = Buffer.from(req.params.hexKey, 'hex').toString('utf-8')
+// app.get('/api/asset/:hexKey', sessionAuthMiddleware, async (req, res) => {
+//     try {
+//         const key = Buffer.from(req.params.hexKey, 'hex').toString('utf-8')
 
-        if (key.startsWith('inlay/')) {
-            const id = key.slice('inlay/'.length)
-            const file = await readInlayFile(id)
-            if (file) {
-                const etag = `"${Math.floor(file.mtimeMs)}"`
-                if (req.headers['if-none-match'] === etag) {
-                    return res.status(304).set('Cache-Control', 'public, max-age=31536000, immutable').end()
-                }
-                res.set({
-                    'Content-Type': file.mime,
-                    'Cache-Control': 'public, max-age=31536000, immutable',
-                    'ETag': etag,
-                })
-                return res.send(file.buffer)
-            }
-            return res.status(404).set('Cache-Control', 'no-store').end()
-        }
+//         if (key.startsWith('inlay/')) {
+//             const id = key.slice('inlay/'.length)
+//             const file = await readInlayFile(id)
+//             if (file) {
+//                 const etag = `"${Math.floor(file.mtimeMs)}"`
+//                 if (req.headers['if-none-match'] === etag) {
+//                     return res.status(304).set('Cache-Control', 'public, max-age=31536000, immutable').end()
+//                 }
+//                 res.set({
+//                     'Content-Type': file.mime,
+//                     'Cache-Control': 'public, max-age=31536000, immutable',
+//                     'ETag': etag,
+//                 })
+//                 return res.send(file.buffer)
+//             }
+//             return res.status(404).set('Cache-Control', 'no-store').end()
+//         }
 
-        if (key.startsWith('inlay_thumb/')) {
-            const id = key.slice('inlay_thumb/'.length)
-            const sidecar = await readInlaySidecar(id);
-            if (!sidecar || sidecar.type !== 'image' || !THUMB_IMAGE_EXTS.has(sidecar.ext)) {
-                return res.status(404).end()
-            }
-            const file = await readInlayFile(id)
-            if (!file) return res.status(404).set('Cache-Control', 'no-store').end()
-            const etag = `"thumb-${Math.floor(file.mtimeMs)}"`
-            if (req.headers['if-none-match'] === etag) {
-                return res.status(304).set('Cache-Control', 'public, max-age=31536000, immutable').end()
-            }
-            const thumb = await generateThumbnail(file.buffer)
-            res.set({
-                'Content-Type': 'image/webp',
-                'Cache-Control': 'public, max-age=31536000, immutable',
-                'ETag': etag,
-            })
-            return res.send(thumb)
-        }
+//         if (key.startsWith('inlay_thumb/')) {
+//             const id = key.slice('inlay_thumb/'.length)
+//             const sidecar = await readInlaySidecar(id);
+//             if (!sidecar || sidecar.type !== 'image' || !THUMB_IMAGE_EXTS.has(sidecar.ext)) {
+//                 return res.status(404).end()
+//             }
+//             const file = await readInlayFile(id)
+//             if (!file) return res.status(404).set('Cache-Control', 'no-store').end()
+//             const etag = `"thumb-${Math.floor(file.mtimeMs)}"`
+//             if (req.headers['if-none-match'] === etag) {
+//                 return res.status(304).set('Cache-Control', 'public, max-age=31536000, immutable').end()
+//             }
+//             const thumb = await generateThumbnail(file.buffer)
+//             res.set({
+//                 'Content-Type': 'image/webp',
+//                 'Cache-Control': 'public, max-age=31536000, immutable',
+//                 'ETag': etag,
+//             })
+//             return res.send(thumb)
+//         }
 
-        // Fast-path 304: check updated_at BEFORE loading the blob.
-        const updatedAt = kvGetUpdatedAt(key)
-        if (updatedAt === null) return res.status(404).set('Cache-Control', 'no-store').end()
+//         // Fast-path 304: check updated_at BEFORE loading the blob.
+//         const updatedAt = kvGetUpdatedAt(key)
+//         if (updatedAt === null) return res.status(404).set('Cache-Control', 'no-store').end()
 
-        const etag = `"${updatedAt}"`
-        if (req.headers['if-none-match'] === etag) {
-            return res.status(304).set('Cache-Control', 'public, max-age=31536000, immutable').end()
-        }
+//         const etag = `"${updatedAt}"`
+//         if (req.headers['if-none-match'] === etag) {
+//             return res.status(304).set('Cache-Control', 'public, max-age=31536000, immutable').end()
+//         }
 
-        const data = kvGet(key)
-        if (!data) return res.status(404).set('Cache-Control', 'no-store').end()
+//         const data = kvGet(key)
+//         if (!data) return res.status(404).set('Cache-Control', 'no-store').end()
 
-        const { binary, contentType } = resolveAssetPayload(key, data)
-        res.set({
-            'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=31536000, immutable',
-            'ETag': etag,
-        })
-        res.send(binary)
-    } catch (error) {
-        console.error('[Asset] Failed to serve asset:', error);
-        res.status(500).end()
-    }
-})
+//         const { binary, contentType } = resolveAssetPayload(key, data)
+//         res.set({
+//             'Content-Type': contentType,
+//             'Cache-Control': 'public, max-age=31536000, immutable',
+//             'ETag': etag,
+//         })
+//         res.send(binary)
+//     } catch (error) {
+//         console.error('[Asset] Failed to serve asset:', error);
+//         res.status(500).end()
+//     }
+// })
 
 app.post('/api/crypto', async (req, res) => {
     try {
@@ -2597,66 +2597,66 @@ app.post('/api/set_password', async (req, res) => {
     }
 })
 
-app.get('/api/read', async (req, res, next) => {
-    if(!await checkAuth(req, res)){
-        return;
-    }
-    const filePath = req.headers['file-path'];
-    if (!filePath) {
-        console.log('no path')
-        res.status(400).send({ error:'File path required' });
-        return;
-    }
-    if(!isHex(filePath)){
-        res.status(400).send({ error:'Invaild Path' });
-        return;
-    }
-    try {
-        const key = Buffer.from(filePath, 'hex').toString('utf-8');
-        // Flush pending patches before reading database.bin
-        if (key === 'database/database.bin') {
-            await flushPendingDb();
-        }
-        let value = null;
-        if (key.startsWith('inlay/')) {
-            value = await readInlayAssetPayload(key.slice('inlay/'.length));
-        } else if (key.startsWith('inlay_info/')) {
-            value = await readInlayInfoPayload(key.slice('inlay_info/'.length));
-        }
-        if (value === null) {
-            value = kvGet(key);
-        }
-        if(value === null){
-            res.send();
-        } else {
-            // Strip chat payloads from database.bin — client gets stubs only
-            if (key === 'database/database.bin') {
-                try {
-                    const dbObj = await decodeDatabaseWithPersistentChatIds(value, {
-                        createBackup: true,
-                    });
-                    initChatStore(dbObj);
-                    const stripped = normalizeJSON(stripChatsFromDb(dbObj));
-                    // Populate dbCache so patch endpoint uses the same data
-                    dbCache[filePath] = stripped;
-                    value = Buffer.from(encodeRisuSaveLegacy(stripped, true));
-                } catch (e) {
-                    console.error('[Read] Failed to strip chats from database.bin:', e.message);
-                    return next(e);
-                }
-                dbEtag = computeBufferEtag(value);
-                if (req.headers['if-none-match'] === dbEtag) {
-                    return res.status(304).end();
-                }
-                res.setHeader('x-db-etag', dbEtag);
-            }
-            res.setHeader('Content-Type', 'application/octet-stream');
-            res.send(value);
-        }
-    } catch (error) {
-        next(error);
-    }
-});
+// app.get('/api/read', async (req, res, next) => {
+//     if(!await checkAuth(req, res)){
+//         return;
+//     }
+//     const filePath = req.headers['file-path'];
+//     if (!filePath) {
+//         console.log('no path')
+//         res.status(400).send({ error:'File path required' });
+//         return;
+//     }
+//     if(!isHex(filePath)){
+//         res.status(400).send({ error:'Invaild Path' });
+//         return;
+//     }
+//     try {
+//         const key = Buffer.from(filePath, 'hex').toString('utf-8');
+//         // Flush pending patches before reading database.bin
+//         if (key === 'database/database.bin') {
+//             await flushPendingDb();
+//         }
+//         let value = null;
+//         if (key.startsWith('inlay/')) {
+//             value = await readInlayAssetPayload(key.slice('inlay/'.length));
+//         } else if (key.startsWith('inlay_info/')) {
+//             value = await readInlayInfoPayload(key.slice('inlay_info/'.length));
+//         }
+//         if (value === null) {
+//             value = kvGet(key);
+//         }
+//         if(value === null){
+//             res.send();
+//         } else {
+//             // Strip chat payloads from database.bin — client gets stubs only
+//             if (key === 'database/database.bin') {
+//                 try {
+//                     const dbObj = await decodeDatabaseWithPersistentChatIds(value, {
+//                         createBackup: true,
+//                     });
+//                     initChatStore(dbObj);
+//                     const stripped = normalizeJSON(stripChatsFromDb(dbObj));
+//                     // Populate dbCache so patch endpoint uses the same data
+//                     dbCache[filePath] = stripped;
+//                     value = Buffer.from(encodeRisuSaveLegacy(stripped, true));
+//                 } catch (e) {
+//                     console.error('[Read] Failed to strip chats from database.bin:', e.message);
+//                     return next(e);
+//                 }
+//                 dbEtag = computeBufferEtag(value);
+//                 if (req.headers['if-none-match'] === dbEtag) {
+//                     return res.status(304).end();
+//                 }
+//                 res.setHeader('x-db-etag', dbEtag);
+//             }
+//             res.setHeader('Content-Type', 'application/octet-stream');
+//             res.send(value);
+//         }
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
 app.get('/api/remove', async (req, res, next) => {
     if(!await checkAuth(req, res)){
@@ -2691,28 +2691,28 @@ app.get('/api/remove', async (req, res, next) => {
     }
 });
 
-// Done
-app.get('/api/list', async (req, res, next) => {
-    if(!await checkAuth(req, res)){
-        return;
-    }
-    try {
-        const keyPrefix = req.headers['key-prefix'] || '';
-        let data;
-        if (keyPrefix === 'inlay/') {
-            const fileKeys = (await listInlayFiles()).map((entry) => `inlay/${entry.id}`);
-            data = [...new Set([
-                ...fileKeys,
-                ...kvList('inlay/'),
-            ])];
-        } else {
-            data = kvList(keyPrefix || undefined);
-        }
-        res.send({ success: true, content: data });
-    } catch (error) {
-        next(error);
-    }
-});
+// // Done
+// app.get('/api/list', async (req, res, next) => {
+//     if(!await checkAuth(req, res)){
+//         return;
+//     }
+//     try {
+//         const keyPrefix = req.headers['key-prefix'] || '';
+//         let data;
+//         if (keyPrefix === 'inlay/') {
+//             const fileKeys = (await listInlayFiles()).map((entry) => `inlay/${entry.id}`);
+//             data = [...new Set([
+//                 ...fileKeys,
+//                 ...kvList('inlay/'),
+//             ])];
+//         } else {
+//             data = kvList(keyPrefix || undefined);
+//         }
+//         res.send({ success: true, content: data });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
 app.post('/api/write', async (req, res, next) => {
     if(!await checkAuth(req, res)){
@@ -2826,120 +2826,120 @@ app.post('/api/db/flush', sessionAuthMiddleware, async (req, res, next) => {
     }
 });
 
-// ─── Patch sync endpoint ──────────────────────────────────────────────────────
-app.post('/api/patch', async (req, res, next) => {
-    if (!enablePatchSync) {
-        res.status(404).send({ error: 'Patch sync is not enabled' });
-        return;
-    }
-    if(!await checkAuth(req, res)){
-        return;
-    }
-    if (!checkActiveSession(req, res)) return;
-    const filePath = req.headers['file-path'];
-    const patch = req.body.patch;
-    const expectedHash = req.body.expectedHash;
+// // ─── Patch sync endpoint ──────────────────────────────────────────────────────
+// app.post('/api/patch', async (req, res, next) => {
+//     if (!enablePatchSync) {
+//         res.status(404).send({ error: 'Patch sync is not enabled' });
+//         return;
+//     }
+//     if(!await checkAuth(req, res)){
+//         return;
+//     }
+//     if (!checkActiveSession(req, res)) return;
+//     const filePath = req.headers['file-path'];
+//     const patch = req.body.patch;
+//     const expectedHash = req.body.expectedHash;
 
-    if (!filePath || !patch || !expectedHash) {
-        res.status(400).send({ error: 'File path, patch, and expected hash required' });
-        return;
-    }
-    if (!isHex(filePath)) {
-        res.status(400).send({ error: 'Invaild Path' });
-        return;
-    }
+//     if (!filePath || !patch || !expectedHash) {
+//         res.status(400).send({ error: 'File path, patch, and expected hash required' });
+//         return;
+//     }
+//     if (!isHex(filePath)) {
+//         res.status(400).send({ error: 'Invaild Path' });
+//         return;
+//     }
 
-    try {
-        await queueStorageOperation(async () => {
-            const decodedKey = Buffer.from(filePath, 'hex').toString('utf-8');
+//     try {
+//         await queueStorageOperation(async () => {
+//             const decodedKey = Buffer.from(filePath, 'hex').toString('utf-8');
 
-            // Load database into memory if not already cached
-            // For database.bin, cache holds the STRIPPED version (stubs only)
-            if (!dbCache[filePath]) {
-                const fileContent = kvGet(decodedKey);
-                if (fileContent) {
-                    const decoded = decodedKey === 'database/database.bin'
-                        ? await decodeDatabaseWithPersistentChatIds(fileContent)
-                        : normalizeJSON(await decodeRisuSave(fileContent));
-                    if (decodedKey === 'database/database.bin') {
-                        initChatStore(decoded);
-                        dbCache[filePath] = normalizeJSON(stripChatsFromDb(decoded));
-                    } else {
-                        dbCache[filePath] = decoded;
-                    }
-                } else {
-                    dbCache[filePath] = {};
-                }
-            }
+//             // Load database into memory if not already cached
+//             // For database.bin, cache holds the STRIPPED version (stubs only)
+//             if (!dbCache[filePath]) {
+//                 const fileContent = kvGet(decodedKey);
+//                 if (fileContent) {
+//                     const decoded = decodedKey === 'database/database.bin'
+//                         ? await decodeDatabaseWithPersistentChatIds(fileContent)
+//                         : normalizeJSON(await decodeRisuSave(fileContent));
+//                     if (decodedKey === 'database/database.bin') {
+//                         initChatStore(decoded);
+//                         dbCache[filePath] = normalizeJSON(stripChatsFromDb(decoded));
+//                     } else {
+//                         dbCache[filePath] = decoded;
+//                     }
+//                 } else {
+//                     dbCache[filePath] = {};
+//                 }
+//             }
 
-            const serverHash = calculateHash(dbCache[filePath]).toString(16);
+//             const serverHash = calculateHash(dbCache[filePath]).toString(16);
 
-            if (expectedHash !== serverHash) {
-                console.log(`[Patch] Hash mismatch for ${decodedKey}: expected=${expectedHash}, server=${serverHash}`);
-                let currentEtag = undefined;
-                if (decodedKey === 'database/database.bin') {
-                    currentEtag = computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(dbCache[filePath])));
-                    dbEtag = currentEtag;
-                }
-                res.status(409).send({
-                    error: 'Hash mismatch - data out of sync',
-                    currentEtag
-                });
-                return;
-            }
+//             if (expectedHash !== serverHash) {
+//                 console.log(`[Patch] Hash mismatch for ${decodedKey}: expected=${expectedHash}, server=${serverHash}`);
+//                 let currentEtag = undefined;
+//                 if (decodedKey === 'database/database.bin') {
+//                     currentEtag = computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(dbCache[filePath])));
+//                     dbEtag = currentEtag;
+//                 }
+//                 res.status(409).send({
+//                     error: 'Hash mismatch - data out of sync',
+//                     currentEtag
+//                 });
+//                 return;
+//             }
 
-            // Apply patch to in-memory database (clone first to prevent partial mutation on failure)
-            const snapshot = JSON.parse(JSON.stringify(dbCache[filePath]));
-            let result;
-            try {
-                result = applyPatch(snapshot, patch, true);
-            } catch (patchErr) {
-                // Invalidate corrupted cache entry to force reload on next request
-                delete dbCache[filePath];
-                throw patchErr;
-            }
-            dbCache[filePath] = snapshot;
+//             // Apply patch to in-memory database (clone first to prevent partial mutation on failure)
+//             const snapshot = JSON.parse(JSON.stringify(dbCache[filePath]));
+//             let result;
+//             try {
+//                 result = applyPatch(snapshot, patch, true);
+//             } catch (patchErr) {
+//                 // Invalidate corrupted cache entry to force reload on next request
+//                 delete dbCache[filePath];
+//                 throw patchErr;
+//             }
+//             dbCache[filePath] = snapshot;
 
-            // Schedule save to KV (debounced) — merge full chats back for database.bin
-            if (saveTimers[filePath]) {
-                clearTimeout(saveTimers[filePath]);
-            }
-            saveTimers[filePath] = setTimeout(async () => {
-                try {
-                    if (decodedKey === 'database/database.bin') {
-                        await persistDbCacheWithChats(filePath, decodedKey);
-                    } else {
-                        const data = Buffer.from(encodeRisuSaveLegacy(dbCache[filePath]));
-                        kvSet(decodedKey, data);
-                    }
-                    if (decodedKey === 'database/database.bin') {
-                        createBackupAndRotate();
-                    }
-                } catch (error) {
-                    console.error(`[Patch] Error saving ${decodedKey}:`, error);
-                } finally {
-                    delete saveTimers[filePath];
-                }
-            }, SAVE_INTERVAL);
+//             // Schedule save to KV (debounced) — merge full chats back for database.bin
+//             if (saveTimers[filePath]) {
+//                 clearTimeout(saveTimers[filePath]);
+//             }
+//             saveTimers[filePath] = setTimeout(async () => {
+//                 try {
+//                     if (decodedKey === 'database/database.bin') {
+//                         await persistDbCacheWithChats(filePath, decodedKey);
+//                     } else {
+//                         const data = Buffer.from(encodeRisuSaveLegacy(dbCache[filePath]));
+//                         kvSet(decodedKey, data);
+//                     }
+//                     if (decodedKey === 'database/database.bin') {
+//                         createBackupAndRotate();
+//                     }
+//                 } catch (error) {
+//                     console.error(`[Patch] Error saving ${decodedKey}:`, error);
+//                 } finally {
+//                     delete saveTimers[filePath];
+//                 }
+//             }, SAVE_INTERVAL);
 
-            // Update ETag after successful patch (based on stripped version)
-            if (decodedKey === 'database/database.bin') {
-                dbEtag = computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(dbCache[filePath])));
-            }
+//             // Update ETag after successful patch (based on stripped version)
+//             if (decodedKey === 'database/database.bin') {
+//                 dbEtag = computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(dbCache[filePath])));
+//             }
 
-            res.send({
-                success: true,
-                appliedOperations: result.length,
-                etag: decodedKey === 'database/database.bin' ? dbEtag : undefined,
-            });
-        });
-    } catch (error) {
-        console.error(`[Patch] Error applying patch to ${filePath}:`, error.name);
-        res.status(500).send({
-            error: 'Patch application failed: ' + (error && error.message ? error.message : error)
-        });
-    }
-});
+//             res.send({
+//                 success: true,
+//                 appliedOperations: result.length,
+//                 etag: decodedKey === 'database/database.bin' ? dbEtag : undefined,
+//             });
+//         });
+//     } catch (error) {
+//         console.error(`[Patch] Error applying patch to ${filePath}:`, error.name);
+//         res.status(500).send({
+//             error: 'Patch application failed: ' + (error && error.message ? error.message : error)
+//         });
+//     }
+// });
 
 // ─── Bulk asset endpoints (3-2-B) ─────────────────────────────────────────────
 const BULK_BATCH = 50;
@@ -3484,124 +3484,124 @@ app.get('/api/backup/server/download/:filename', async (req, res, next) => {
 // ── Chat content endpoints (runtime lazy load) ─────────────────────────────
 
 // Cold storage compatibility: restore data stored in coldstorage/ KV entries
-const COLD_STORAGE_HEADER = '\uEF01COLDSTORAGE\uEF01';
+// const COLD_STORAGE_HEADER = '\uEF01COLDSTORAGE\uEF01';
 
-function restoreColdStorageCharacter(character) {
-    if (!character?.coldstorage) return true;
-    const key = character.coldstorage;
-    const entry = readColdStorageJsonEntry(key, {
-        migrateLegacy: true,
-    });
-    if (!entry) {
-        console.error(`[ColdStorage] character data not found for key: ${key}`);
-        return false;
-    }
-    try {
-        const coldData = entry.coldData;
-        if (coldData?.character) {
-            Object.assign(character, coldData.character);
-            delete character.coldstorage;
-            delete character.coldStoragedChats;
-        } else {
-            console.error(`[ColdStorage] unexpected character cold data format for key: ${key}`);
-            return false;
-        }
-        return true;
-    } catch (err) {
-        console.error(`[ColdStorage] character restore failed for key ${key}:`, err.message);
-        return false;
-    }
-}
+// function restoreColdStorageCharacter(character) {
+//     if (!character?.coldstorage) return true;
+//     const key = character.coldstorage;
+//     const entry = readColdStorageJsonEntry(key, {
+//         migrateLegacy: true,
+//     });
+//     if (!entry) {
+//         console.error(`[ColdStorage] character data not found for key: ${key}`);
+//         return false;
+//     }
+//     try {
+//         const coldData = entry.coldData;
+//         if (coldData?.character) {
+//             Object.assign(character, coldData.character);
+//             delete character.coldstorage;
+//             delete character.coldStoragedChats;
+//         } else {
+//             console.error(`[ColdStorage] unexpected character cold data format for key: ${key}`);
+//             return false;
+//         }
+//         return true;
+//     } catch (err) {
+//         console.error(`[ColdStorage] character restore failed for key ${key}:`, err.message);
+//         return false;
+//     }
+// }
 
-function promoteFailedColdStorageStub(char) {
-    const coldKey = char.coldstorage;
-    // Fill in missing fields with safe defaults matching createBlankChar() in src/ts/characters.ts.
-    // SYNC: if createBlankChar() defaults change, update this object to match.
-    const defaults = {
-        firstMessage: '', desc: '', notes: '', chatFolders: [],
-        emotionImages: [], bias: [], viewScreen: 'none', globalLore: [],
-        sdData: [
-            ['always', 'solo, 1girl'], ['negative', ''],
-            ["|character's appearance", ''], ['current situation', ''],
-            ["$character's pose", ''], ["$character's emotion", ''],
-            ['current location', ''],
-        ],
-        utilityBot: false, customscript: [], exampleMessage: '',
-        creatorNotes: '', systemPrompt: '', postHistoryInstructions: '',
-        alternateGreetings: [], tags: [], creator: '', characterVersion: '',
-        personality: '', scenario: '',
-        firstMsgIndex: -1,
-        replaceGlobalNote: '', additionalText: '',
-        triggerscript: [
-            { comment: '', type: 'manual', conditions: [], effect: [{ type: 'v2Header', code: '', indent: 0 }] },
-            { comment: 'New Event', type: 'manual', conditions: [], effect: [] },
-        ],
-    };
-    for (const [key, value] of Object.entries(defaults)) {
-        if (char[key] === undefined || char[key] === null) {
-            char[key] = value;
-        }
-    }
-    // Force firstMsgIndex to -1 even if stub had 0 — prevents alternateGreetings[0] access on empty array
-    char.firstMsgIndex = -1;
-    // Ensure chats array is valid
-    if (!Array.isArray(char.chats) || char.chats.length === 0) {
-        char.chats = [{ message: [], note: '', name: 'Chat 1', localLore: [] }];
-    }
-    // Leave recovery breadcrumb and remove cold storage markers
-    char.desc = `[Cold storage restore failed. Original key: ${coldKey}]\n\n${char.desc || ''}`.trim();
-    delete char.coldstorage;
-    delete char.coldStoragedChats;
-}
+// function promoteFailedColdStorageStub(char) {
+//     const coldKey = char.coldstorage;
+//     // Fill in missing fields with safe defaults matching createBlankChar() in src/ts/characters.ts.
+//     // SYNC: if createBlankChar() defaults change, update this object to match.
+//     const defaults = {
+//         firstMessage: '', desc: '', notes: '', chatFolders: [],
+//         emotionImages: [], bias: [], viewScreen: 'none', globalLore: [],
+//         sdData: [
+//             ['always', 'solo, 1girl'], ['negative', ''],
+//             ["|character's appearance", ''], ['current situation', ''],
+//             ["$character's pose", ''], ["$character's emotion", ''],
+//             ['current location', ''],
+//         ],
+//         utilityBot: false, customscript: [], exampleMessage: '',
+//         creatorNotes: '', systemPrompt: '', postHistoryInstructions: '',
+//         alternateGreetings: [], tags: [], creator: '', characterVersion: '',
+//         personality: '', scenario: '',
+//         firstMsgIndex: -1,
+//         replaceGlobalNote: '', additionalText: '',
+//         triggerscript: [
+//             { comment: '', type: 'manual', conditions: [], effect: [{ type: 'v2Header', code: '', indent: 0 }] },
+//             { comment: 'New Event', type: 'manual', conditions: [], effect: [] },
+//         ],
+//     };
+//     for (const [key, value] of Object.entries(defaults)) {
+//         if (char[key] === undefined || char[key] === null) {
+//             char[key] = value;
+//         }
+//     }
+//     // Force firstMsgIndex to -1 even if stub had 0 — prevents alternateGreetings[0] access on empty array
+//     char.firstMsgIndex = -1;
+//     // Ensure chats array is valid
+//     if (!Array.isArray(char.chats) || char.chats.length === 0) {
+//         char.chats = [{ message: [], note: '', name: 'Chat 1', localLore: [] }];
+//     }
+//     // Leave recovery breadcrumb and remove cold storage markers
+//     char.desc = `[Cold storage restore failed. Original key: ${coldKey}]\n\n${char.desc || ''}`.trim();
+//     delete char.coldstorage;
+//     delete char.coldStoragedChats;
+// }
 
-function restoreColdStorageCharactersInDb(dbObj) {
-    const result = { restored: 0, failed: 0, failedNames: [] };
-    if (!Array.isArray(dbObj?.characters)) return result;
-    for (let i = 0; i < dbObj.characters.length; i++) {
-        const char = dbObj.characters[i];
-        if (!char?.coldstorage) continue;
-        if (restoreColdStorageCharacter(char)) {
-            result.restored++;
-        } else {
-            result.failed++;
-            result.failedNames.push(char.name || `(index ${i})`);
-            promoteFailedColdStorageStub(char);
-        }
-    }
-    return result;
-}
+// function restoreColdStorageCharactersInDb(dbObj) {
+//     const result = { restored: 0, failed: 0, failedNames: [] };
+//     if (!Array.isArray(dbObj?.characters)) return result;
+//     for (let i = 0; i < dbObj.characters.length; i++) {
+//         const char = dbObj.characters[i];
+//         if (!char?.coldstorage) continue;
+//         if (restoreColdStorageCharacter(char)) {
+//             result.restored++;
+//         } else {
+//             result.failed++;
+//             result.failedNames.push(char.name || `(index ${i})`);
+//             promoteFailedColdStorageStub(char);
+//         }
+//     }
+//     return result;
+// }
 
-function isColdStorageChat(chat) {
-    return chat?.message?.[0]?.data?.startsWith(COLD_STORAGE_HEADER);
-}
+// function isColdStorageChat(chat) {
+//     return chat?.message?.[0]?.data?.startsWith(COLD_STORAGE_HEADER);
+// }
 
-function restoreColdStorageChat(chat) {
-    if (!isColdStorageChat(chat)) return true;
-    const key = chat.message[0].data.slice(COLD_STORAGE_HEADER.length);
-    const entry = readColdStorageJsonEntry(key, {
-        migrateLegacy: true,
-    });
-    if (!entry) {
-        console.error(`[ColdStorage] data not found for key: ${key}`);
-        return false;
-    }
-    try {
-        const coldData = entry.coldData;
-        if (Array.isArray(coldData)) {
-            chat.message = coldData;
-        } else if (coldData?.message) {
-            chat.message = coldData.message;
-            if (coldData.hypaV3Data) chat.hypaV3Data = coldData.hypaV3Data;
-            if (coldData.scriptstate) chat.scriptstate = coldData.scriptstate;
-            if (coldData.localLore) chat.localLore = coldData.localLore;
-        }
-        chat.lastDate = Date.now();
-        return true;
-    } catch (err) {
-        console.error(`[ColdStorage] restore failed for key ${key}:`, err.message);
-        return false;
-    }
-}
+// function restoreColdStorageChat(chat) {
+//     if (!isColdStorageChat(chat)) return true;
+//     const key = chat.message[0].data.slice(COLD_STORAGE_HEADER.length);
+//     const entry = readColdStorageJsonEntry(key, {
+//         migrateLegacy: true,
+//     });
+//     if (!entry) {
+//         console.error(`[ColdStorage] data not found for key: ${key}`);
+//         return false;
+//     }
+//     try {
+//         const coldData = entry.coldData;
+//         if (Array.isArray(coldData)) {
+//             chat.message = coldData;
+//         } else if (coldData?.message) {
+//             chat.message = coldData.message;
+//             if (coldData.hypaV3Data) chat.hypaV3Data = coldData.hypaV3Data;
+//             if (coldData.scriptstate) chat.scriptstate = coldData.scriptstate;
+//             if (coldData.localLore) chat.localLore = coldData.localLore;
+//         }
+//         chat.lastDate = Date.now();
+//         return true;
+//     } catch (err) {
+//         console.error(`[ColdStorage] restore failed for key ${key}:`, err.message);
+//         return false;
+//     }
+// }
 
 // GET /api/chat-content/:chaId/:chatIndex — retrieve full chat from server
 app.get('/api/chat-content/:chaId/:chatIndex', async (req, res, next) => {

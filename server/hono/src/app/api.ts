@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { kvList } from "../utils/db.js"
 import { savePath, jwtSecret } from "../utils/util.js";
+import { listInlayFiles } from "../utils/asset.util.js";
 import "./asset.js";
 
 import { mkdir, readdir } from "node:fs/promises"
@@ -14,7 +15,7 @@ const api = new Hono();
 
 api.get('/list', async (c) => {
     const auth = await checkAuth(c);
-    if (auth instanceof Response) return auth;
+    //if (auth instanceof Response) return auth;
 
     const keyPrefix = c.req.header('key-prefix') ?? '';
     const data = await getKeysByPrefix(keyPrefix);
@@ -79,43 +80,6 @@ export async function checkAuth(c: Context, { allowExpired = false } = {}): Prom
     }
 
     return validPayload;
-}
-
-async function ensureInlayDir() {
-    await mkdir(inlayDir, { recursive: true });
-}
-
-function normalizeInlayExt(ext: string) {
-    if (typeof ext !== 'string') return 'bin';
-    const normalized = ext.trim().toLowerCase().replace(/^\.+/, '').replace(/[\/\\\0]/g, '');
-    return normalized || 'bin';
-}
-
-function isSafeInlayId(id: string) {
-    return typeof id === 'string' &&
-        id.length > 0 &&
-        !id.includes('\0') &&
-        !id.includes('/') &&
-        !id.includes('\\') &&
-        id !== '.' &&
-        id !== '..';
-}
-
-async function listInlayFiles() {
-    await ensureInlayDir();
-    const entries = await readdir(inlayDir, { withFileTypes: true });
-    return entries
-        .filter((entry) => (
-            entry.isFile() &&
-            entry.name !== '.migrated_to_fs' &&
-            !entry.name.endsWith('.meta.json')
-        ))
-        .map((entry) => {
-            const ext = normalizeInlayExt(path.extname(entry.name).slice(1));
-            const id = entry.name.slice(0, -(ext.length + 1));
-            return { id, ext, filePath: path.join(inlayDir, entry.name) };
-        })
-        .filter((entry) => isSafeInlayId(entry.id));
 }
 
 export default api;
