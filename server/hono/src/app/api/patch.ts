@@ -13,7 +13,8 @@ const enablePatchSync = true;
 let dbEtag: string | null = null;
 
 
-
+// TODO: Add authentication and session checks as needed
+// TODO: make dbCache to getter, setter
 patchApp.post("", async(c) => {
   if (!enablePatchSync) {
     return c.json({error: 'Patch sync is disabled'}, 503);
@@ -46,8 +47,10 @@ patchApp.post("", async(c) => {
             initChatStore(decoded);
             dbCache[filePath] = normalizeJSON(stripChatsFromDb(decoded));
         } else {
-          dbCache[filePath] = {};
+          dbCache[filePath] = decoded;
         }
+      } else {
+        dbCache[filePath] = normalizeJSON(dbCache[filePath]);
       }
     }
 
