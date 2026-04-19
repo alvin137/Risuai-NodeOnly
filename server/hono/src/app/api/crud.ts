@@ -1,7 +1,8 @@
 import { Hono } from "hono";
+import { unlink } from "node:fs/promises";
 import { checkAuth } from "../api";
 import { decodeRisuSave, encodeRisuSaveLegacy, isHex, normalizeJSON } from "../../utils/util";
-import { readInlayAssetPayload, readInlayInfoPayload, decodeDatabaseWithPersistentChatIds, stripChatsFromDb, initChatStore, flushPendingDb, dbCache, computeBufferEtag, queueStorageOperation, normalizeInlayExt, decodeDataUri, writeInlayFile, writeInlaySidecar, ensureChatStore, reassembleFullDb, DB_HEX_KEY, saveTimers, createBackupAndRotate } from "../../utils/asset.util";
+import { readInlayAssetPayload, readInlayInfoPayload, decodeDatabaseWithPersistentChatIds, stripChatsFromDb, initChatStore, flushPendingDb, dbCache, computeBufferEtag, queueStorageOperation, normalizeInlayExt, decodeDataUri, writeInlayFile, writeInlaySidecar, ensureChatStore, reassembleFullDb, DB_HEX_KEY, saveTimers, createBackupAndRotate, getInlaySidecarPath, deleteInlayFile } from "../../utils/asset.util";
 import { kvDel, kvGet, kvSet } from "../../utils/db";
 
 export function registerCrud(api: Hono) {
@@ -51,11 +52,8 @@ api.get("/read", async (c, next) => {
           dbCache[filePath] = stripped;
           value = Buffer.from(encodeRisuSaveLegacy(stripped, true));
         } catch (e) {
-          console.error(
-            "[Read] Failed to strip chats from database.bin:",
-            e.message,
-          );
-          return next(e);
+          // TODO: Remove catch
+          throw e;
         }
         let dbEtag = computeBufferEtag(value);
         if (c.req.header("if-none-match") === dbEtag) {
@@ -163,6 +161,37 @@ api.post("/write", async (c) => {
                 // etag: key === 'database/database.bin' ? dbEtag : undefined
             });
         });
+    } catch (error) {
+        throw error;
+    }
+});
+
+api.get("/remove", async (c) => {
+    const auth = await checkAuth(c);
+    //if (auth instanceof Response) return auth;
+
+    const filePath = c.req.header('file-path');
+    if (!filePath) {
+        return c.json({ error: 'File path required' }, 400);
+    }
+    if(!isHex(filePath)){
+        return c.json({ error: 'Invalid Path' }, 400);
+    }
+    try {
+        const key = Buffer.from(filePath, 'hex').toString('utf-8');
+        if (key.startsWith('inlay/')) {
+            const id = key.slice('inlay/'.length)
+            await deleteInlayFile(id)
+            kvDel(key);
+            kvDel(`inlay_thumb/${id}`);
+            kvDel(`inlay_info/${id}`);
+            return c.json({ success: true });
+        }
+        if (key.startsWith('inlay_info/')) {
+            await unlink(getInlaySidecarPath(key.slice('inlay_info/'.length))).catch(() => {});
+        }
+        kvDel(key);
+        return c.json({ success: true });
     } catch (error) {
         throw error;
     }

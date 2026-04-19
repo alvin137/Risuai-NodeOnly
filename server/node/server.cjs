@@ -2658,38 +2658,38 @@ app.post('/api/set_password', async (req, res) => {
 //     }
 // });
 
-app.get('/api/remove', async (req, res, next) => {
-    if(!await checkAuth(req, res)){
-        return;
-    }
-    const filePath = req.headers['file-path'];
-    if (!filePath) {
-        res.status(400).send({ error:'File path required' });
-        return;
-    }
-    if(!isHex(filePath)){
-        res.status(400).send({ error:'Invaild Path' });
-        return;
-    }
-    try {
-        const key = Buffer.from(filePath, 'hex').toString('utf-8');
-        if (key.startsWith('inlay/')) {
-            const id = key.slice('inlay/'.length)
-            await deleteInlayFile(id)
-            kvDel(key);
-            kvDel(`inlay_thumb/${id}`);
-            kvDel(`inlay_info/${id}`);
-            return res.send({ success: true });
-        }
-        if (key.startsWith('inlay_info/')) {
-            await fs.unlink(getInlaySidecarPath(key.slice('inlay_info/'.length))).catch(() => {});
-        }
-        kvDel(key);
-        res.send({ success: true });
-    } catch (error) {
-        next(error);
-    }
-});
+// app.get('/api/remove', async (req, res, next) => {
+//     if(!await checkAuth(req, res)){
+//         return;
+//     }
+//     const filePath = req.headers['file-path'];
+//     if (!filePath) {
+//         res.status(400).send({ error:'File path required' });
+//         return;
+//     }
+//     if(!isHex(filePath)){
+//         res.status(400).send({ error:'Invaild Path' });
+//         return;
+//     }
+//     try {
+//         const key = Buffer.from(filePath, 'hex').toString('utf-8');
+//         if (key.startsWith('inlay/')) {
+//             const id = key.slice('inlay/'.length)
+//             await deleteInlayFile(id)
+//             kvDel(key);
+//             kvDel(`inlay_thumb/${id}`);
+//             kvDel(`inlay_info/${id}`);
+//             return res.send({ success: true });
+//         }
+//         if (key.startsWith('inlay_info/')) {
+//             await fs.unlink(getInlaySidecarPath(key.slice('inlay_info/'.length))).catch(() => {});
+//         }
+//         kvDel(key);
+//         res.send({ success: true });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
 // // Done
 // app.get('/api/list', async (req, res, next) => {

@@ -210,7 +210,7 @@ function deleteInlayRawFileSync(id: string) {
     }
 }
 
-async function deleteInlayFile(id: string) {
+export async function deleteInlayFile(id: string) {
     await deleteInlayRawFile(id);
     await unlink(getInlaySidecarPath(id)).catch(() => {});
 }
