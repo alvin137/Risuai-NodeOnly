@@ -1,6 +1,6 @@
 import path from "node:path";
-import { readFile, stat, access, readdir, mkdir, statfs} from "node:fs/promises";
-import { existsSync, mkdirSync } from "node:fs";
+import { readFile, stat, access, readdir, mkdir, statfs, writeFile, unlink} from "node:fs/promises";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import sharp from "sharp";
 import { decodeRisuSave, encodeRisuSaveLegacy, normalizeJSON, savePath } from "./util"
 import { kvCopyValue, kvDel, kvGet, kvList, kvSet, kvSize } from "./db";
@@ -120,6 +120,108 @@ export async function readInlayFile(id: string) {
         mtimeMs: stats.mtimeMs,
         mime: getMimeFromExt(ext, buffer),
     };
+}
+
+function resolveInlayFilePathSync(id: string) {
+    if (!isSafeInlayId(id)) return null;
+    try {
+        const raw = readFileSync(getInlaySidecarPath(id), 'utf-8');
+        const parsed = JSON.parse(raw);
+        const ext = normalizeInlayExt(parsed?.ext);
+        const candidate = getInlayFilePath(id, ext);
+        if (existsSync(candidate)) return candidate;
+    } catch {}
+    // Fallback: scan directory
+    try {
+        const entries = readdirSync(inlayDir, { withFileTypes: true });
+        const match = entries.find((entry) => (
+            entry.isFile() &&
+            entry.name.startsWith(`${id}.`) &&
+            entry.name !== `${id}.meta.json`
+        ));
+        return match ? path.join(inlayDir, match.name) : null;
+    } catch {
+        return null;
+    }
+}
+
+export async function writeInlaySidecar(id: string, info: any) {
+    await ensureInlayDir();
+    const sidecar = {
+        ext: normalizeInlayExt(info?.ext),
+        name: typeof info?.name === 'string' ? info.name : id,
+        type: typeof info?.type === 'string' ? info.type : 'image',
+        height: typeof info?.height === 'number' ? info.height : undefined,
+        width: typeof info?.width === 'number' ? info.width : undefined,
+    };
+    await writeFile(getInlaySidecarPath(id), JSON.stringify(sidecar));
+}
+
+function writeInlaySidecarSync(id: string, info: any) {
+    ensureInlayDirSync();
+    const sidecar = {
+        ext: normalizeInlayExt(info?.ext),
+        name: typeof info?.name === 'string' ? info.name : id,
+        type: typeof info?.type === 'string' ? info.type : 'image',
+        height: typeof info?.height === 'number' ? info.height : undefined,
+        width: typeof info?.width === 'number' ? info.width : undefined,
+    };
+    writeFileSync(getInlaySidecarPath(id), JSON.stringify(sidecar));
+}
+
+
+//TODO: Fix any
+export async function writeInlayFile(id: string, ext: string, buffer: Buffer, info: any = null) {
+    await ensureInlayDir();
+    await deleteInlayRawFile(id);
+    const normalizedExt = normalizeInlayExt(ext);
+    await writeFile(getInlayFilePath(id, normalizedExt), Buffer.from(buffer));
+    await writeInlaySidecar(id, {
+        ...(info || {}),
+        ext: normalizedExt,
+    });
+}
+
+//TODO: Fix any
+export function writeInlayFileSync(id: string, ext: string, buffer: Buffer, info: any = null) {
+    ensureInlayDirSync();
+    deleteInlayRawFileSync(id);
+    const normalizedExt = normalizeInlayExt(ext);
+    writeFileSync(getInlayFilePath(id, normalizedExt), Buffer.from(buffer));
+    writeInlaySidecarSync(id, {
+        ...(info || {}),
+        ext: normalizedExt,
+    });
+}
+
+async function deleteInlayRawFile(id: string) {
+    const filePath = await resolveInlayFilePath(id);
+    if (!filePath) return;
+    await unlink(filePath).catch(() => {});
+}
+
+function deleteInlayRawFileSync(id: string) {
+    const filePath = resolveInlayFilePathSync(id);
+    if (!filePath) return;
+    try {
+        unlinkSync(filePath);
+    } catch {
+        // ignore
+    }
+}
+
+async function deleteInlayFile(id: string) {
+    await deleteInlayRawFile(id);
+    await unlink(getInlaySidecarPath(id)).catch(() => {});
+}
+
+function deleteInlayFileSync(id: string) {
+    deleteInlayRawFileSync(id);
+    try {
+        unlinkSync(getInlaySidecarPath(id));
+    } catch {
+        // ignore
+    }
 }
 
 async function resolveInlayFilePath(id: string) {
@@ -259,7 +361,7 @@ export function createBackupAndRotate() {
     }
 }
 
-function decodeDataUri(dataUri: string) {
+export function decodeDataUri(dataUri: string) {
     if (typeof dataUri !== 'string' || !dataUri.startsWith('data:')) {
         throw new Error('Invalid data URI');
     }
@@ -346,7 +448,7 @@ export async function readInlayAssetPayload(id: string) {
 /**
  * Ensure fullChatStore is initialized. Loads from disk if needed.
  */
-async function ensureChatStore() {
+export async function ensureChatStore() {
     if (fullChatStore) return;
     const raw = kvGet('database/database.bin');
     if (!raw) {
@@ -447,7 +549,7 @@ function mergeChatStubWithFullChat(stub: any, fullChat: any) {
     return merged;
 }
 
-function reassembleFullDb(strippedDb: any) {
+export function reassembleFullDb(strippedDb: any) {
     if (!strippedDb?.characters || !fullChatStore) return strippedDb;
     const full = { ...strippedDb };
     full.characters = strippedDb.characters.map((char: any) => {

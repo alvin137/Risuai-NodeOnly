@@ -6,7 +6,7 @@ import api from './api.js'
 // import { sessionApp } from './session.js';
 import { assetApp } from './asset.js'
 import { patchApp } from './api/patch.js';
-import { readApp } from './api/read.js'
+import { crudApp } from './api/crud.js'
 
 const app = new Hono()
 
@@ -20,7 +20,6 @@ app.onError((err, c) => {
 });
 
 //api.route('/session', sessionApp);
-api.route("/read", readApp);
 api.route('/asset', assetApp);
 api.route("/patch", patchApp);
 app.route('/api', api);

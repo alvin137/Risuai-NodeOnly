@@ -618,28 +618,28 @@ function getSelfUpdateAssetInfo(version) {
 //     }
 // }
 
-function resolveInlayFilePathSync(id) {
-    if (!isSafeInlayId(id)) return null;
-    try {
-        const raw = readFileSync(getInlaySidecarPath(id), 'utf-8');
-        const parsed = JSON.parse(raw);
-        const ext = normalizeInlayExt(parsed?.ext);
-        const candidate = getInlayFilePath(id, ext);
-        if (existsSync(candidate)) return candidate;
-    } catch {}
-    // Fallback: scan directory
-    try {
-        const entries = readdirSync(inlayDir, { withFileTypes: true });
-        const match = entries.find((entry) => (
-            entry.isFile() &&
-            entry.name.startsWith(`${id}.`) &&
-            entry.name !== `${id}.meta.json`
-        ));
-        return match ? path.join(inlayDir, match.name) : null;
-    } catch {
-        return null;
-    }
-}
+// function resolveInlayFilePathSync(id) {
+//     if (!isSafeInlayId(id)) return null;
+//     try {
+//         const raw = readFileSync(getInlaySidecarPath(id), 'utf-8');
+//         const parsed = JSON.parse(raw);
+//         const ext = normalizeInlayExt(parsed?.ext);
+//         const candidate = getInlayFilePath(id, ext);
+//         if (existsSync(candidate)) return candidate;
+//     } catch {}
+//     // Fallback: scan directory
+//     try {
+//         const entries = readdirSync(inlayDir, { withFileTypes: true });
+//         const match = entries.find((entry) => (
+//             entry.isFile() &&
+//             entry.name.startsWith(`${id}.`) &&
+//             entry.name !== `${id}.meta.json`
+//         ));
+//         return match ? path.join(inlayDir, match.name) : null;
+//     } catch {
+//         return null;
+//     }
+// }
 
 // async function readInlayFile(id) {
 //     const filePath = await resolveInlayFilePath(id);
@@ -656,81 +656,81 @@ function resolveInlayFilePathSync(id) {
 //     };
 // }
 
-async function writeInlaySidecar(id, info) {
-    await ensureInlayDir();
-    const sidecar = {
-        ext: normalizeInlayExt(info?.ext),
-        name: typeof info?.name === 'string' ? info.name : id,
-        type: typeof info?.type === 'string' ? info.type : 'image',
-        height: typeof info?.height === 'number' ? info.height : undefined,
-        width: typeof info?.width === 'number' ? info.width : undefined,
-    };
-    await fs.writeFile(getInlaySidecarPath(id), JSON.stringify(sidecar));
-}
+// async function writeInlaySidecar(id, info) {
+//     await ensureInlayDir();
+//     const sidecar = {
+//         ext: normalizeInlayExt(info?.ext),
+//         name: typeof info?.name === 'string' ? info.name : id,
+//         type: typeof info?.type === 'string' ? info.type : 'image',
+//         height: typeof info?.height === 'number' ? info.height : undefined,
+//         width: typeof info?.width === 'number' ? info.width : undefined,
+//     };
+//     await fs.writeFile(getInlaySidecarPath(id), JSON.stringify(sidecar));
+// }
 
-function writeInlaySidecarSync(id, info) {
-    ensureInlayDirSync();
-    const sidecar = {
-        ext: normalizeInlayExt(info?.ext),
-        name: typeof info?.name === 'string' ? info.name : id,
-        type: typeof info?.type === 'string' ? info.type : 'image',
-        height: typeof info?.height === 'number' ? info.height : undefined,
-        width: typeof info?.width === 'number' ? info.width : undefined,
-    };
-    writeFileSync(getInlaySidecarPath(id), JSON.stringify(sidecar));
-}
+// function writeInlaySidecarSync(id, info) {
+//     ensureInlayDirSync();
+//     const sidecar = {
+//         ext: normalizeInlayExt(info?.ext),
+//         name: typeof info?.name === 'string' ? info.name : id,
+//         type: typeof info?.type === 'string' ? info.type : 'image',
+//         height: typeof info?.height === 'number' ? info.height : undefined,
+//         width: typeof info?.width === 'number' ? info.width : undefined,
+//     };
+//     writeFileSync(getInlaySidecarPath(id), JSON.stringify(sidecar));
+// }
 
-async function writeInlayFile(id, ext, buffer, info = null) {
-    await ensureInlayDir();
-    await deleteInlayRawFile(id);
-    const normalizedExt = normalizeInlayExt(ext);
-    await fs.writeFile(getInlayFilePath(id, normalizedExt), Buffer.from(buffer));
-    await writeInlaySidecar(id, {
-        ...(info || {}),
-        ext: normalizedExt,
-    });
-}
+// async function writeInlayFile(id, ext, buffer, info = null) {
+//     await ensureInlayDir();
+//     await deleteInlayRawFile(id);
+//     const normalizedExt = normalizeInlayExt(ext);
+//     await fs.writeFile(getInlayFilePath(id, normalizedExt), Buffer.from(buffer));
+//     await writeInlaySidecar(id, {
+//         ...(info || {}),
+//         ext: normalizedExt,
+//     });
+// }
 
-function writeInlayFileSync(id, ext, buffer, info = null) {
-    ensureInlayDirSync();
-    deleteInlayRawFileSync(id);
-    const normalizedExt = normalizeInlayExt(ext);
-    writeFileSync(getInlayFilePath(id, normalizedExt), Buffer.from(buffer));
-    writeInlaySidecarSync(id, {
-        ...(info || {}),
-        ext: normalizedExt,
-    });
-}
+// function writeInlayFileSync(id, ext, buffer, info = null) {
+//     ensureInlayDirSync();
+//     deleteInlayRawFileSync(id);
+//     const normalizedExt = normalizeInlayExt(ext);
+//     writeFileSync(getInlayFilePath(id, normalizedExt), Buffer.from(buffer));
+//     writeInlaySidecarSync(id, {
+//         ...(info || {}),
+//         ext: normalizedExt,
+//     });
+// }
 
-async function deleteInlayRawFile(id) {
-    const filePath = await resolveInlayFilePath(id);
-    if (!filePath) return;
-    await fs.unlink(filePath).catch(() => {});
-}
+// async function deleteInlayRawFile(id) {
+//     const filePath = await resolveInlayFilePath(id);
+//     if (!filePath) return;
+//     await fs.unlink(filePath).catch(() => {});
+// }
 
-function deleteInlayRawFileSync(id) {
-    const filePath = resolveInlayFilePathSync(id);
-    if (!filePath) return;
-    try {
-        unlinkSync(filePath);
-    } catch {
-        // ignore
-    }
-}
+// function deleteInlayRawFileSync(id) {
+//     const filePath = resolveInlayFilePathSync(id);
+//     if (!filePath) return;
+//     try {
+//         unlinkSync(filePath);
+//     } catch {
+//         // ignore
+//     }
+// }
 
-async function deleteInlayFile(id) {
-    await deleteInlayRawFile(id);
-    await fs.unlink(getInlaySidecarPath(id)).catch(() => {});
-}
+// async function deleteInlayFile(id) {
+//     await deleteInlayRawFile(id);
+//     await fs.unlink(getInlaySidecarPath(id)).catch(() => {});
+// }
 
-function deleteInlayFileSync(id) {
-    deleteInlayRawFileSync(id);
-    try {
-        unlinkSync(getInlaySidecarPath(id));
-    } catch {
-        // ignore
-    }
-}
+// function deleteInlayFileSync(id) {
+//     deleteInlayRawFileSync(id);
+//     try {
+//         unlinkSync(getInlaySidecarPath(id));
+//     } catch {
+//         // ignore
+//     }
+// }
 
 // async function listInlayFiles() {
 //     await ensureInlayDir();
@@ -2714,102 +2714,102 @@ app.get('/api/remove', async (req, res, next) => {
 //     }
 // });
 
-app.post('/api/write', async (req, res, next) => {
-    if(!await checkAuth(req, res)){
-        return;
-    }
-    if (!checkActiveSession(req, res)) return;
-    const filePath = req.headers['file-path'];
-    const fileContent = req.body;
-    if (!filePath || !fileContent) {
-        res.status(400).send({ error:'File path required' });
-        return;
-    }
-    if(!isHex(filePath)){
-        res.status(400).send({ error:'Invaild Path' });
-        return;
-    }
-    try {
-        await queueStorageOperation(async () => {
-            const key = Buffer.from(filePath, 'hex').toString('utf-8');
+// app.post('/api/write', async (req, res, next) => {
+//     if(!await checkAuth(req, res)){
+//         return;
+//     }
+//     if (!checkActiveSession(req, res)) return;
+//     const filePath = req.headers['file-path'];
+//     const fileContent = req.body;
+//     if (!filePath || !fileContent) {
+//         res.status(400).send({ error:'File path required' });
+//         return;
+//     }
+//     if(!isHex(filePath)){
+//         res.status(400).send({ error:'Invaild Path' });
+//         return;
+//     }
+//     try {
+//         await queueStorageOperation(async () => {
+//             const key = Buffer.from(filePath, 'hex').toString('utf-8');
 
-            // ETag conflict detection for database.bin
-            if (key === 'database/database.bin') {
-                const ifMatch = req.headers['x-if-match'];
-                if (ifMatch && dbEtag && ifMatch !== dbEtag) {
-                    res.status(409).send({
-                        error: 'ETag mismatch - concurrent modification detected',
-                        currentEtag: dbEtag
-                    });
-                    return;
-                }
-            }
+//             // ETag conflict detection for database.bin
+//             if (key === 'database/database.bin') {
+//                 const ifMatch = req.headers['x-if-match'];
+//                 if (ifMatch && dbEtag && ifMatch !== dbEtag) {
+//                     res.status(409).send({
+//                         error: 'ETag mismatch - concurrent modification detected',
+//                         currentEtag: dbEtag
+//                     });
+//                     return;
+//                 }
+//             }
 
-            if (key.startsWith('inlay/')) {
-                const id = key.slice('inlay/'.length)
-                const parsed = JSON.parse(Buffer.from(fileContent).toString('utf-8'));
-                const type = typeof parsed?.type === 'string' ? parsed.type : 'image';
-                const ext = normalizeInlayExt(parsed?.ext);
-                const buffer = type === 'signature'
-                    ? Buffer.from(typeof parsed?.data === 'string' ? parsed.data : '', 'utf-8')
-                    : decodeDataUri(parsed?.data).buffer;
-                await writeInlayFile(id, ext, buffer, {
-                    ext,
-                    name: typeof parsed?.name === 'string' ? parsed.name : id,
-                    type,
-                    height: typeof parsed?.height === 'number' ? parsed.height : undefined,
-                    width: typeof parsed?.width === 'number' ? parsed.width : undefined,
-                });
-                kvDel(key);
-                kvDel(`inlay_thumb/${id}`);
-                kvDel(`inlay_info/${id}`);
-            } else if (key.startsWith('inlay_info/')) {
-                const id = key.slice('inlay_info/'.length)
-                const parsed = JSON.parse(Buffer.from(fileContent).toString('utf-8'));
-                await writeInlaySidecar(id, parsed);
-                kvDel(key);
-            } else if (key === 'database/database.bin') {
-                // Client sends stubs-only DB — merge full chats from server before persisting
-                try {
-                    const incomingDb = await decodeRisuSave(fileContent);
-                    await ensureChatStore();
-                    const fullDb = reassembleFullDb(incomingDb);
-                    const mergedContent = Buffer.from(encodeRisuSaveLegacy(fullDb));
-                    // Re-init chat store from merged result
-                    initChatStore(fullDb);
-                    kvSet(key, mergedContent);
-                } catch (e) {
-                    console.error('[Write] Failed to merge chats into database.bin:', e.message);
-                    // Do NOT write stubs-only to disk — that would permanently
-                    // destroy existing full chat data. Preserve disk as-is.
-                    res.status(500).json({ error: 'Database merge failed' });
-                    return;
-                }
-            } else {
-                kvSet(key, fileContent);
-            }
+//             if (key.startsWith('inlay/')) {
+//                 const id = key.slice('inlay/'.length)
+//                 const parsed = JSON.parse(Buffer.from(fileContent).toString('utf-8'));
+//                 const type = typeof parsed?.type === 'string' ? parsed.type : 'image';
+//                 const ext = normalizeInlayExt(parsed?.ext);
+//                 const buffer = type === 'signature'
+//                     ? Buffer.from(typeof parsed?.data === 'string' ? parsed.data : '', 'utf-8')
+//                     : decodeDataUri(parsed?.data).buffer;
+//                 await writeInlayFile(id, ext, buffer, {
+//                     ext,
+//                     name: typeof parsed?.name === 'string' ? parsed.name : id,
+//                     type,
+//                     height: typeof parsed?.height === 'number' ? parsed.height : undefined,
+//                     width: typeof parsed?.width === 'number' ? parsed.width : undefined,
+//                 });
+//                 kvDel(key);
+//                 kvDel(`inlay_thumb/${id}`);
+//                 kvDel(`inlay_info/${id}`);
+//             } else if (key.startsWith('inlay_info/')) {
+//                 const id = key.slice('inlay_info/'.length)
+//                 const parsed = JSON.parse(Buffer.from(fileContent).toString('utf-8'));
+//                 await writeInlaySidecar(id, parsed);
+//                 kvDel(key);
+//             } else if (key === 'database/database.bin') {
+//                 // Client sends stubs-only DB — merge full chats from server before persisting
+//                 try {
+//                     const incomingDb = await decodeRisuSave(fileContent);
+//                     await ensureChatStore();
+//                     const fullDb = reassembleFullDb(incomingDb);
+//                     const mergedContent = Buffer.from(encodeRisuSaveLegacy(fullDb));
+//                     // Re-init chat store from merged result
+//                     initChatStore(fullDb);
+//                     kvSet(key, mergedContent);
+//                 } catch (e) {
+//                     console.error('[Write] Failed to merge chats into database.bin:', e.message);
+//                     // Do NOT write stubs-only to disk — that would permanently
+//                     // destroy existing full chat data. Preserve disk as-is.
+//                     res.status(500).json({ error: 'Database merge failed' });
+//                     return;
+//                 }
+//             } else {
+//                 kvSet(key, fileContent);
+//             }
 
-            // Update ETag, backup, and invalidate cache after database.bin write
-            if (key === 'database/database.bin') {
-                delete dbCache[DB_HEX_KEY];
-                if (saveTimers[DB_HEX_KEY]) {
-                    clearTimeout(saveTimers[DB_HEX_KEY]);
-                    delete saveTimers[DB_HEX_KEY];
-                }
-                // ETag based on stripped version (what client sees)
-                dbEtag = computeBufferEtag(fileContent);
-                createBackupAndRotate();
-            }
+//             // Update ETag, backup, and invalidate cache after database.bin write
+//             if (key === 'database/database.bin') {
+//                 delete dbCache[DB_HEX_KEY];
+//                 if (saveTimers[DB_HEX_KEY]) {
+//                     clearTimeout(saveTimers[DB_HEX_KEY]);
+//                     delete saveTimers[DB_HEX_KEY];
+//                 }
+//                 // ETag based on stripped version (what client sees)
+//                 dbEtag = computeBufferEtag(fileContent);
+//                 createBackupAndRotate();
+//             }
 
-            res.send({
-                success: true,
-                etag: key === 'database/database.bin' ? dbEtag : undefined
-            });
-        });
-    } catch (error) {
-        next(error);
-    }
-});
+//             res.send({
+//                 success: true,
+//                 etag: key === 'database/database.bin' ? dbEtag : undefined
+//             });
+//         });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
 app.post('/api/db/flush', sessionAuthMiddleware, async (req, res, next) => {
     if (!checkActiveSession(req, res)) return;

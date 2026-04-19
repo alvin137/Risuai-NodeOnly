@@ -3,6 +3,7 @@ import { kvList } from "../utils/db.js"
 import { savePath, jwtSecret } from "../utils/util.js";
 import { listInlayFiles } from "../utils/asset.util.js";
 import "./asset.js";
+import { registerCrud } from "./api/crud.js";
 
 import { mkdir, readdir } from "node:fs/promises"
 import path from "node:path";
@@ -12,6 +13,9 @@ import { timingSafeEqual, randomUUID } from "node:crypto";
 const api = new Hono();
 
 //api.route("/patch", patchApp);
+
+
+registerCrud(api);
 
 api.get('/list', async (c) => {
     const auth = await checkAuth(c);
