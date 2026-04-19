@@ -196,4 +196,21 @@ api.get("/remove", async (c) => {
         throw error;
     }
 });
+
+// TODO: Add sessionauthmiddleware 
+api.post('/db/flush', async (c) => {
+    //if (!checkActiveSession(c)) return;
+    try {
+        return await queueStorageOperation(async () => {
+            await flushPendingDb();
+            //TODO: handle dbEtag
+            return c.json({
+                success: true,
+                //etag: dbEtag ?? undefined
+            });
+        });
+    } catch (error) {
+        throw error;
+    }
+});
 }
