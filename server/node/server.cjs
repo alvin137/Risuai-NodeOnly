@@ -3965,431 +3965,431 @@ async function hashJSON(json){
 //     }
 // });
 
-// ── Inlay bulk compression endpoint ──────────────────────────────────────────
-const COMPRESS_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp']);
+// // ── Inlay bulk compression endpoint ──────────────────────────────────────────
+// const COMPRESS_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp']);
 
-app.post('/api/inlays/compress', sessionAuthMiddleware, async (req, res) => {
-    if (!checkActiveSession(req, res)) return;
-    const quality = typeof req.body?.quality === 'number' ? req.body.quality : 85;
+// app.post('/api/inlays/compress', sessionAuthMiddleware, async (req, res) => {
+//     if (!checkActiveSession(req, res)) return;
+//     const quality = typeof req.body?.quality === 'number' ? req.body.quality : 85;
 
-    res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-    });
+//     res.writeHead(200, {
+//         'Content-Type': 'text/event-stream',
+//         'Cache-Control': 'no-cache',
+//         'Connection': 'keep-alive',
+//     });
 
-    const send = (data) => {
-        res.write(`data: ${JSON.stringify(data)}\n\n`);
-    };
+//     const send = (data) => {
+//         res.write(`data: ${JSON.stringify(data)}\n\n`);
+//     };
 
-    try {
-        const files = await listInlayFiles();
-        const imageFiles = [];
+//     try {
+//         const files = await listInlayFiles();
+//         const imageFiles = [];
 
-        for (const entry of files) {
-            if (!COMPRESS_IMAGE_EXTS.has(entry.ext)) continue;
-            const sidecar = await readInlaySidecar(entry.id);
-            if (sidecar && sidecar.type !== 'image') continue;
-            imageFiles.push(entry);
-        }
+//         for (const entry of files) {
+//             if (!COMPRESS_IMAGE_EXTS.has(entry.ext)) continue;
+//             const sidecar = await readInlaySidecar(entry.id);
+//             if (sidecar && sidecar.type !== 'image') continue;
+//             imageFiles.push(entry);
+//         }
 
-        const total = imageFiles.length;
-        let compressed = 0;
-        let skipped = 0;
-        let totalSaved = 0;
+//         const total = imageFiles.length;
+//         let compressed = 0;
+//         let skipped = 0;
+//         let totalSaved = 0;
 
-        for (let i = 0; i < imageFiles.length; i++) {
-            const entry = imageFiles[i];
-            try {
-                const original = await fs.readFile(entry.filePath);
-                const webpBuf = await sharp(original).webp({ quality }).toBuffer();
+//         for (let i = 0; i < imageFiles.length; i++) {
+//             const entry = imageFiles[i];
+//             try {
+//                 const original = await fs.readFile(entry.filePath);
+//                 const webpBuf = await sharp(original).webp({ quality }).toBuffer();
 
-                if (webpBuf.length < original.length) {
-                    const sidecar = await readInlaySidecar(entry.id);
-                    const info = sidecar || {};
-                    await writeInlayFile(entry.id, 'webp', webpBuf, { ...info, ext: 'webp' });
-                    // invalidate thumbnail cache
-                    kvDel(`inlay_thumb/${entry.id}`);
-                    const saved = original.length - webpBuf.length;
-                    totalSaved += saved;
-                    compressed++;
-                } else {
-                    skipped++;
-                }
-            } catch {
-                skipped++;
-            }
+//                 if (webpBuf.length < original.length) {
+//                     const sidecar = await readInlaySidecar(entry.id);
+//                     const info = sidecar || {};
+//                     await writeInlayFile(entry.id, 'webp', webpBuf, { ...info, ext: 'webp' });
+//                     // invalidate thumbnail cache
+//                     kvDel(`inlay_thumb/${entry.id}`);
+//                     const saved = original.length - webpBuf.length;
+//                     totalSaved += saved;
+//                     compressed++;
+//                 } else {
+//                     skipped++;
+//                 }
+//             } catch {
+//                 skipped++;
+//             }
 
-            send({ type: 'progress', current: i + 1, total, compressed, skipped, totalSaved });
-        }
+//             send({ type: 'progress', current: i + 1, total, compressed, skipped, totalSaved });
+//         }
 
-        send({ type: 'done', total, compressed, skipped, totalSaved });
-    } catch (err) {
-        send({ type: 'error', message: err?.message || 'Unknown error' });
-    }
+//         send({ type: 'done', total, compressed, skipped, totalSaved });
+//     } catch (err) {
+//         send({ type: 'error', message: err?.message || 'Unknown error' });
+//     }
 
-    res.end();
-});
+//     res.end();
+// });
 
-// ── Update check endpoint ────────────────────────────────────────────────────
-app.get('/api/update-check', async (req, res) => {
-    if (UPDATE_CHECK_DISABLED) {
-        res.json({ currentVersion, hasUpdate: false, severity: 'none', disabled: true, deploymentType, canSelfUpdate: false });
-        return;
-    }
-    const result = await fetchLatestRelease();
-    const response = result || { currentVersion, hasUpdate: false, severity: 'none' };
-    response.deploymentType = deploymentType;
-    response.canSelfUpdate = deploymentType === 'portable'
-        && !!response.hasUpdate
-        && !response.manualOnly
-        && !!getSelfUpdateAssetInfo(response.latestVersion);
-    res.json(response);
-});
+// // ── Update check endpoint ────────────────────────────────────────────────────
+// app.get('/api/update-check', async (req, res) => {
+//     if (UPDATE_CHECK_DISABLED) {
+//         res.json({ currentVersion, hasUpdate: false, severity: 'none', disabled: true, deploymentType, canSelfUpdate: false });
+//         return;
+//     }
+//     const result = await fetchLatestRelease();
+//     const response = result || { currentVersion, hasUpdate: false, severity: 'none' };
+//     response.deploymentType = deploymentType;
+//     response.canSelfUpdate = deploymentType === 'portable'
+//         && !!response.hasUpdate
+//         && !response.manualOnly
+//         && !!getSelfUpdateAssetInfo(response.latestVersion);
+//     res.json(response);
+// });
 
-// ── Self-update endpoint (portable only) ─────────────────────────────────────
-let selfUpdateInProgress = false;
+// // ── Self-update endpoint (portable only) ─────────────────────────────────────
+// let selfUpdateInProgress = false;
 
-app.post('/api/self-update', async (req, res) => {
-    if (!await checkAuth(req, res)) return;
+// app.post('/api/self-update', async (req, res) => {
+//     if (!await checkAuth(req, res)) return;
 
-    if (deploymentType !== 'portable') {
-        res.status(400).json({ error: 'Self-update is only available for portable deployments' });
-        return;
-    }
-    if (selfUpdateInProgress) {
-        res.status(409).json({ error: 'Update already in progress' });
-        return;
-    }
-    selfUpdateInProgress = true;
+//     if (deploymentType !== 'portable') {
+//         res.status(400).json({ error: 'Self-update is only available for portable deployments' });
+//         return;
+//     }
+//     if (selfUpdateInProgress) {
+//         res.status(409).json({ error: 'Update already in progress' });
+//         return;
+//     }
+//     selfUpdateInProgress = true;
 
-    // Track client disconnect — used to abort download, but NOT to release the lock.
-    // The lock stays held until the update fully completes or fails, preventing
-    // a second request from touching the same install directory concurrently.
-    let clientDisconnected = false;
-    res.on('close', () => {
-        clientDisconnected = true;
-        console.log('[Update] Client disconnected (update continues if past download stage).');
-    });
+//     // Track client disconnect — used to abort download, but NOT to release the lock.
+//     // The lock stays held until the update fully completes or fails, preventing
+//     // a second request from touching the same install directory concurrently.
+//     let clientDisconnected = false;
+//     res.on('close', () => {
+//         clientDisconnected = true;
+//         console.log('[Update] Client disconnected (update continues if past download stage).');
+//     });
 
-    // NDJSON streaming response
-    res.writeHead(200, {
-        'Content-Type': 'application/x-ndjson',
-        'Cache-Control': 'no-cache',
-        'X-Accel-Buffering': 'no',
-    });
-    const send = (step, progress, message) => {
-        try { res.write(JSON.stringify({ step, progress, message }) + '\n'); } catch {}
-    };
+//     // NDJSON streaming response
+//     res.writeHead(200, {
+//         'Content-Type': 'application/x-ndjson',
+//         'Cache-Control': 'no-cache',
+//         'X-Accel-Buffering': 'no',
+//     });
+//     const send = (step, progress, message) => {
+//         try { res.write(JSON.stringify({ step, progress, message }) + '\n'); } catch {}
+//     };
 
-    let tmpDir = null;
-    try {
-        // 1. Check update
-        send('checking', 0, 'Checking for updates...');
-        const updateInfo = await fetchLatestRelease();
-        if (!updateInfo?.hasUpdate) {
-            send('done', 100, 'Already up to date.');
-            res.end();
-            selfUpdateInProgress = false;
-            return;
-        }
+//     let tmpDir = null;
+//     try {
+//         // 1. Check update
+//         send('checking', 0, 'Checking for updates...');
+//         const updateInfo = await fetchLatestRelease();
+//         if (!updateInfo?.hasUpdate) {
+//             send('done', 100, 'Already up to date.');
+//             res.end();
+//             selfUpdateInProgress = false;
+//             return;
+//         }
 
-        const targetVersion = updateInfo.latestVersion;
-        const assetInfo = getSelfUpdateAssetInfo(targetVersion);
-        if (!assetInfo) {
-            throw new Error(`No release asset for ${process.platform}-${process.arch}`);
-        }
+//         const targetVersion = updateInfo.latestVersion;
+//         const assetInfo = getSelfUpdateAssetInfo(targetVersion);
+//         if (!assetInfo) {
+//             throw new Error(`No release asset for ${process.platform}-${process.arch}`);
+//         }
 
-        // 2. Download
-        tmpDir = path.join(os.tmpdir(), `risu-update-${Date.now()}`);
-        await fs.mkdir(tmpDir, { recursive: true });
-        const archivePath = path.join(tmpDir, assetInfo.filename);
+//         // 2. Download
+//         tmpDir = path.join(os.tmpdir(), `risu-update-${Date.now()}`);
+//         await fs.mkdir(tmpDir, { recursive: true });
+//         const archivePath = path.join(tmpDir, assetInfo.filename);
 
-        send('downloading', 0, 'Starting download...');
-        const dlRes = await fetch(assetInfo.url, { redirect: 'follow' });
-        if (!dlRes.ok) throw new Error(`Download failed: ${dlRes.status} ${dlRes.statusText}`);
+//         send('downloading', 0, 'Starting download...');
+//         const dlRes = await fetch(assetInfo.url, { redirect: 'follow' });
+//         if (!dlRes.ok) throw new Error(`Download failed: ${dlRes.status} ${dlRes.statusText}`);
 
-        const totalSize = parseInt(dlRes.headers.get('content-length'), 10) || 0;
-        const fileStream = require('fs').createWriteStream(archivePath);
-        let downloaded = 0;
-        let lastPct = -1;
+//         const totalSize = parseInt(dlRes.headers.get('content-length'), 10) || 0;
+//         const fileStream = require('fs').createWriteStream(archivePath);
+//         let downloaded = 0;
+//         let lastPct = -1;
 
-        const progress = new Transform({
-            transform(chunk, _enc, cb) {
-                if (clientDisconnected) { cb(new Error('Client disconnected')); return; }
-                downloaded += chunk.length;
-                if (totalSize > 0) {
-                    const pct = Math.round((downloaded / totalSize) * 100);
-                    if (pct >= lastPct + 5) {
-                        lastPct = pct;
-                        const dlMB = (downloaded / 1048576).toFixed(0);
-                        const totalMB = (totalSize / 1048576).toFixed(0);
-                        send('downloading', pct, `Downloading... ${pct}% (${dlMB}/${totalMB} MB)`);
-                    }
-                }
-                cb(null, chunk);
-            },
-        });
-        await pipeline(Readable.fromWeb(dlRes.body), progress, fileStream);
-        send('downloading', 100, 'Download complete.');
+//         const progress = new Transform({
+//             transform(chunk, _enc, cb) {
+//                 if (clientDisconnected) { cb(new Error('Client disconnected')); return; }
+//                 downloaded += chunk.length;
+//                 if (totalSize > 0) {
+//                     const pct = Math.round((downloaded / totalSize) * 100);
+//                     if (pct >= lastPct + 5) {
+//                         lastPct = pct;
+//                         const dlMB = (downloaded / 1048576).toFixed(0);
+//                         const totalMB = (totalSize / 1048576).toFixed(0);
+//                         send('downloading', pct, `Downloading... ${pct}% (${dlMB}/${totalMB} MB)`);
+//                     }
+//                 }
+//                 cb(null, chunk);
+//             },
+//         });
+//         await pipeline(Readable.fromWeb(dlRes.body), progress, fileStream);
+//         send('downloading', 100, 'Download complete.');
 
-        // 3. Extract
-        send('extracting', null, 'Extracting...');
-        const extractDir = path.join(tmpDir, 'extracted');
-        await fs.mkdir(extractDir, { recursive: true });
+//         // 3. Extract
+//         send('extracting', null, 'Extracting...');
+//         const extractDir = path.join(tmpDir, 'extracted');
+//         await fs.mkdir(extractDir, { recursive: true });
 
-        if (process.platform === 'win32') {
-            try {
-                // Windows 10 1803+ has tar.exe built-in, handles zip, much faster than PowerShell
-                execSync(`tar -xf "${archivePath}" -C "${extractDir}"`, { timeout: 300000 });
-            } catch {
-                execSync(
-                    `powershell -NoProfile -Command "Expand-Archive -Force -Path '${archivePath}' -DestinationPath '${extractDir}'"`,
-                    { timeout: 300000 },
-                );
-            }
-        } else {
-            execSync(`tar -xzf "${archivePath}" -C "${extractDir}"`, { timeout: 300000 });
-        }
+//         if (process.platform === 'win32') {
+//             try {
+//                 // Windows 10 1803+ has tar.exe built-in, handles zip, much faster than PowerShell
+//                 execSync(`tar -xf "${archivePath}" -C "${extractDir}"`, { timeout: 300000 });
+//             } catch {
+//                 execSync(
+//                     `powershell -NoProfile -Command "Expand-Archive -Force -Path '${archivePath}' -DestinationPath '${extractDir}'"`,
+//                     { timeout: 300000 },
+//                 );
+//             }
+//         } else {
+//             execSync(`tar -xzf "${archivePath}" -C "${extractDir}"`, { timeout: 300000 });
+//         }
 
-        // Resolve possibly nested root directory (same as updater.cjs resolveExtractedRoot)
-        const entries = await fs.readdir(extractDir);
-        let sourceDir = extractDir;
-        if (entries.length === 1) {
-            const candidate = path.join(extractDir, entries[0]);
-            if ((await fs.stat(candidate)).isDirectory()) sourceDir = candidate;
-        }
+//         // Resolve possibly nested root directory (same as updater.cjs resolveExtractedRoot)
+//         const entries = await fs.readdir(extractDir);
+//         let sourceDir = extractDir;
+//         if (entries.length === 1) {
+//             const candidate = path.join(extractDir, entries[0]);
+//             if ((await fs.stat(candidate)).isDirectory()) sourceDir = candidate;
+//         }
 
-        // 4. Validate extracted package (mirrors updater.cjs validateExtractedRoot)
-        const REQUIRED_ENTRIES = ['dist', 'server', 'package.json'];
-        const REQUIRED_DIST_FILES = ['index.html'];
-        for (const entry of REQUIRED_ENTRIES) {
-            try { await fs.access(path.join(sourceDir, entry)); }
-            catch { throw new Error(`Downloaded package is missing required entry: ${entry}`); }
-        }
-        for (const file of REQUIRED_DIST_FILES) {
-            try { await fs.access(path.join(sourceDir, 'dist', file)); }
-            catch { throw new Error(`Downloaded package is missing dist/${file}`); }
-        }
-        if (process.platform === 'win32') {
-            try { await fs.access(path.join(sourceDir, 'bin')); }
-            catch { throw new Error('Downloaded Windows package is missing bin/'); }
-        }
+//         // 4. Validate extracted package (mirrors updater.cjs validateExtractedRoot)
+//         const REQUIRED_ENTRIES = ['dist', 'server', 'package.json'];
+//         const REQUIRED_DIST_FILES = ['index.html'];
+//         for (const entry of REQUIRED_ENTRIES) {
+//             try { await fs.access(path.join(sourceDir, entry)); }
+//             catch { throw new Error(`Downloaded package is missing required entry: ${entry}`); }
+//         }
+//         for (const file of REQUIRED_DIST_FILES) {
+//             try { await fs.access(path.join(sourceDir, 'dist', file)); }
+//             catch { throw new Error(`Downloaded package is missing dist/${file}`); }
+//         }
+//         if (process.platform === 'win32') {
+//             try { await fs.access(path.join(sourceDir, 'bin')); }
+//             catch { throw new Error('Downloaded Windows package is missing bin/'); }
+//         }
 
-        // 5. Replace files (follows updater.cjs Phase 1-4 pattern)
-        // Stop tunnel before replacing files to avoid file lock issues
-        stopTunnel();
-        send('replacing', null, 'Replacing files...');
-        const appDir = process.cwd();
-        const isWin = process.platform === 'win32';
-        const updateTmp = path.join(appDir, '.update-tmp');
+//         // 5. Replace files (follows updater.cjs Phase 1-4 pattern)
+//         // Stop tunnel before replacing files to avoid file lock issues
+//         stopTunnel();
+//         send('replacing', null, 'Replacing files...');
+//         const appDir = process.cwd();
+//         const isWin = process.platform === 'win32';
+//         const updateTmp = path.join(appDir, '.update-tmp');
 
-        // Restore from a previous interrupted update if leftover exists
-        const prevBackup = path.join(updateTmp, 'backup');
-        try {
-            await fs.access(prevBackup);
-            console.log('[Update] Restoring files from previous interrupted update...');
-            await restoreBackup(prevBackup, appDir);
-        } catch { /* no leftover */ }
-        await fs.rm(updateTmp, { recursive: true, force: true }).catch(() => {});
-        await fs.mkdir(updateTmp, { recursive: true });
+//         // Restore from a previous interrupted update if leftover exists
+//         const prevBackup = path.join(updateTmp, 'backup');
+//         try {
+//             await fs.access(prevBackup);
+//             console.log('[Update] Restoring files from previous interrupted update...');
+//             await restoreBackup(prevBackup, appDir);
+//         } catch { /* no leftover */ }
+//         await fs.rm(updateTmp, { recursive: true, force: true }).catch(() => {});
+//         await fs.mkdir(updateTmp, { recursive: true });
 
-        // Carry over SSL certificates into new package before swap
-        const sslSrc = path.join(appDir, 'server', 'node', 'ssl', 'certificate');
-        try {
-            await fs.access(sslSrc);
-            const sslDst = path.join(sourceDir, 'server', 'node', 'ssl', 'certificate');
-            await fs.mkdir(path.dirname(sslDst), { recursive: true });
-            await fs.cp(sslSrc, sslDst, { recursive: true });
-        } catch { /* no user certs */ }
+//         // Carry over SSL certificates into new package before swap
+//         const sslSrc = path.join(appDir, 'server', 'node', 'ssl', 'certificate');
+//         try {
+//             await fs.access(sslSrc);
+//             const sslDst = path.join(sourceDir, 'server', 'node', 'ssl', 'certificate');
+//             await fs.mkdir(path.dirname(sslDst), { recursive: true });
+//             await fs.cp(sslSrc, sslDst, { recursive: true });
+//         } catch { /* no user certs */ }
 
-        // Keep set — matches updater.cjs + user data/config that must survive updates
-        const keep = new Set(['save', 'backups', '.installed-version', '.update-tmp', 'scripts', '.env', '.npmrc', '.portable']);
-        if (isWin) keep.add('bin');
+//         // Keep set — matches updater.cjs + user data/config that must survive updates
+//         const keep = new Set(['save', 'backups', '.installed-version', '.update-tmp', 'scripts', '.env', '.npmrc', '.portable']);
+//         if (isWin) keep.add('bin');
 
-        // Phase 1: move old files to backup — rollback immediately on any failure
-        const backupDir = path.join(updateTmp, 'backup');
-        await fs.mkdir(backupDir, { recursive: true });
+//         // Phase 1: move old files to backup — rollback immediately on any failure
+//         const backupDir = path.join(updateTmp, 'backup');
+//         await fs.mkdir(backupDir, { recursive: true });
 
-        const oldEntries = await fs.readdir(appDir);
-        for (const e of oldEntries) {
-            if (keep.has(e)) continue;
-            try {
-                await fs.rename(path.join(appDir, e), path.join(backupDir, e));
-            } catch (backupErr) {
-                console.error(`[Update] Failed to back up ${e}: ${backupErr.message}`);
-                console.log('[Update] Restoring files already moved to backup...');
-                await restoreBackup(backupDir, appDir);
-                throw new Error(isWin
-                    ? 'Update failed: some files are in use. Close RisuAI first, then try again.'
-                    : 'Update failed: some files are in use. Stop the server first, then try again.');
-            }
-        }
+//         const oldEntries = await fs.readdir(appDir);
+//         for (const e of oldEntries) {
+//             if (keep.has(e)) continue;
+//             try {
+//                 await fs.rename(path.join(appDir, e), path.join(backupDir, e));
+//             } catch (backupErr) {
+//                 console.error(`[Update] Failed to back up ${e}: ${backupErr.message}`);
+//                 console.log('[Update] Restoring files already moved to backup...');
+//                 await restoreBackup(backupDir, appDir);
+//                 throw new Error(isWin
+//                     ? 'Update failed: some files are in use. Close RisuAI first, then try again.'
+//                     : 'Update failed: some files are in use. Stop the server first, then try again.');
+//             }
+//         }
 
-        // Phase 2: move new files from extracted to app root
-        const skipMove = new Set(['save', 'scripts']);
-        if (isWin) skipMove.add('bin');
-        const moved = [];
-        try {
-            const newEntries = await fs.readdir(sourceDir);
-            for (const e of newEntries) {
-                if (skipMove.has(e)) continue;
-                const dest = path.join(appDir, e);
-                await fs.rm(dest, { recursive: true, force: true }).catch(() => {});
-                await fs.rename(path.join(sourceDir, e), dest);
-                moved.push(e);
-            }
-            // Post-move validation
-            for (const entry of REQUIRED_ENTRIES) {
-                if (!moved.includes(entry) && !existsSync(path.join(appDir, entry))) {
-                    throw new Error(`Required entry was not installed: ${entry}`);
-                }
-            }
-            for (const file of REQUIRED_DIST_FILES) {
-                if (!existsSync(path.join(appDir, 'dist', file))) {
-                    throw new Error(`Required file was not installed: dist/${file}`);
-                }
-            }
-        } catch (moveErr) {
-            console.error(`[Update] Move failed: ${moveErr.message}`);
-            console.log('[Update] Restoring from backup...');
-            await restoreBackup(backupDir, appDir);
-            throw new Error('Update failed, previous version restored. Please try again.');
-        }
+//         // Phase 2: move new files from extracted to app root
+//         const skipMove = new Set(['save', 'scripts']);
+//         if (isWin) skipMove.add('bin');
+//         const moved = [];
+//         try {
+//             const newEntries = await fs.readdir(sourceDir);
+//             for (const e of newEntries) {
+//                 if (skipMove.has(e)) continue;
+//                 const dest = path.join(appDir, e);
+//                 await fs.rm(dest, { recursive: true, force: true }).catch(() => {});
+//                 await fs.rename(path.join(sourceDir, e), dest);
+//                 moved.push(e);
+//             }
+//             // Post-move validation
+//             for (const entry of REQUIRED_ENTRIES) {
+//                 if (!moved.includes(entry) && !existsSync(path.join(appDir, entry))) {
+//                     throw new Error(`Required entry was not installed: ${entry}`);
+//                 }
+//             }
+//             for (const file of REQUIRED_DIST_FILES) {
+//                 if (!existsSync(path.join(appDir, 'dist', file))) {
+//                     throw new Error(`Required file was not installed: dist/${file}`);
+//                 }
+//             }
+//         } catch (moveErr) {
+//             console.error(`[Update] Move failed: ${moveErr.message}`);
+//             console.log('[Update] Restoring from backup...');
+//             await restoreBackup(backupDir, appDir);
+//             throw new Error('Update failed, previous version restored. Please try again.');
+//         }
 
-        // Phase 3: update scripts/ from new release
-        const newScripts = path.join(sourceDir, 'scripts');
-        try {
-            await fs.access(newScripts);
-            await fs.mkdir(path.join(appDir, 'scripts'), { recursive: true });
-            for (const f of await fs.readdir(newScripts)) {
-                await fs.copyFile(path.join(newScripts, f), path.join(appDir, 'scripts', f));
-            }
-        } catch { /* no scripts in release */ }
+//         // Phase 3: update scripts/ from new release
+//         const newScripts = path.join(sourceDir, 'scripts');
+//         try {
+//             await fs.access(newScripts);
+//             await fs.mkdir(path.join(appDir, 'scripts'), { recursive: true });
+//             for (const f of await fs.readdir(newScripts)) {
+//                 await fs.copyFile(path.join(newScripts, f), path.join(appDir, 'scripts', f));
+//             }
+//         } catch { /* no scripts in release */ }
 
-        // Phase 4 (Windows): stage bin/ for restart script to apply after exit
-        if (isWin) {
-            const newBin = path.join(sourceDir, 'bin');
-            const stagedBin = path.join(updateTmp, 'new-bin');
-            await fs.rm(stagedBin, { recursive: true, force: true }).catch(() => {});
-            await fs.cp(newBin, stagedBin, { recursive: true });
-            // Version marker — finalized after bin/ is applied
-            await fs.writeFile(path.join(updateTmp, 'latest-version'), `v${targetVersion}`);
-        } else {
-            await fs.writeFile(path.join(appDir, '.installed-version'), `v${targetVersion}`);
-        }
+//         // Phase 4 (Windows): stage bin/ for restart script to apply after exit
+//         if (isWin) {
+//             const newBin = path.join(sourceDir, 'bin');
+//             const stagedBin = path.join(updateTmp, 'new-bin');
+//             await fs.rm(stagedBin, { recursive: true, force: true }).catch(() => {});
+//             await fs.cp(newBin, stagedBin, { recursive: true });
+//             // Version marker — finalized after bin/ is applied
+//             await fs.writeFile(path.join(updateTmp, 'latest-version'), `v${targetVersion}`);
+//         } else {
+//             await fs.writeFile(path.join(appDir, '.installed-version'), `v${targetVersion}`);
+//         }
 
-        // Cleanup temp download (not .update-tmp — that stays on Windows for bin/ post-step)
-        fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-        tmpDir = null;
-        if (!isWin) {
-            fs.rm(updateTmp, { recursive: true, force: true }).catch(() => {});
-        }
+//         // Cleanup temp download (not .update-tmp — that stays on Windows for bin/ post-step)
+//         fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+//         tmpDir = null;
+//         if (!isWin) {
+//             fs.rm(updateTmp, { recursive: true, force: true }).catch(() => {});
+//         }
 
-        send('restarting', 100, 'Update complete. Restarting...');
-        res.end();
+//         send('restarting', 100, 'Update complete. Restarting...');
+//         res.end();
 
-        // 6. Flush DB and restart
-        setTimeout(async () => {
-            try {
-            console.log(`[Update] Self-update to v${targetVersion} complete. Restarting...`);
-            try { await flushPendingDb(); } catch {}
-            try { checkpointWal('TRUNCATE'); } catch {}
+//         // 6. Flush DB and restart
+//         setTimeout(async () => {
+//             try {
+//             console.log(`[Update] Self-update to v${targetVersion} complete. Restarting...`);
+//             try { await flushPendingDb(); } catch {}
+//             try { checkpointWal('TRUNCATE'); } catch {}
 
-            const port = process.env.PORT || 6001;
+//             const port = process.env.PORT || 6001;
 
-            if (isWin) {
-                // Windows: use a .bat script to apply bin/, finalize version, and restart.
-                // A bat script can replace bin/node.exe after the Node process exits,
-                // avoiding file-lock issues that a Node child process would hit.
-                const batScript = path.join(os.tmpdir(), `risu-restart-${Date.now()}.bat`);
-                const utmp = path.join(appDir, '.update-tmp');
-                const binDir = path.join(appDir, 'bin');
-                const binBackup = path.join(utmp, 'old-bin');
-                const batLines = [
-                    '@echo off',
-                    'timeout /t 3 /nobreak >nul',
-                    // Apply staged bin/: backup current → copy new → on failure restore backup
-                    `if exist "${path.join(utmp, 'new-bin')}\\" (`,
-                    `  if exist "${binDir}\\" (`,
-                    `    xcopy /E /I /Y "${binDir}\\*" "${binBackup}\\" >nul`,
-                    `  )`,
-                    `  xcopy /E /I /Y "${path.join(utmp, 'new-bin')}\\*" "${binDir}\\" >nul`,
-                    `  if errorlevel 1 (`,
-                    `    echo [Update] bin/ copy failed, restoring backup...`,
-                    `    if exist "${binBackup}\\" (`,
-                    `      xcopy /E /I /Y "${binBackup}\\*" "${binDir}\\" >nul`,
-                    `    )`,
-                    `    echo [Update] bin/ restored. Staged files kept for retry.`,
-                    `    goto start`,
-                    `  )`,
-                    `)`,
-                    // Finalize version marker only after successful bin/ copy
-                    `if exist "${path.join(utmp, 'latest-version')}" (`,
-                    `  copy /Y "${path.join(utmp, 'latest-version')}" "${path.join(appDir, '.installed-version')}" >nul`,
-                    `)`,
-                    // Cleanup .update-tmp (includes old-bin backup)
-                    `rmdir /s /q "${utmp}" 2>nul`,
-                    ':start',
-                    // Start server with correct working directory
-                    `cd /d "${appDir}"`,
-                    `start "" "${path.join(appDir, 'bin', 'node.exe')}" "${path.join(appDir, 'server', 'node', 'server.cjs')}"`,
-                    'exit /b 0',
-                ];
-                writeFileSync(batScript, batLines.join('\r\n'));
-                spawn('cmd.exe', ['/c', batScript], { detached: true, stdio: 'ignore' }).unref();
-            } else {
-                // Unix: Node restart helper with port-check to avoid clashing with process managers
-                const restartScript = path.join(os.tmpdir(), `risu-restart-${Date.now()}.cjs`);
-                writeFileSync(restartScript, [
-                    `const net = require('net');`,
-                    `const { spawn } = require('child_process');`,
-                    `setTimeout(() => {`,
-                    `  const s = net.createServer();`,
-                    `  s.once('error', () => process.exit(0));`,
-                    `  s.once('listening', () => {`,
-                    `    s.close();`,
-                    `    spawn(${JSON.stringify(process.execPath)}, ['server/node/server.cjs'], {`,
-                    `      cwd: ${JSON.stringify(appDir)},`,
-                    `      detached: true,`,
-                    `      stdio: 'inherit',`,
-                    `      env: Object.assign({}, process.env),`,
-                    `    }).unref();`,
-                    `    setTimeout(() => process.exit(0), 500);`,
-                    `  });`,
-                    `  s.listen(${Number(port)});`,
-                    `}, 3000);`,
-                ].join('\n'));
-                spawn(process.execPath, [restartScript], { detached: true, stdio: 'ignore' }).unref();
-            }
-            process.exit(0);
-            } catch (restartErr) {
-                console.error('[Update] Restart failed:', restartErr);
-                selfUpdateInProgress = false;
-            }
-        }, 500);
+//             if (isWin) {
+//                 // Windows: use a .bat script to apply bin/, finalize version, and restart.
+//                 // A bat script can replace bin/node.exe after the Node process exits,
+//                 // avoiding file-lock issues that a Node child process would hit.
+//                 const batScript = path.join(os.tmpdir(), `risu-restart-${Date.now()}.bat`);
+//                 const utmp = path.join(appDir, '.update-tmp');
+//                 const binDir = path.join(appDir, 'bin');
+//                 const binBackup = path.join(utmp, 'old-bin');
+//                 const batLines = [
+//                     '@echo off',
+//                     'timeout /t 3 /nobreak >nul',
+//                     // Apply staged bin/: backup current → copy new → on failure restore backup
+//                     `if exist "${path.join(utmp, 'new-bin')}\\" (`,
+//                     `  if exist "${binDir}\\" (`,
+//                     `    xcopy /E /I /Y "${binDir}\\*" "${binBackup}\\" >nul`,
+//                     `  )`,
+//                     `  xcopy /E /I /Y "${path.join(utmp, 'new-bin')}\\*" "${binDir}\\" >nul`,
+//                     `  if errorlevel 1 (`,
+//                     `    echo [Update] bin/ copy failed, restoring backup...`,
+//                     `    if exist "${binBackup}\\" (`,
+//                     `      xcopy /E /I /Y "${binBackup}\\*" "${binDir}\\" >nul`,
+//                     `    )`,
+//                     `    echo [Update] bin/ restored. Staged files kept for retry.`,
+//                     `    goto start`,
+//                     `  )`,
+//                     `)`,
+//                     // Finalize version marker only after successful bin/ copy
+//                     `if exist "${path.join(utmp, 'latest-version')}" (`,
+//                     `  copy /Y "${path.join(utmp, 'latest-version')}" "${path.join(appDir, '.installed-version')}" >nul`,
+//                     `)`,
+//                     // Cleanup .update-tmp (includes old-bin backup)
+//                     `rmdir /s /q "${utmp}" 2>nul`,
+//                     ':start',
+//                     // Start server with correct working directory
+//                     `cd /d "${appDir}"`,
+//                     `start "" "${path.join(appDir, 'bin', 'node.exe')}" "${path.join(appDir, 'server', 'node', 'server.cjs')}"`,
+//                     'exit /b 0',
+//                 ];
+//                 writeFileSync(batScript, batLines.join('\r\n'));
+//                 spawn('cmd.exe', ['/c', batScript], { detached: true, stdio: 'ignore' }).unref();
+//             } else {
+//                 // Unix: Node restart helper with port-check to avoid clashing with process managers
+//                 const restartScript = path.join(os.tmpdir(), `risu-restart-${Date.now()}.cjs`);
+//                 writeFileSync(restartScript, [
+//                     `const net = require('net');`,
+//                     `const { spawn } = require('child_process');`,
+//                     `setTimeout(() => {`,
+//                     `  const s = net.createServer();`,
+//                     `  s.once('error', () => process.exit(0));`,
+//                     `  s.once('listening', () => {`,
+//                     `    s.close();`,
+//                     `    spawn(${JSON.stringify(process.execPath)}, ['server/node/server.cjs'], {`,
+//                     `      cwd: ${JSON.stringify(appDir)},`,
+//                     `      detached: true,`,
+//                     `      stdio: 'inherit',`,
+//                     `      env: Object.assign({}, process.env),`,
+//                     `    }).unref();`,
+//                     `    setTimeout(() => process.exit(0), 500);`,
+//                     `  });`,
+//                     `  s.listen(${Number(port)});`,
+//                     `}, 3000);`,
+//                 ].join('\n'));
+//                 spawn(process.execPath, [restartScript], { detached: true, stdio: 'ignore' }).unref();
+//             }
+//             process.exit(0);
+//             } catch (restartErr) {
+//                 console.error('[Update] Restart failed:', restartErr);
+//                 selfUpdateInProgress = false;
+//             }
+//         }, 500);
 
-    } catch (e) {
-        console.error('[Update] Self-update failed:', e);
-        send('error', null, `Update failed: ${e.message}`);
-        res.end();
-        selfUpdateInProgress = false;
-        if (tmpDir) fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-    }
-});
+//     } catch (e) {
+//         console.error('[Update] Self-update failed:', e);
+//         send('error', null, `Update failed: ${e.message}`);
+//         res.end();
+//         selfUpdateInProgress = false;
+//         if (tmpDir) fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+//     }
+// });
 
-// Helper: restore files from backup directory into app root (mirrors updater.cjs restoreBackupIntoRoot)
-async function restoreBackup(backupDir, rootDir) {
-    try { await fs.access(backupDir); } catch { return; }
-    for (const entry of await fs.readdir(backupDir)) {
-        const src = path.join(backupDir, entry);
-        const dest = path.join(rootDir, entry);
-        try {
-            await fs.rm(dest, { recursive: true, force: true }).catch(() => {});
-            await fs.rename(src, dest);
-        } catch { /* best effort */ }
-    }
-}
+// // Helper: restore files from backup directory into app root (mirrors updater.cjs restoreBackupIntoRoot)
+// async function restoreBackup(backupDir, rootDir) {
+//     try { await fs.access(backupDir); } catch { return; }
+//     for (const entry of await fs.readdir(backupDir)) {
+//         const src = path.join(backupDir, entry);
+//         const dest = path.join(rootDir, entry);
+//         try {
+//             await fs.rm(dest, { recursive: true, force: true }).catch(() => {});
+//             await fs.rename(src, dest);
+//         } catch { /* best effort */ }
+//     }
+// }
 
 // // ── Cloudflare Quick Tunnel API ──────────────────────────────────────────────
 

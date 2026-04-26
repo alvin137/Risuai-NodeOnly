@@ -1,16 +1,17 @@
 import { Hono, type Context } from "hono";
-import { kvList } from "../utils/db.js"
+import { kvDel, kvList } from "../utils/db.js"
 import { savePath, jwtSecret } from "../utils/util.js";
-import { listInlayFiles } from "../utils/asset.util.js";
+import { listInlayFiles, readInlaySidecar, writeInlayFile } from "../utils/asset.util.js";
 import "./asset.js";
 import { registerCrud } from "./api/crud.js";
 
-import { mkdir, readdir } from "node:fs/promises"
 import path from "node:path";
 import { timingSafeEqual, randomUUID } from "node:crypto";
 import nodeCrypto from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { registerChatApi } from "./api/chat.js";
+import fs from "node:fs/promises";
+import { streamSSE } from "hono/streaming";
+import sharp from "sharp";
 
 
 const api = new Hono();
@@ -123,6 +124,69 @@ api.post('/set_password', async (c) => {
         return c.json({error: 'Password already set'}, 400)
     }
 })
+
+// ── Inlay bulk compression endpoint ──────────────────────────────────────────
+const COMPRESS_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp']);
+
+// Add sessionAuthMiddleware
+api.post('/inlays/compress', async (c) => {
+  const body = await c.req.json();
+  const quality = typeof body.quality === 'number' ? body.quality : 85;
+
+  c.header('cache-control', 'no-cache');
+  c.header('connection', 'keep-alive');
+
+  return streamSSE(c, async (s) => {
+    const send = (data: any) => {
+      s.writeSSE({ data: JSON.stringify(data) });
+    };
+
+    try {
+      const files = await listInlayFiles();
+      const imageFiles: typeof files = [];
+
+      for (const entry of files) {
+        if (!COMPRESS_IMAGE_EXTS.has(entry.ext)) continue;
+        const sidecar = await readInlaySidecar(entry.id);
+        if (sidecar && sidecar.type !== 'image') continue;
+        imageFiles.push(entry);
+      }
+
+      const total = imageFiles.length;
+      let compressed = 0;
+      let skipped = 0;
+      let totalSaved = 0;
+
+      for (let i = 0; i < imageFiles.length; i++) {
+        const entry = imageFiles[i];
+        try {
+          const original = await fs.readFile(entry.filePath);
+          const webpBuf = await sharp(original).webp({ quality }).toBuffer();
+
+          if (webpBuf.length < original.length) {
+            const sidecar = await readInlaySidecar(entry.id);
+            const info = sidecar || {};
+            await writeInlayFile(entry.id, 'webp', webpBuf, { ...info, ext: 'webp' });
+            kvDel(`inlay_thumb/${entry.id}`);
+            const saved = original.length - webpBuf.length;
+            totalSaved += saved;
+            compressed++;
+          } else {
+            skipped++;
+          }
+        } catch {
+          skipped++;
+        }
+
+        send({ type: 'progress', current: i + 1, total, compressed, skipped, totalSaved });
+      }
+
+      send({ type: 'done', total, compressed, skipped, totalSaved });
+    } catch (err) {
+      send({ type: 'error', message: (err as Error)?.message || 'Unknown error' });
+    }
+  });
+});
 
 
 async function getKeysByPrefix(prefix: string): Promise<string[]> {
