@@ -12,6 +12,7 @@ import { sessionApp } from './session.js';
 import { assetApp } from './asset.js'
 import { patchApp } from './api/patch.js';
 import { chatApp } from './api/chat.js'
+import { migrateApp } from './api/migrate.js'
 
 const app = new Hono();
 
@@ -41,6 +42,7 @@ api.route('/session', sessionApp);
 api.route('/asset', assetApp);
 api.route("/patch", patchApp);
 api.route("/chat-content", chatApp);
+api.route("/migrate", migrateApp);
 app.route('/api', api);
 app.route("/", proxyApp);
 

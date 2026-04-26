@@ -898,3 +898,13 @@ export async function listInlayFiles() {
         .filter((entry) => isSafeInlayId(entry.id));
 }
 
+export function invalidateDbCache() {
+    delete dbCache[DB_HEX_KEY];
+    fullChatStore = null;
+    if (saveTimers[DB_HEX_KEY]) {
+        clearTimeout(saveTimers[DB_HEX_KEY]);
+        delete saveTimers[DB_HEX_KEY];
+    }
+    // Should handle dbEtag
+    //dbEtag = null;
+}

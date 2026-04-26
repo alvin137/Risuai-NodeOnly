@@ -108,15 +108,15 @@ let dbEtag = null;
 //     }
 // }
 
-function invalidateDbCache() {
-    delete dbCache[DB_HEX_KEY];
-    fullChatStore = null;
-    if (saveTimers[DB_HEX_KEY]) {
-        clearTimeout(saveTimers[DB_HEX_KEY]);
-        delete saveTimers[DB_HEX_KEY];
-    }
-    dbEtag = null;
-}
+// function invalidateDbCache() {
+//     delete dbCache[DB_HEX_KEY];
+//     fullChatStore = null;
+//     if (saveTimers[DB_HEX_KEY]) {
+//         clearTimeout(saveTimers[DB_HEX_KEY]);
+//         delete saveTimers[DB_HEX_KEY];
+//     }
+//     dbEtag = null;
+// }
 
 // ─── Chat runtime lazy load helpers ─────────────────────────────────────────
 
@@ -3719,251 +3719,251 @@ app.get('/api/backup/server/download/:filename', async (req, res, next) => {
 //     }
 // });
 
-// ── Save-folder migration endpoints ──────────────────────────────────────────
-const migrationMarkerPath = path.join(savePath, '.migrated_to_sqlite');
+// // ── Save-folder migration endpoints ──────────────────────────────────────────
+// const migrationMarkerPath = path.join(savePath, '.migrated_to_sqlite');
 
-function scanHexFilesInDir(dirPath) {
-    let files;
-    try {
-        files = readdirSync(dirPath);
-    } catch {
-        return { hexFiles: [], count: 0, totalSize: 0, hasDatabase: false };
-    }
-    const hexFiles = files.filter(f => hexRegex.test(f));
-    let totalSize = 0;
-    let hasDatabase = false;
-    for (const f of hexFiles) {
-        try {
-            const stat = require('fs').statSync(path.join(dirPath, f));
-            totalSize += stat.size;
-        } catch { /* skip unreadable files */ }
-        try {
-            if (Buffer.from(f, 'hex').toString('utf-8') === 'database/database.bin') hasDatabase = true;
-        } catch { /* invalid hex */ }
-    }
-    return { hexFiles, count: hexFiles.length, totalSize, hasDatabase };
-}
+// function scanHexFilesInDir(dirPath) {
+//     let files;
+//     try {
+//         files = readdirSync(dirPath);
+//     } catch {
+//         return { hexFiles: [], count: 0, totalSize: 0, hasDatabase: false };
+//     }
+//     const hexFiles = files.filter(f => hexRegex.test(f));
+//     let totalSize = 0;
+//     let hasDatabase = false;
+//     for (const f of hexFiles) {
+//         try {
+//             const stat = require('fs').statSync(path.join(dirPath, f));
+//             totalSize += stat.size;
+//         } catch { /* skip unreadable files */ }
+//         try {
+//             if (Buffer.from(f, 'hex').toString('utf-8') === 'database/database.bin') hasDatabase = true;
+//         } catch { /* invalid hex */ }
+//     }
+//     return { hexFiles, count: hexFiles.length, totalSize, hasDatabase };
+// }
 
-function clearExistingData() {
-    kvDelPrefix('assets/');
-    kvDelPrefix('inlay/');
-    kvDelPrefix('inlay_thumb/');
-    kvDelPrefix('inlay_meta/');
-    kvDelPrefix('inlay_info/');
-    clearEntities();
-}
+// function clearExistingData() {
+//     kvDelPrefix('assets/');
+//     kvDelPrefix('inlay/');
+//     kvDelPrefix('inlay_thumb/');
+//     kvDelPrefix('inlay_meta/');
+//     kvDelPrefix('inlay_info/');
+//     clearEntities();
+// }
 
-async function importHexFilesFromDir(dirPath) {
-    const { hexFiles, hasDatabase } = scanHexFilesInDir(dirPath);
-    if (hexFiles.length === 0) return { imported: 0 };
-    if (!hasDatabase) throw new Error('Save folder does not contain database/database.bin');
+// async function importHexFilesFromDir(dirPath) {
+//     const { hexFiles, hasDatabase } = scanHexFilesInDir(dirPath);
+//     if (hexFiles.length === 0) return { imported: 0 };
+//     if (!hasDatabase) throw new Error('Save folder does not contain database/database.bin');
 
-    await flushPendingDb();
-    createBackupAndRotate();
-    invalidateDbCache();
+//     await flushPendingDb();
+//     createBackupAndRotate();
+//     invalidateDbCache();
 
-    const insert = sqliteDb.query(
-        `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`
-    );
-    const now = Date.now();
+//     const insert = sqliteDb.query(
+//         `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`
+//     );
+//     const now = Date.now();
 
-    const run = sqliteDb.transaction(() => {
-        clearExistingData();
-        for (const hexFile of hexFiles) {
-            const key = Buffer.from(hexFile, 'hex').toString('utf-8');
-            const value = readFileSync(path.join(dirPath, hexFile));
-            insert.run(key, value, now);
-        }
-    });
-    run();
+//     const run = sqliteDb.transaction(() => {
+//         clearExistingData();
+//         for (const hexFile of hexFiles) {
+//             const key = Buffer.from(hexFile, 'hex').toString('utf-8');
+//             const value = readFileSync(path.join(dirPath, hexFile));
+//             insert.run(key, value, now);
+//         }
+//     });
+//     run();
 
-    writeFileSync(migrationMarkerPath, new Date().toISOString(), 'utf-8');
-    return { imported: hexFiles.length };
-}
+//     writeFileSync(migrationMarkerPath, new Date().toISOString(), 'utf-8');
+//     return { imported: hexFiles.length };
+// }
 
-async function importHexEntries(entries) {
-    if (entries.length === 0) return { imported: 0 };
-    const hasDb = entries.some(e => e.key === 'database/database.bin');
-    if (!hasDb) throw new Error('Data does not contain database/database.bin');
+// async function importHexEntries(entries) {
+//     if (entries.length === 0) return { imported: 0 };
+//     const hasDb = entries.some(e => e.key === 'database/database.bin');
+//     if (!hasDb) throw new Error('Data does not contain database/database.bin');
 
-    await flushPendingDb();
-    createBackupAndRotate();
-    invalidateDbCache();
+//     await flushPendingDb();
+//     createBackupAndRotate();
+//     invalidateDbCache();
 
-    const insert = sqliteDb.query(
-        `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`
-    );
-    const now = Date.now();
+//     const insert = sqliteDb.query(
+//         `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, ?)`
+//     );
+//     const now = Date.now();
 
-    const run = sqliteDb.transaction(() => {
-        clearExistingData();
-        for (const { key, value } of entries) {
-            insert.run(key, value, now);
-        }
-    });
-    run();
+//     const run = sqliteDb.transaction(() => {
+//         clearExistingData();
+//         for (const { key, value } of entries) {
+//             insert.run(key, value, now);
+//         }
+//     });
+//     run();
 
-    writeFileSync(migrationMarkerPath, new Date().toISOString(), 'utf-8');
-    return { imported: entries.length };
-}
+//     writeFileSync(migrationMarkerPath, new Date().toISOString(), 'utf-8');
+//     return { imported: entries.length };
+// }
 
-app.post('/api/migrate/save-folder/scan', async (req, res, next) => {
-    if (!await checkAuth(req, res)) return;
-    if (!checkActiveSession(req, res)) return;
-    try {
-        const folderPath = req.body?.path || savePath;
-        const resolved = path.resolve(folderPath);
-        try {
-            const stat = require('fs').statSync(resolved);
-            if (!stat.isDirectory()) {
-                res.status(400).json({ error: 'Path is not a directory' });
-                return;
-            }
-        } catch {
-            res.status(400).json({ error: 'Cannot access directory' });
-            return;
-        }
-        const { count, totalSize, hasDatabase } = scanHexFilesInDir(resolved);
-        res.json({ count, totalSize, hasDatabase });
-    } catch (error) {
-        next(error);
-    }
-});
+// app.post('/api/migrate/save-folder/scan', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) return;
+//     if (!checkActiveSession(req, res)) return;
+//     try {
+//         const folderPath = req.body?.path || savePath;
+//         const resolved = path.resolve(folderPath);
+//         try {
+//             const stat = require('fs').statSync(resolved);
+//             if (!stat.isDirectory()) {
+//                 res.status(400).json({ error: 'Path is not a directory' });
+//                 return;
+//             }
+//         } catch {
+//             res.status(400).json({ error: 'Cannot access directory' });
+//             return;
+//         }
+//         const { count, totalSize, hasDatabase } = scanHexFilesInDir(resolved);
+//         res.json({ count, totalSize, hasDatabase });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
-app.post('/api/migrate/save-folder/execute', async (req, res, next) => {
-    if (!await checkAuth(req, res)) return;
-    if (!checkActiveSession(req, res)) return;
-    if (importInProgress) {
-        res.status(409).json({ error: 'Another import is already in progress' });
-        return;
-    }
-    importInProgress = true;
-    try {
-        const folderPath = req.body?.path || savePath;
-        const resolved = path.resolve(folderPath);
-        try {
-            const stat = require('fs').statSync(resolved);
-            if (!stat.isDirectory()) {
-                res.status(400).json({ error: 'Path is not a directory' });
-                return;
-            }
-        } catch {
-            res.status(400).json({ error: 'Cannot access directory' });
-            return;
-        }
-        const result = await importHexFilesFromDir(resolved);
-        res.json({ ok: true, imported: result.imported });
-    } catch (error) {
-        res.status(400).json({ error: error.message || 'Import failed' });
-    } finally {
-        importInProgress = false;
-    }
-});
+// app.post('/api/migrate/save-folder/execute', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) return;
+//     if (!checkActiveSession(req, res)) return;
+//     if (importInProgress) {
+//         res.status(409).json({ error: 'Another import is already in progress' });
+//         return;
+//     }
+//     importInProgress = true;
+//     try {
+//         const folderPath = req.body?.path || savePath;
+//         const resolved = path.resolve(folderPath);
+//         try {
+//             const stat = require('fs').statSync(resolved);
+//             if (!stat.isDirectory()) {
+//                 res.status(400).json({ error: 'Path is not a directory' });
+//                 return;
+//             }
+//         } catch {
+//             res.status(400).json({ error: 'Cannot access directory' });
+//             return;
+//         }
+//         const result = await importHexFilesFromDir(resolved);
+//         res.json({ ok: true, imported: result.imported });
+//     } catch (error) {
+//         res.status(400).json({ error: error.message || 'Import failed' });
+//     } finally {
+//         importInProgress = false;
+//     }
+// });
 
-app.post('/api/migrate/save-folder/upload', async (req, res, next) => {
-    if (!await checkAuth(req, res)) return;
-    if (!checkActiveSession(req, res)) return;
-    if (importInProgress) {
-        res.status(409).json({ error: 'Another import is already in progress' });
-        return;
-    }
-    importInProgress = true;
+// app.post('/api/migrate/save-folder/upload', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) return;
+//     if (!checkActiveSession(req, res)) return;
+//     if (importInProgress) {
+//         res.status(409).json({ error: 'Another import is already in progress' });
+//         return;
+//     }
+//     importInProgress = true;
 
-    req.socket.setTimeout(0);
-    req.socket.setKeepAlive(true);
-    const prevRequestTimeout = req.socket.server?.requestTimeout;
-    if (req.socket.server) req.socket.server.requestTimeout = 0;
+//     req.socket.setTimeout(0);
+//     req.socket.setKeepAlive(true);
+//     const prevRequestTimeout = req.socket.server?.requestTimeout;
+//     if (req.socket.server) req.socket.server.requestTimeout = 0;
 
-    try {
-        const chunks = [];
-        let totalSize = 0;
-        for await (const chunk of req) {
-            totalSize += chunk.length;
-            if (BACKUP_IMPORT_MAX_BYTES > 0 && totalSize > BACKUP_IMPORT_MAX_BYTES) {
-                res.status(413).json({ error: 'Zip file exceeds max allowed size' });
-                return;
-            }
-            chunks.push(chunk);
-        }
-        const zipBuffer = Buffer.concat(chunks);
+//     try {
+//         const chunks = [];
+//         let totalSize = 0;
+//         for await (const chunk of req) {
+//             totalSize += chunk.length;
+//             if (BACKUP_IMPORT_MAX_BYTES > 0 && totalSize > BACKUP_IMPORT_MAX_BYTES) {
+//                 res.status(413).json({ error: 'Zip file exceeds max allowed size' });
+//                 return;
+//             }
+//             chunks.push(chunk);
+//         }
+//         const zipBuffer = Buffer.concat(chunks);
 
-        const fflate = require('fflate');
-        let unzipped;
-        try {
-            unzipped = fflate.unzipSync(new Uint8Array(zipBuffer));
-        } catch {
-            res.status(400).json({ error: 'Invalid or corrupted zip file' });
-            return;
-        }
+//         const fflate = require('fflate');
+//         let unzipped;
+//         try {
+//             unzipped = fflate.unzipSync(new Uint8Array(zipBuffer));
+//         } catch {
+//             res.status(400).json({ error: 'Invalid or corrupted zip file' });
+//             return;
+//         }
 
-        const entries = [];
-        for (const [entryPath, data] of Object.entries(unzipped)) {
-            if (data.length === 0) continue;
-            const basename = path.basename(entryPath);
-            if (!hexRegex.test(basename)) continue;
-            try {
-                const key = Buffer.from(basename, 'hex').toString('utf-8');
-                entries.push({ key, value: Buffer.from(data) });
-            } catch { /* invalid hex filename */ }
-        }
+//         const entries = [];
+//         for (const [entryPath, data] of Object.entries(unzipped)) {
+//             if (data.length === 0) continue;
+//             const basename = path.basename(entryPath);
+//             if (!hexRegex.test(basename)) continue;
+//             try {
+//                 const key = Buffer.from(basename, 'hex').toString('utf-8');
+//                 entries.push({ key, value: Buffer.from(data) });
+//             } catch { /* invalid hex filename */ }
+//         }
 
-        if (entries.length === 0) {
-            res.status(400).json({ error: 'No compatible hex files found in zip' });
-            return;
-        }
+//         if (entries.length === 0) {
+//             res.status(400).json({ error: 'No compatible hex files found in zip' });
+//             return;
+//         }
 
-        const result = await importHexEntries(entries);
-        res.json({ ok: true, imported: result.imported });
-    } catch (error) {
-        res.status(400).json({ error: error.message || 'Import failed' });
-    } finally {
-        importInProgress = false;
-        if (req.socket.server && prevRequestTimeout !== undefined) {
-            req.socket.server.requestTimeout = prevRequestTimeout;
-        }
-    }
-});
+//         const result = await importHexEntries(entries);
+//         res.json({ ok: true, imported: result.imported });
+//     } catch (error) {
+//         res.status(400).json({ error: error.message || 'Import failed' });
+//     } finally {
+//         importInProgress = false;
+//         if (req.socket.server && prevRequestTimeout !== undefined) {
+//             req.socket.server.requestTimeout = prevRequestTimeout;
+//         }
+//     }
+// });
 
-app.post('/api/migrate/save-folder/cleanup/scan', async (req, res, next) => {
-    if (!await checkAuth(req, res)) return;
-    if (!checkActiveSession(req, res)) return;
-    try {
-        if (!existsSync(migrationMarkerPath)) {
-            res.status(400).json({ error: 'Migration has not been completed yet' });
-            return;
-        }
-        const { count, totalSize } = scanHexFilesInDir(savePath);
-        res.json({ count, totalSize });
-    } catch (error) {
-        next(error);
-    }
-});
+// app.post('/api/migrate/save-folder/cleanup/scan', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) return;
+//     if (!checkActiveSession(req, res)) return;
+//     try {
+//         if (!existsSync(migrationMarkerPath)) {
+//             res.status(400).json({ error: 'Migration has not been completed yet' });
+//             return;
+//         }
+//         const { count, totalSize } = scanHexFilesInDir(savePath);
+//         res.json({ count, totalSize });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
-app.post('/api/migrate/save-folder/cleanup/execute', async (req, res, next) => {
-    if (!await checkAuth(req, res)) return;
-    if (!checkActiveSession(req, res)) return;
-    try {
-        if (!existsSync(migrationMarkerPath)) {
-            res.status(400).json({ error: 'Migration has not been completed yet' });
-            return;
-        }
-        const { hexFiles } = scanHexFilesInDir(savePath);
-        let removed = 0;
-        let freedBytes = 0;
-        for (const f of hexFiles) {
-            try {
-                const filePath = path.join(savePath, f);
-                const stat = require('fs').statSync(filePath);
-                unlinkSync(filePath);
-                freedBytes += stat.size;
-                removed++;
-            } catch { /* skip unremovable files */ }
-        }
-        res.json({ ok: true, removed, freedBytes });
-    } catch (error) {
-        next(error);
-    }
-});
+// app.post('/api/migrate/save-folder/cleanup/execute', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) return;
+//     if (!checkActiveSession(req, res)) return;
+//     try {
+//         if (!existsSync(migrationMarkerPath)) {
+//             res.status(400).json({ error: 'Migration has not been completed yet' });
+//             return;
+//         }
+//         const { hexFiles } = scanHexFilesInDir(savePath);
+//         let removed = 0;
+//         let freedBytes = 0;
+//         for (const f of hexFiles) {
+//             try {
+//                 const filePath = path.join(savePath, f);
+//                 const stat = require('fs').statSync(filePath);
+//                 unlinkSync(filePath);
+//                 freedBytes += stat.size;
+//                 removed++;
+//             } catch { /* skip unremovable files */ }
+//         }
+//         res.json({ ok: true, removed, freedBytes });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
 // ── Inlay bulk compression endpoint ──────────────────────────────────────────
 const COMPRESS_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp']);

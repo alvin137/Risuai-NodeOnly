@@ -38,13 +38,8 @@ const BACKUP_FILENAME_REGEX = /^risu-backup-\d+\.bin$/;
 
 const inlayDir = path.join(savePath, 'inlays')
 const inlayMigrationMarker = path.join(inlayDir, '.migrated_to_fs')
-const hexRegex = /^[0-9a-fA-F]+$/;
-const BACKUP_IMPORT_MAX_BYTES = Number(process.env.RISU_BACKUP_IMPORT_MAX_BYTES ?? '0');
-const BACKUP_ENTRY_NAME_MAX_BYTES = 1024;
-// Minimum free disk space headroom multiplier: require 2× the backup size to be free
-const BACKUP_DISK_HEADROOM = 2;
+export const hexRegex = /^[0-9a-fA-F]+$/;
 
-let importInProgress = false;
 
 const jwtSecretPath = path.join(savePath, '__jwt_secret')
 export let jwtSecret: string;
