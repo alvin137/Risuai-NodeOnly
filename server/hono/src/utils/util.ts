@@ -27,6 +27,31 @@ if(!existsSync(savePath)) {
     mkdirSync(savePath)
 }
 
+const backupsDir = path.join(process.cwd(), "backups")
+if(!existsSync(backupsDir)){
+    mkdirSync(backupsDir)
+}
+const BACKUP_FILENAME_REGEX = /^risu-backup-\d+\.bin$/;
+
+
+let password = "";
+
+const passwordPath = path.join(process.cwd(), 'save', '__password')
+if(existsSync(passwordPath)){
+    password = readFileSync(passwordPath, 'utf-8')
+}
+
+const authCodePath = path.join(process.cwd(), 'save', '__authcode')
+const inlayDir = path.join(savePath, 'inlays')
+const inlayMigrationMarker = path.join(inlayDir, '.migrated_to_fs')
+const hexRegex = /^[0-9a-fA-F]+$/;
+const BACKUP_IMPORT_MAX_BYTES = Number(process.env.RISU_BACKUP_IMPORT_MAX_BYTES ?? '0');
+const BACKUP_ENTRY_NAME_MAX_BYTES = 1024;
+// Minimum free disk space headroom multiplier: require 2× the backup size to be free
+const BACKUP_DISK_HEADROOM = 2;
+
+let importInProgress = false;
+
 const jwtSecretPath = path.join(savePath, '__jwt_secret')
 export let jwtSecret: string;
 if (existsSync(jwtSecretPath)) {
@@ -39,8 +64,6 @@ if (existsSync(jwtSecretPath)) {
 export function isHex(str: string) {
   return hexRegex.test(str.toUpperCase().trim()) || str === '__password';
 }
-
-const hexRegex = /^[0-9a-fA-F]+$/;
 
 // Packr/Unpackr instances
 const packr = new Packr({
@@ -507,3 +530,27 @@ export function normalizeJSON(value: any): unknown {
     }
     return result;
 }
+
+// Useless in hono
+// export function shouldCompress(c: Context) {
+//     // Proxy/hub-proxy: pass through external responses without compression.
+//     // Original upstream server has no compression middleware at all,
+//     // so proxy responses were never compressed in the first place.
+//     const url = c.req.url;
+//     if (url.startsWith('/proxy') || url.startsWith('/hub-proxy') || url.startsWith('/api/backup/export') || url.startsWith('/api/backup/server/download/')) {
+//         return false;
+//     }
+
+//     const contentType = String(c.res.headers('Content-Type') || '').toLowerCase();
+//     if (contentType.includes('text/event-stream')) {
+//         return false;
+//     }
+//     // Already-compressed media formats: gzip adds CPU cost with ~0% size gain
+//     if (contentType.startsWith('image/') || contentType.startsWith('video/') || contentType.startsWith('audio/')) {
+//         return false;
+//     }
+//     if (contentType.includes('application/octet-stream')) {
+//         return true;
+//     }
+//     return compression.filter(req, res);
+// }

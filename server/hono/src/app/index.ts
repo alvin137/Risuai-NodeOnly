@@ -1,17 +1,33 @@
 import { Hono } from 'hono'
 import { csrf } from 'hono/csrf'
 import { logger } from 'hono/logger'
+import { compress } from 'hono/compress'
+import { bodyLimit } from 'hono/body-limit'
+import { join } from 'path'
 import api from './api.js'
 
 // import { sessionApp } from './session.js';
 import { assetApp } from './asset.js'
 import { patchApp } from './api/patch.js';
-import { crudApp } from './api/crud.js'
 
-const app = new Hono()
+const app = new Hono();
+
+const sslPath = join(process.cwd(), 'server/node/ssl/certificate');
+const hubURL = 'https://sv.risuai.xyz';
+
 
 app.use('*', csrf())
 app.use('*', logger())
+app.use("*", compress());
+app.use('*', async (c, next) => {
+  if (c.req.path === '/api/backup/import') {
+    return next();
+  }
+
+  return bodyLimit({
+    maxSize: 2 * 1024 * 1024 * 1024,
+  })(c, next);
+});
 
 app.onError((err, c) => {
   console.error('Error occurred:', err);

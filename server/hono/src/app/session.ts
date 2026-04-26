@@ -4,7 +4,7 @@ import path from 'node:path';
 import nodeCrypto from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { Hono } from 'hono';
-import type { Context, Next } from 'hono';
+import type { Context, HonoRequest, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
 
 export const sessionApp = new Hono();
@@ -31,23 +31,43 @@ function saveSessions() {
     catch { /* non-critical */ }
 }
 
+loadSessions();
+
+function parseSessionCookie(req: HonoRequest) {
+    const cookieHeader = req.header("cookie") || ''
+    for (const part of cookieHeader.split(';')) {
+        const eq = part.indexOf('=')
+        if (eq === -1) continue
+        if (part.slice(0, eq).trim() === 'risu-session') return part.slice(eq + 1).trim()
+    }
+    return null
+}
+
+function sessionAuthMiddleware(c: Context, next: Next) {
+    const token = parseSessionCookie(c.req)
+    if (token && (sessions.get(token) ?? 0) > Date.now()) return next()
+    return c.status(401);
+}
+
 // ── Active writer session (single-writer lock) ────────────────────────────────
 // Mirrors the BroadcastChannel-based tab lock on the server side so that the
 // same protection extends across devices. The last client to call /api/session
 // becomes the active writer; older sessions receive 423 on write attempts.
-let activeSessionId = null // string | null
+let activeSessionId: string | null = null // string | null
+
+// TODO: Need edit
+function checkActiveSession(c: Context) {
+    const clientSessionId = c.req.header("x-session-id");
+    if (!clientSessionId) return true  // client without session support
+    if (!activeSessionId) return true  // no session registered yet
+    if (clientSessionId === activeSessionId) return true
+    return c.json({ error: 'Session deactivated' }, 423);
+}
 
 // ── Session cookie issuance (F-0) ──────────────────────────────────────────
 // Called once after JWT auth succeeds. Issues a long-lived cookie so that
 // <img src="/api/asset/..."> requests can be authenticated without JS.
 
-export function sessionAuthMiddleware(c: Context, next: Next) {
-    const token = getCookie(c, 'risu-session');
-    console.log(`[Session] Checking session cookie: ${token}`);
-    console.log(`[Session] Active session: ${sessions.get(token)} (now: ${Date.now()})`);
-    if (token && (sessions.get(token) ?? 0) > Date.now()) return next();
-    return c.json({ error: 'Unauthorized' }, 401);
-}
 
 sessionApp.post('/', async (c) => {
     const auth = await checkAuth(c);

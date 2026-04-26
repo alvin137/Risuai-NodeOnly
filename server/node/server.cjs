@@ -291,68 +291,68 @@ function invalidateDbCache() {
 //     kvSet(decodedKey, data);
 // }
 
-function shouldCompress(req, res) {
-    // Proxy/hub-proxy: pass through external responses without compression.
-    // Original upstream server has no compression middleware at all,
-    // so proxy responses were never compressed in the first place.
-    const url = req.originalUrl || req.url;
-    if (url.startsWith('/proxy') || url.startsWith('/hub-proxy') || url.startsWith('/api/backup/export') || url.startsWith('/api/backup/server/download/')) {
-        return false;
-    }
+// function shouldCompress(req, res) {
+//     // Proxy/hub-proxy: pass through external responses without compression.
+//     // Original upstream server has no compression middleware at all,
+//     // so proxy responses were never compressed in the first place.
+//     const url = req.originalUrl || req.url;
+//     if (url.startsWith('/proxy') || url.startsWith('/hub-proxy') || url.startsWith('/api/backup/export') || url.startsWith('/api/backup/server/download/')) {
+//         return false;
+//     }
 
-    const contentType = String(res.getHeader('Content-Type') || '').toLowerCase();
-    if (contentType.includes('text/event-stream')) {
-        return false;
-    }
-    // Already-compressed media formats: gzip adds CPU cost with ~0% size gain
-    if (contentType.startsWith('image/') || contentType.startsWith('video/') || contentType.startsWith('audio/')) {
-        return false;
-    }
-    if (contentType.includes('application/octet-stream')) {
-        return true;
-    }
-    return compression.filter(req, res);
-}
+//     const contentType = String(res.getHeader('Content-Type') || '').toLowerCase();
+//     if (contentType.includes('text/event-stream')) {
+//         return false;
+//     }
+//     // Already-compressed media formats: gzip adds CPU cost with ~0% size gain
+//     if (contentType.startsWith('image/') || contentType.startsWith('video/') || contentType.startsWith('audio/')) {
+//         return false;
+//     }
+//     if (contentType.includes('application/octet-stream')) {
+//         return true;
+//     }
+//     return compression.filter(req, res);
+// }
 
-app.use(compression({
-    filter: shouldCompress,
-}));
+// app.use(compression({
+//     filter: shouldCompress,
+// }));
 // Vite 산출물은 해시 파일명이므로 /assets는 장기 캐시 안전
-app.use('/assets', express.static(path.join(process.cwd(), 'dist/assets'), {
-    maxAge: '1y',
-    immutable: true,
-}));
-app.use(express.static(path.join(process.cwd(), 'dist'), {index: false, maxAge: 0}));
-app.use(express.json({ limit: '100mb' }));
-app.use((req, res, next) => {
-    // Skip express.raw() for backup import — it must stream, not buffer into memory
-    if (req.path === '/api/backup/import') return next();
-    return express.raw({ type: 'application/octet-stream', limit: '2gb' })(req, res, next);
-});
-app.use(express.text({ limit: '100mb' }));
-const {pipeline} = require('stream/promises')
-const sslPath = path.join(process.cwd(), 'server/node/ssl/certificate');
-const hubURL = 'https://sv.risuai.xyz';
+// app.use('/assets', express.static(path.join(process.cwd(), 'dist/assets'), {
+//     maxAge: '1y',
+//     immutable: true,
+// }));
+// app.use(express.static(path.join(process.cwd(), 'dist'), {index: false, maxAge: 0}));
+// app.use(express.json({ limit: '100mb' }));
+// app.use((req, res, next) => {
+//     // Skip express.raw() for backup import — it must stream, not buffer into memory
+//     if (req.path === '/api/backup/import') return next();
+//     return express.raw({ type: 'application/octet-stream', limit: '2gb' })(req, res, next);
+// });
+// app.use(express.text({ limit: '100mb' }));
+// const {pipeline} = require('stream/promises')
+// const sslPath = path.join(process.cwd(), 'server/node/ssl/certificate');
+// const hubURL = 'https://sv.risuai.xyz';
 
-let password = ''
+// let password = ''
 
 // Ensure /save/ exists for password file and migration source
-const savePath = path.join(process.cwd(), "save")
-if(!existsSync(savePath)){
-    mkdirSync(savePath)
-}
+// const savePath = path.join(process.cwd(), "save")
+// if(!existsSync(savePath)){
+//     mkdirSync(savePath)
+// }
 
 // Server-side backup directory (outside save/ to avoid bloating updater copies)
-const backupsDir = path.join(process.cwd(), "backups")
-if(!existsSync(backupsDir)){
-    mkdirSync(backupsDir)
-}
-const BACKUP_FILENAME_REGEX = /^risu-backup-\d+\.bin$/;
+// const backupsDir = path.join(process.cwd(), "backups")
+// if(!existsSync(backupsDir)){
+//     mkdirSync(backupsDir)
+// }
+// const BACKUP_FILENAME_REGEX = /^risu-backup-\d+\.bin$/;
 
-const passwordPath = path.join(process.cwd(), 'save', '__password')
-if(existsSync(passwordPath)){
-    password = readFileSync(passwordPath, 'utf-8')
-}
+// const passwordPath = path.join(process.cwd(), 'save', '__password')
+// if(existsSync(passwordPath)){
+//     password = readFileSync(passwordPath, 'utf-8')
+// }
 
 // ── NodeOnly: server-side JWT (HMAC-SHA256) ─────────────────────────────────
 // Upstream uses client-side ECDSA JWT via crypto.subtle, which requires
@@ -360,155 +360,155 @@ if(existsSync(passwordPath)){
 // so we moved JWT signing/verification to the server using HMAC-SHA256.
 // If upstream changes its auth flow, this section needs manual sync.
 // Related: createServerJwt(), checkAuth(), /api/login, /api/token/refresh
-const jwtSecretPath = path.join(savePath, '__jwt_secret')
-let jwtSecret
-if (existsSync(jwtSecretPath)) {
-    jwtSecret = readFileSync(jwtSecretPath, 'utf-8').trim()
-} else {
-    jwtSecret = nodeCrypto.randomBytes(64).toString('hex')
-    writeFileSync(jwtSecretPath, jwtSecret, 'utf-8')
-}
+// const jwtSecretPath = path.join(savePath, '__jwt_secret')
+// let jwtSecret
+// if (existsSync(jwtSecretPath)) {
+//     jwtSecret = readFileSync(jwtSecretPath, 'utf-8').trim()
+// } else {
+//     jwtSecret = nodeCrypto.randomBytes(64).toString('hex')
+//     writeFileSync(jwtSecretPath, jwtSecret, 'utf-8')
+// }
 
-const authCodePath = path.join(process.cwd(), 'save', '__authcode')
-const inlayDir = path.join(savePath, 'inlays')
-const inlayMigrationMarker = path.join(inlayDir, '.migrated_to_fs')
-const hexRegex = /^[0-9a-fA-F]+$/;
-const BACKUP_IMPORT_MAX_BYTES = Number(process.env.RISU_BACKUP_IMPORT_MAX_BYTES ?? '0');
-const BACKUP_ENTRY_NAME_MAX_BYTES = 1024;
-// Minimum free disk space headroom multiplier: require 2× the backup size to be free
-const BACKUP_DISK_HEADROOM = 2;
+// const authCodePath = path.join(process.cwd(), 'save', '__authcode')
+// const inlayDir = path.join(savePath, 'inlays')
+// const inlayMigrationMarker = path.join(inlayDir, '.migrated_to_fs')
+// const hexRegex = /^[0-9a-fA-F]+$/;
+// const BACKUP_IMPORT_MAX_BYTES = Number(process.env.RISU_BACKUP_IMPORT_MAX_BYTES ?? '0');
+// const BACKUP_ENTRY_NAME_MAX_BYTES = 1024;
+// // Minimum free disk space headroom multiplier: require 2× the backup size to be free
+// const BACKUP_DISK_HEADROOM = 2;
 
-let importInProgress = false;
+// let importInProgress = false;
 
-// ── Cloudflare Quick Tunnel ─────────────────────────────────────────────────
-const TUNNEL_DISABLED = process.env.RISU_TUNNEL_DISABLED === 'true';
-let tunnelProcess = null;
-let tunnelUrl = null;
-let tunnelStatus = 'off';   // 'off' | 'downloading' | 'starting' | 'running' | 'error'
-let tunnelError = null;
-let tunnelStartTimeout = null;
+// // ── Cloudflare Quick Tunnel ─────────────────────────────────────────────────
+// const TUNNEL_DISABLED = process.env.RISU_TUNNEL_DISABLED === 'true';
+// let tunnelProcess = null;
+// let tunnelUrl = null;
+// let tunnelStatus = 'off';   // 'off' | 'downloading' | 'starting' | 'running' | 'error'
+// let tunnelError = null;
+// let tunnelStartTimeout = null;
 
-const CLOUDFLARED_ASSETS = {
-    'darwin-arm64':  { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz', type: 'tgz' },
-    'darwin-x64':    { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz', type: 'tgz' },
-    'linux-x64':     { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64', type: 'bin' },
-    'linux-arm64':   { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64', type: 'bin' },
-    'win32-x64':     { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe', type: 'bin' },
-};
+// const CLOUDFLARED_ASSETS = {
+//     'darwin-arm64':  { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-arm64.tgz', type: 'tgz' },
+//     'darwin-x64':    { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz', type: 'tgz' },
+//     'linux-x64':     { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64', type: 'bin' },
+//     'linux-arm64':   { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64', type: 'bin' },
+//     'win32-x64':     { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe', type: 'bin' },
+// };
 
-function findCloudflaredBinary() {
-    const ext = process.platform === 'win32' ? '.exe' : '';
-    const bundled = path.join(process.cwd(), 'bin', 'cloudflared' + ext);
-    if (existsSync(bundled)) return bundled;
-    try {
-        execSync(process.platform === 'win32' ? 'where cloudflared' : 'which cloudflared', { stdio: 'pipe' });
-        return 'cloudflared';
-    } catch {
-        return null;
-    }
-}
+// function findCloudflaredBinary() {
+//     const ext = process.platform === 'win32' ? '.exe' : '';
+//     const bundled = path.join(process.cwd(), 'bin', 'cloudflared' + ext);
+//     if (existsSync(bundled)) return bundled;
+//     try {
+//         execSync(process.platform === 'win32' ? 'where cloudflared' : 'which cloudflared', { stdio: 'pipe' });
+//         return 'cloudflared';
+//     } catch {
+//         return null;
+//     }
+// }
 
-function followRedirects(url) {
-    return new Promise((resolve, reject) => {
-        const mod = url.startsWith('https') ? require('https') : require('http');
-        mod.get(url, { headers: { 'User-Agent': 'risuai-nodeonly' } }, (res) => {
-            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                followRedirects(res.headers.location).then(resolve, reject);
-            } else if (res.statusCode === 200) {
-                resolve(res);
-            } else {
-                reject(new Error(`HTTP ${res.statusCode}`));
-            }
-        }).on('error', reject);
-    });
-}
+// function followRedirects(url) {
+//     return new Promise((resolve, reject) => {
+//         const mod = url.startsWith('https') ? require('https') : require('http');
+//         mod.get(url, { headers: { 'User-Agent': 'risuai-nodeonly' } }, (res) => {
+//             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+//                 followRedirects(res.headers.location).then(resolve, reject);
+//             } else if (res.statusCode === 200) {
+//                 resolve(res);
+//             } else {
+//                 reject(new Error(`HTTP ${res.statusCode}`));
+//             }
+//         }).on('error', reject);
+//     });
+// }
 
-async function downloadCloudflared() {
-    const key = `${process.platform}-${process.arch}`;
-    const asset = CLOUDFLARED_ASSETS[key];
-    if (!asset) throw new Error(`Unsupported platform: ${key}`);
+// async function downloadCloudflared() {
+//     const key = `${process.platform}-${process.arch}`;
+//     const asset = CLOUDFLARED_ASSETS[key];
+//     if (!asset) throw new Error(`Unsupported platform: ${key}`);
 
-    const ext = process.platform === 'win32' ? '.exe' : '';
-    const binDir = path.join(process.cwd(), 'bin');
-    const dest = path.join(binDir, 'cloudflared' + ext);
+//     const ext = process.platform === 'win32' ? '.exe' : '';
+//     const binDir = path.join(process.cwd(), 'bin');
+//     const dest = path.join(binDir, 'cloudflared' + ext);
 
-    if (!existsSync(binDir)) require('fs').mkdirSync(binDir, { recursive: true });
+//     if (!existsSync(binDir)) require('fs').mkdirSync(binDir, { recursive: true });
 
-    console.log(`[Tunnel] Downloading cloudflared for ${key}...`);
-    const res = await followRedirects(asset.url);
+//     console.log(`[Tunnel] Downloading cloudflared for ${key}...`);
+//     const res = await followRedirects(asset.url);
 
-    if (asset.type === 'tgz') {
-        const tmpPath = path.join(binDir, '_cloudflared.tgz');
-        await new Promise((resolve, reject) => {
-            const ws = require('fs').createWriteStream(tmpPath);
-            res.pipe(ws);
-            ws.on('finish', () => { ws.close(); resolve(); });
-            ws.on('error', reject);
-        });
-        execSync(`tar -xzf "${tmpPath}" -C "${binDir}"`, { stdio: 'pipe' });
-        require('fs').unlinkSync(tmpPath);
-    } else {
-        await new Promise((resolve, reject) => {
-            const ws = require('fs').createWriteStream(dest);
-            res.pipe(ws);
-            ws.on('finish', () => { ws.close(); resolve(); });
-            ws.on('error', reject);
-        });
-    }
+//     if (asset.type === 'tgz') {
+//         const tmpPath = path.join(binDir, '_cloudflared.tgz');
+//         await new Promise((resolve, reject) => {
+//             const ws = require('fs').createWriteStream(tmpPath);
+//             res.pipe(ws);
+//             ws.on('finish', () => { ws.close(); resolve(); });
+//             ws.on('error', reject);
+//         });
+//         execSync(`tar -xzf "${tmpPath}" -C "${binDir}"`, { stdio: 'pipe' });
+//         require('fs').unlinkSync(tmpPath);
+//     } else {
+//         await new Promise((resolve, reject) => {
+//             const ws = require('fs').createWriteStream(dest);
+//             res.pipe(ws);
+//             ws.on('finish', () => { ws.close(); resolve(); });
+//             ws.on('error', reject);
+//         });
+//     }
 
-    if (process.platform !== 'win32') require('fs').chmodSync(dest, 0o755);
-    console.log('[Tunnel] cloudflared downloaded successfully.');
-    return dest;
-}
+//     if (process.platform !== 'win32') require('fs').chmodSync(dest, 0o755);
+//     console.log('[Tunnel] cloudflared downloaded successfully.');
+//     return dest;
+// }
 
-function stopTunnel() {
-    if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
-    if (tunnelProcess) {
-        try { tunnelProcess.kill('SIGTERM'); } catch {}
-        tunnelProcess = null;
-    }
-    tunnelUrl = null;
-    tunnelStatus = 'off';
-    tunnelError = null;
-}
+// function stopTunnel() {
+//     if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
+//     if (tunnelProcess) {
+//         try { tunnelProcess.kill('SIGTERM'); } catch {}
+//         tunnelProcess = null;
+//     }
+//     tunnelUrl = null;
+//     tunnelStatus = 'off';
+//     tunnelError = null;
+// }
 
 // ── Update check ─────────────────────────────────────────────────────────────
-const UPDATE_CHECK_DISABLED = process.env.RISU_UPDATE_CHECK === 'false';
-const UPDATE_CHECK_URL = process.env.RISU_UPDATE_URL || 'https://risu-update-worker.nodridan.workers.dev/check';
+// const UPDATE_CHECK_DISABLED = process.env.RISU_UPDATE_CHECK === 'false';
+// const UPDATE_CHECK_URL = process.env.RISU_UPDATE_URL || 'https://risu-update-worker.nodridan.workers.dev/check';
 
-const currentVersion = (() => {
-    try {
-        const pkg = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8'));
-        return pkg.version || '0.0.0';
-    } catch { return '0.0.0'; }
-})();
+// const currentVersion = (() => {
+//     try {
+//         const pkg = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8'));
+//         return pkg.version || '0.0.0';
+//     } catch { return '0.0.0'; }
+// })();
 
-// ── Deployment type & self-update helpers ─────────────────────────────────────
-const GITHUB_REPO = 'mrbart3885/Risuai-NodeOnly';
+// // ── Deployment type & self-update helpers ─────────────────────────────────────
+// const GITHUB_REPO = 'mrbart3885/Risuai-NodeOnly';
 
-const deploymentType = (() => {
-    // Only portable builds have the .portable marker (created by CI release workflow).
-    // Self-update is gated on this — all other types are inferred for analytics only.
-    if (existsSync(path.join(process.cwd(), '.portable'))) return 'portable';
-    if (existsSync(path.join(process.cwd(), '.git'))) return 'git';
-    if (existsSync('/.dockerenv')) return 'docker';
-    try {
-        const cgroup = readFileSync('/proc/1/cgroup', 'utf-8');
-        if (cgroup.includes('docker') || cgroup.includes('containerd')) return 'docker';
-    } catch {}
-    return 'unknown';
-})();
+// const deploymentType = (() => {
+//     // Only portable builds have the .portable marker (created by CI release workflow).
+//     // Self-update is gated on this — all other types are inferred for analytics only.
+//     if (existsSync(path.join(process.cwd(), '.portable'))) return 'portable';
+//     if (existsSync(path.join(process.cwd(), '.git'))) return 'git';
+//     if (existsSync('/.dockerenv')) return 'docker';
+//     try {
+//         const cgroup = readFileSync('/proc/1/cgroup', 'utf-8');
+//         if (cgroup.includes('docker') || cgroup.includes('containerd')) return 'docker';
+//     } catch {}
+//     return 'unknown';
+// })();
 
-function getSelfUpdateAssetInfo(version) {
-    const platformMap = { win32: 'win', linux: 'linux', darwin: 'macos' };
-    const platformName = platformMap[process.platform];
-    if (!platformName) return null;
-    const arch = process.arch; // x64, arm64
-    const ext = process.platform === 'win32' ? 'zip' : 'tar.gz';
-    const filename = `RisuAI-NodeOnly-v${version}-${platformName}-${arch}.${ext}`;
-    const url = `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${filename}`;
-    return { platformName, arch, ext, filename, url };
-}
+// function getSelfUpdateAssetInfo(version) {
+//     const platformMap = { win32: 'win', linux: 'linux', darwin: 'macos' };
+//     const platformName = platformMap[process.platform];
+//     if (!platformName) return null;
+//     const arch = process.arch; // x64, arm64
+//     const ext = process.platform === 'win32' ? 'zip' : 'tar.gz';
+//     const filename = `RisuAI-NodeOnly-v${version}-${platformName}-${arch}.${ext}`;
+//     const url = `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${filename}`;
+//     return { platformName, arch, ext, filename, url };
+// }
 
 // function isSafeInlayId(id) {
 //     return typeof id === 'string' &&
@@ -794,113 +794,113 @@ function getSelfUpdateAssetInfo(version) {
 //     }));
 // }
 
-async function migrateInlaysToFilesystem() {
-    await ensureInlayDir();
-    if (existsSync(inlayMigrationMarker)) return;
+// async function migrateInlaysToFilesystem() {
+//     await ensureInlayDir();
+//     if (existsSync(inlayMigrationMarker)) return;
 
-    const keys = kvList('inlay/');
-    for (const key of keys) {
-        const id = key.slice('inlay/'.length);
-        if (!isSafeInlayId(id)) continue;
-        const fileAlreadyExists = await readInlayFile(id);
-        if (fileAlreadyExists) {
-            kvDel(key);
-            kvDel(`inlay_thumb/${id}`);
-            kvDel(`inlay_info/${id}`);
-            continue;
-        }
-        const value = kvGet(key);
-        if (!value) continue;
-        try {
-            const parsed = JSON.parse(value.toString('utf-8'));
-            const type = typeof parsed?.type === 'string' ? parsed.type : 'image';
-            const ext = normalizeInlayExt(parsed?.ext);
-            let buffer;
-            if (type === 'signature') {
-                buffer = Buffer.from(typeof parsed?.data === 'string' ? parsed.data : '', 'utf-8');
-            } else {
-                buffer = decodeDataUri(parsed?.data).buffer;
-            }
-            const info = (await readInlayLegacyInfo(id)) || {
-                ext,
-                name: typeof parsed?.name === 'string' ? parsed.name : id,
-                type,
-                height: typeof parsed?.height === 'number' ? parsed.height : undefined,
-                width: typeof parsed?.width === 'number' ? parsed.width : undefined,
-            };
-            await writeInlayFile(id, ext, buffer, info);
-            kvDel(key);
-            kvDel(`inlay_thumb/${id}`);
-            kvDel(`inlay_info/${id}`);
-        } catch (error) {
-            console.warn(`[InlayFS] Failed to migrate ${key}:`, error?.message || error);
-        }
-    }
+//     const keys = kvList('inlay/');
+//     for (const key of keys) {
+//         const id = key.slice('inlay/'.length);
+//         if (!isSafeInlayId(id)) continue;
+//         const fileAlreadyExists = await readInlayFile(id);
+//         if (fileAlreadyExists) {
+//             kvDel(key);
+//             kvDel(`inlay_thumb/${id}`);
+//             kvDel(`inlay_info/${id}`);
+//             continue;
+//         }
+//         const value = kvGet(key);
+//         if (!value) continue;
+//         try {
+//             const parsed = JSON.parse(value.toString('utf-8'));
+//             const type = typeof parsed?.type === 'string' ? parsed.type : 'image';
+//             const ext = normalizeInlayExt(parsed?.ext);
+//             let buffer;
+//             if (type === 'signature') {
+//                 buffer = Buffer.from(typeof parsed?.data === 'string' ? parsed.data : '', 'utf-8');
+//             } else {
+//                 buffer = decodeDataUri(parsed?.data).buffer;
+//             }
+//             const info = (await readInlayLegacyInfo(id)) || {
+//                 ext,
+//                 name: typeof parsed?.name === 'string' ? parsed.name : id,
+//                 type,
+//                 height: typeof parsed?.height === 'number' ? parsed.height : undefined,
+//                 width: typeof parsed?.width === 'number' ? parsed.width : undefined,
+//             };
+//             await writeInlayFile(id, ext, buffer, info);
+//             kvDel(key);
+//             kvDel(`inlay_thumb/${id}`);
+//             kvDel(`inlay_info/${id}`);
+//         } catch (error) {
+//             console.warn(`[InlayFS] Failed to migrate ${key}:`, error?.message || error);
+//         }
+//     }
 
-    await fs.writeFile(inlayMigrationMarker, new Date().toISOString(), 'utf-8');
-}
+//     await fs.writeFile(inlayMigrationMarker, new Date().toISOString(), 'utf-8');
+// }
 
-async function fetchLatestRelease() {
-    if (UPDATE_CHECK_DISABLED) return null;
-    try {
-        const params = new URLSearchParams({
-            v: currentVersion,
-            d: deploymentType,
-            os: `${process.platform}-${process.arch}`,
-        });
-        const url = `${UPDATE_CHECK_URL}?${params}`;
-        const res = await fetch(url);
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (data.hasUpdate) {
-            console.log(`[Update] New version available: v${data.latestVersion} (current: v${currentVersion}, ${data.severity})`);
-        }
-        return data;
-    } catch (e) {
-        console.error('[Update] Failed to check for updates:', e.message);
-        return null;
-    }
-}
+// async function fetchLatestRelease() {
+//     if (UPDATE_CHECK_DISABLED) return null;
+//     try {
+//         const params = new URLSearchParams({
+//             v: currentVersion,
+//             d: deploymentType,
+//             os: `${process.platform}-${process.arch}`,
+//         });
+//         const url = `${UPDATE_CHECK_URL}?${params}`;
+//         const res = await fetch(url);
+//         if (!res.ok) return null;
+//         const data = await res.json();
+//         if (data.hasUpdate) {
+//             console.log(`[Update] New version available: v${data.latestVersion} (current: v${currentVersion}, ${data.severity})`);
+//         }
+//         return data;
+//     } catch (e) {
+//         console.error('[Update] Failed to check for updates:', e.message);
+//         return null;
+//     }
+// }
 
 // ── Session store for direct asset URL auth (F-0) ──────────────────────────
 // <img src="/api/asset/..."> cannot send custom headers, so we use a session
 // cookie issued after initial JWT auth. Single-user environment: Map is fine.
 // Sessions are persisted to disk so they survive server restarts.
-const SESSION_FILE = path.join(process.cwd(), 'save', '__sessions')
-const sessions = new Map() // token → expiresAt (ms)
+// const SESSION_FILE = path.join(process.cwd(), 'save', '__sessions')
+// const sessions = new Map() // token → expiresAt (ms)
 
-function loadSessions() {
-    try {
-        const raw = readFileSync(SESSION_FILE, 'utf-8')
-        const now = Date.now()
-        for (const [token, exp] of JSON.parse(raw)) {
-            if (exp > now) sessions.set(token, exp)
-        }
-    } catch { /* file missing or corrupt – start fresh */ }
-}
+// function loadSessions() {
+//     try {
+//         const raw = readFileSync(SESSION_FILE, 'utf-8')
+//         const now = Date.now()
+//         for (const [token, exp] of JSON.parse(raw)) {
+//             if (exp > now) sessions.set(token, exp)
+//         }
+//     } catch { /* file missing or corrupt – start fresh */ }
+// }
 
-function saveSessions() {
-    try { writeFileSync(SESSION_FILE, JSON.stringify([...sessions])) }
-    catch { /* non-critical */ }
-}
+// function saveSessions() {
+//     try { writeFileSync(SESSION_FILE, JSON.stringify([...sessions])) }
+//     catch { /* non-critical */ }
+// }
 
-loadSessions()
+// loadSessions()
 
-function parseSessionCookie(req) {
-    const cookieHeader = req.headers.cookie || ''
-    for (const part of cookieHeader.split(';')) {
-        const eq = part.indexOf('=')
-        if (eq === -1) continue
-        if (part.slice(0, eq).trim() === 'risu-session') return part.slice(eq + 1).trim()
-    }
-    return null
-}
+// function parseSessionCookie(req) {
+//     const cookieHeader = req.headers.cookie || ''
+//     for (const part of cookieHeader.split(';')) {
+//         const eq = part.indexOf('=')
+//         if (eq === -1) continue
+//         if (part.slice(0, eq).trim() === 'risu-session') return part.slice(eq + 1).trim()
+//     }
+//     return null
+// }
 
-function sessionAuthMiddleware(req, res, next) {
-    const token = parseSessionCookie(req)
-    if (token && (sessions.get(token) ?? 0) > Date.now()) return next()
-    res.status(401).end()
-}
+// function sessionAuthMiddleware(req, res, next) {
+//     const token = parseSessionCookie(req)
+//     if (token && (sessions.get(token) ?? 0) > Date.now()) return next()
+//     res.status(401).end()
+// }
 
 // // MIME detection by magic bytes (fallback when key has no extension)
 // function detectMime(buf) {
@@ -921,32 +921,32 @@ function sessionAuthMiddleware(req, res, next) {
 //     mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav',
 // }
 
-async function checkDiskSpace(requiredBytes) {
-    try {
-        const saveDir = path.join(process.cwd(), 'save');
-        const stats = await fs.statfs(saveDir);
-        const availableBytes = stats.bavail * stats.bsize;
-        return { ok: availableBytes >= requiredBytes, available: availableBytes };
-    } catch {
-        // statfs unavailable on this platform — skip check
-        return { ok: true, available: -1 };
-    }
-}
+// async function checkDiskSpace(requiredBytes) {
+//     try {
+//         const saveDir = path.join(process.cwd(), 'save');
+//         const stats = await fs.statfs(saveDir);
+//         const availableBytes = stats.bavail * stats.bsize;
+//         return { ok: availableBytes >= requiredBytes, available: availableBytes };
+//     } catch {
+//         // statfs unavailable on this platform — skip check
+//         return { ok: true, available: -1 };
+//     }
+// }
 
 // ── Active writer session (single-writer lock) ────────────────────────────────
 // Mirrors the BroadcastChannel-based tab lock on the server side so that the
 // same protection extends across devices. The last client to call /api/session
 // becomes the active writer; older sessions receive 423 on write attempts.
-let activeSessionId = null // string | null
+// let activeSessionId = null // string | null
 
-function checkActiveSession(req, res) {
-    const clientSessionId = req.headers['x-session-id']
-    if (!clientSessionId) return true  // client without session support
-    if (!activeSessionId) return true  // no session registered yet
-    if (clientSessionId === activeSessionId) return true
-    res.status(423).json({ error: 'Session deactivated' })
-    return false
-}
+// function checkActiveSession(req, res) {
+//     const clientSessionId = req.headers['x-session-id']
+//     if (!clientSessionId) return true  // client without session support
+//     if (!activeSessionId) return true  // no session registered yet
+//     if (clientSessionId === activeSessionId) return true
+//     res.status(423).json({ error: 'Session deactivated' })
+//     return false
+// }
 
 // --- Proxy Stream Job constants ---
 const PROXY_STREAM_DEFAULT_TIMEOUT_MS = 600000;
@@ -2811,20 +2811,20 @@ app.post('/api/set_password', async (req, res) => {
 //     }
 // });
 
-app.post('/api/db/flush', sessionAuthMiddleware, async (req, res, next) => {
-    if (!checkActiveSession(req, res)) return;
-    try {
-        await queueStorageOperation(async () => {
-            await flushPendingDb();
-            res.send({
-                success: true,
-                etag: dbEtag ?? undefined
-            });
-        });
-    } catch (error) {
-        next(error);
-    }
-});
+// app.post('/api/db/flush', sessionAuthMiddleware, async (req, res, next) => {
+//     if (!checkActiveSession(req, res)) return;
+//     try {
+//         await queueStorageOperation(async () => {
+//             await flushPendingDb();
+//             res.send({
+//                 success: true,
+//                 etag: dbEtag ?? undefined
+//             });
+//         });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
 // // ─── Patch sync endpoint ──────────────────────────────────────────────────────
 // app.post('/api/patch', async (req, res, next) => {

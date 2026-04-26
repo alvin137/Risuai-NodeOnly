@@ -444,6 +444,52 @@ export async function readInlayAssetPayload(id: string) {
     }));
 }
 
+async function migrateInlaysToFilesystem() {
+    await ensureInlayDir();
+    if (existsSync(inlayMigrationMarker)) return;
+
+    const keys = kvList('inlay/');
+    for (const key of keys) {
+        const id = key.slice('inlay/'.length);
+        if (!isSafeInlayId(id)) continue;
+        const fileAlreadyExists = await readInlayFile(id);
+        if (fileAlreadyExists) {
+            kvDel(key);
+            kvDel(`inlay_thumb/${id}`);
+            kvDel(`inlay_info/${id}`);
+            continue;
+        }
+        const value = kvGet(key);
+        if (!value) continue;
+        try {
+            const parsed = JSON.parse(value.toString('utf-8'));
+            const type = typeof parsed?.type === 'string' ? parsed.type : 'image';
+            const ext = normalizeInlayExt(parsed?.ext);
+            let buffer;
+            if (type === 'signature') {
+                buffer = Buffer.from(typeof parsed?.data === 'string' ? parsed.data : '', 'utf-8');
+            } else {
+                buffer = decodeDataUri(parsed?.data).buffer;
+            }
+            const info = (await readInlayLegacyInfo(id)) || {
+                ext,
+                name: typeof parsed?.name === 'string' ? parsed.name : id,
+                type,
+                height: typeof parsed?.height === 'number' ? parsed.height : undefined,
+                width: typeof parsed?.width === 'number' ? parsed.width : undefined,
+            };
+            await writeInlayFile(id, ext, buffer, info);
+            kvDel(key);
+            kvDel(`inlay_thumb/${id}`);
+            kvDel(`inlay_info/${id}`);
+        } catch (error) {
+            console.warn(`[InlayFS] Failed to migrate ${key}:`, error?.message || error);
+        }
+    }
+
+    await writeFile(inlayMigrationMarker, new Date().toISOString(), 'utf-8');
+}
+
 
 /**
  * Ensure fullChatStore is initialized. Loads from disk if needed.
