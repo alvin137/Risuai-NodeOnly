@@ -18,7 +18,7 @@ const api = new Hono();
 registerCrud(api);
 
 api.get('/list', async (c) => {
-    const auth = await checkAuth(c);
+    // const auth = await checkAuth(c);
     //if (auth instanceof Response) return auth;
 
     const keyPrefix = c.req.header('key-prefix') ?? '';

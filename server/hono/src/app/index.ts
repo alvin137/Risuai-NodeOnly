@@ -3,8 +3,10 @@ import { csrf } from 'hono/csrf'
 import { logger } from 'hono/logger'
 import { compress } from 'hono/compress'
 import { bodyLimit } from 'hono/body-limit'
-import { join } from 'path'
+import path, { join } from 'path'
+import fs from "node:fs/promises"
 import api from './api.js'
+import { proxyApp } from './proxy.js'
 
 // import { sessionApp } from './session.js';
 import { assetApp } from './asset.js'
@@ -13,7 +15,6 @@ import { patchApp } from './api/patch.js';
 const app = new Hono();
 
 const sslPath = join(process.cwd(), 'server/node/ssl/certificate');
-const hubURL = 'https://sv.risuai.xyz';
 
 
 app.use('*', csrf())
@@ -39,6 +40,7 @@ app.onError((err, c) => {
 api.route('/asset', assetApp);
 api.route("/patch", patchApp);
 app.route('/api', api);
+app.route("/", proxyApp);
 
 app.all('*', async (c) => {
   const url = new URL(c.req.url);

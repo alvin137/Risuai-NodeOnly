@@ -2,6 +2,13 @@ import path from 'path'
 import app from './app/index.js'
 import { serveStatic } from 'hono/bun'
 import { Hono } from 'hono';
+import { getConnInfo } from 'hono/bun';
+import fs from "node:fs/promises"
+import htmlparser from "node-html-parser";
+
+
+// Configuration flags for patch-based sync
+const enablePatchSync = true;
 
 app.use('*', async (c, next) => {
   if (c.req.path === '/' || c.req.path.endsWith('/')) {
@@ -21,6 +28,24 @@ app.use("/assets", serveStatic({
         c.header("Cache-Control", "public, max-age=31536000, immutable");
     }
 }));
+
+app.get("/", async (c, next) => {
+  const clientIP = getConnInfo(c).remote.address || 'Unknown IP';
+    const timestamp = new Date().toISOString();
+    console.log(`[Server] ${timestamp} | Connection from: ${clientIP}`);
+    
+    try {
+      const mainIndex = await fs.readFile(path.join(process.cwd(), 'dist', 'index.html'))
+      const root = htmlparser.parse(mainIndex.toString())
+      const head = root.querySelector('head')
+      if (!head) throw new Error("No <head> in index.html")
+      head.innerHTML = `<script>globalThis.__NODE__ = true; globalThis.__PATCH_SYNC__ = ${enablePatchSync}</script>` + head.innerHTML
+      
+      c.body(root.toString());
+    } catch (error) {
+      throw new Error(`Failed to read index.html: ${error.message}`);
+    }
+});
 
 
 

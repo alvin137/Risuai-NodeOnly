@@ -29,7 +29,7 @@ if (nodeMajor < 24) {
 }
 
 // Configuration flags for patch-based sync
-const enablePatchSync = true;
+// const enablePatchSync = true;
 
 // In-memory database cache for patch-based sync
 // dbCache stores the STRIPPED (stubs-only) version matching what the client sees.
@@ -994,34 +994,34 @@ function createServerJwt() {
     return `${headerB64}.${payloadB64}.${sig}`
 }
 
-function getRequestTimeoutMs(timeoutHeader) {
-    const raw = Array.isArray(timeoutHeader) ? timeoutHeader[0] : timeoutHeader;
-    if (!raw) {
-        return null;
-    }
-    const timeoutMs = Number.parseInt(raw, 10);
-    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-        return null;
-    }
-    return timeoutMs;
-}
+// function getRequestTimeoutMs(timeoutHeader) {
+//     const raw = Array.isArray(timeoutHeader) ? timeoutHeader[0] : timeoutHeader;
+//     if (!raw) {
+//         return null;
+//     }
+//     const timeoutMs = Number.parseInt(raw, 10);
+//     if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+//         return null;
+//     }
+//     return timeoutMs;
+// }
 
-function createTimeoutController(timeoutMs) {
-    if (!timeoutMs) {
-        return {
-            signal: undefined,
-            cleanup: () => {}
-        };
-    }
+// function createTimeoutController(timeoutMs) {
+//     if (!timeoutMs) {
+//         return {
+//             signal: undefined,
+//             cleanup: () => {}
+//         };
+//     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+//     const controller = new AbortController();
+//     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    return {
-        signal: controller.signal,
-        cleanup: () => clearTimeout(timer)
-    };
-}
+//     return {
+//         signal: controller.signal,
+//         cleanup: () => clearTimeout(timer)
+//     };
+// }
 
 // --- Proxy Stream: auth helpers ---
 
@@ -1869,452 +1869,452 @@ async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0
     return { assetsRestored, bytesReceived, coldStorageFailed };
 }
 
-app.get('/', async (req, res, next) => {
+// app.get('/', async (req, res, next) => {
 
-    const clientIP = req.ip || 'Unknown IP';
-    const timestamp = new Date().toISOString();
-    console.log(`[Server] ${timestamp} | Connection from: ${clientIP}`);
+//     const clientIP = req.ip || 'Unknown IP';
+//     const timestamp = new Date().toISOString();
+//     console.log(`[Server] ${timestamp} | Connection from: ${clientIP}`);
     
-    try {
-        const mainIndex = await fs.readFile(path.join(process.cwd(), 'dist', 'index.html'))
-        const root = htmlparser.parse(mainIndex)
-        const head = root.querySelector('head')
-        head.innerHTML = `<script>globalThis.__NODE__ = true; globalThis.__PATCH_SYNC__ = ${enablePatchSync}</script>` + head.innerHTML
+//     try {
+//         const mainIndex = await fs.readFile(path.join(process.cwd(), 'dist', 'index.html'))
+//         const root = htmlparser.parse(mainIndex)
+//         const head = root.querySelector('head')
+//         head.innerHTML = `<script>globalThis.__NODE__ = true; globalThis.__PATCH_SYNC__ = ${enablePatchSync}</script>` + head.innerHTML
         
-        res.send(root.toString())
-    } catch (error) {
-        console.log(error)
-        next(error)
-    }
-})
+//         res.send(root.toString())
+//     } catch (error) {
+//         console.log(error)
+//         next(error)
+//     }
+// })
 
-async function checkAuth(req, res, returnOnlyStatus = false, {allowExpired = false} = {}){
-    try {
-        const authHeader = req.headers['risu-auth'];
+// async function checkAuth(req, res, returnOnlyStatus = false, {allowExpired = false} = {}){
+//     try {
+//         const authHeader = req.headers['risu-auth'];
 
-        if(!authHeader){
-            console.log('No auth header')
-            if(returnOnlyStatus){
-                return false;
-            }
-            res.status(400).send({
-                error:'No auth header'
-            });
-            return false
-        }
+//         if(!authHeader){
+//             console.log('No auth header')
+//             if(returnOnlyStatus){
+//                 return false;
+//             }
+//             res.status(400).send({
+//                 error:'No auth header'
+//             });
+//             return false
+//         }
 
 
-        //jwt token
-        const [
-            jsonHeaderB64,
-            jsonPayloadB64,
-            signatureB64,
-        ] = authHeader.split('.');
+//         //jwt token
+//         const [
+//             jsonHeaderB64,
+//             jsonPayloadB64,
+//             signatureB64,
+//         ] = authHeader.split('.');
 
-        //alg, typ
-        const jsonHeader = JSON.parse(Buffer.from(jsonHeaderB64, 'base64url').toString('utf-8'));
+//         //alg, typ
+//         const jsonHeader = JSON.parse(Buffer.from(jsonHeaderB64, 'base64url').toString('utf-8'));
 
-        //iat, exp
-        const jsonPayload = JSON.parse(Buffer.from(jsonPayloadB64, 'base64url').toString('utf-8'));
+//         //iat, exp
+//         const jsonPayload = JSON.parse(Buffer.from(jsonPayloadB64, 'base64url').toString('utf-8'));
 
         
-        //check expiration
-        if(!allowExpired){
-            const now = Math.floor(Date.now() / 1000);
-            if(jsonPayload.exp < now){
-                console.log('Token expired')
-                if(returnOnlyStatus){
-                    return false;
-                }
-                res.status(400).send({
-                    error:'Token Expired'
-                });
-                return false
-            }
-        }
+//         //check expiration
+//         if(!allowExpired){
+//             const now = Math.floor(Date.now() / 1000);
+//             if(jsonPayload.exp < now){
+//                 console.log('Token expired')
+//                 if(returnOnlyStatus){
+//                     return false;
+//                 }
+//                 res.status(400).send({
+//                     error:'Token Expired'
+//                 });
+//                 return false
+//             }
+//         }
 
-        //check signature (HMAC-SHA256)
-        if(jsonHeader.alg !== "HS256"){
-            console.log('Unsupported algorithm')
-            if(returnOnlyStatus){
-                return false;
-            }
-            res.status(400).send({
-                error:'Unsupported Algorithm'
-            });
-            return false
-        }
+//         //check signature (HMAC-SHA256)
+//         if(jsonHeader.alg !== "HS256"){
+//             console.log('Unsupported algorithm')
+//             if(returnOnlyStatus){
+//                 return false;
+//             }
+//             res.status(400).send({
+//                 error:'Unsupported Algorithm'
+//             });
+//             return false
+//         }
 
-        const expectedSig = nodeCrypto.createHmac('sha256', jwtSecret)
-            .update(`${jsonHeaderB64}.${jsonPayloadB64}`)
-            .digest()
-        const actualSig = Buffer.from(signatureB64, 'base64url')
+//         const expectedSig = nodeCrypto.createHmac('sha256', jwtSecret)
+//             .update(`${jsonHeaderB64}.${jsonPayloadB64}`)
+//             .digest()
+//         const actualSig = Buffer.from(signatureB64, 'base64url')
 
-        if(expectedSig.length !== actualSig.length || !nodeCrypto.timingSafeEqual(expectedSig, actualSig)){
-            console.log('Invalid signature')
-            if(returnOnlyStatus){
-                return false;
-            }
-            res.status(400).send({
-                error:'Invalid Signature'
-            });
-            return false
-        }
-        return true
-    } catch (error) {
-        console.log(error)
-        if(returnOnlyStatus){
-            return false;
-        }
-        res.status(500).send({
-            error:'Internal Server Error'
-        });
-        return false
-    }
-}
+//         if(expectedSig.length !== actualSig.length || !nodeCrypto.timingSafeEqual(expectedSig, actualSig)){
+//             console.log('Invalid signature')
+//             if(returnOnlyStatus){
+//                 return false;
+//             }
+//             res.status(400).send({
+//                 error:'Invalid Signature'
+//             });
+//             return false
+//         }
+//         return true
+//     } catch (error) {
+//         console.log(error)
+//         if(returnOnlyStatus){
+//             return false;
+//         }
+//         res.status(500).send({
+//             error:'Internal Server Error'
+//         });
+//         return false
+//     }
+// }
 
-const reverseProxyFunc = async (req, res, next) => {
-    if(!await checkAuth(req, res)){
-        return;
-    }
+// const reverseProxyFunc = async (req, res, next) => {
+//     if(!await checkAuth(req, res)){
+//         return;
+//     }
     
-    const urlParam = req.headers['risu-url'] ? decodeURIComponent(req.headers['risu-url']) : req.query.url;
+//     const urlParam = req.headers['risu-url'] ? decodeURIComponent(req.headers['risu-url']) : req.query.url;
 
-    if (!urlParam) {
-        res.status(400).send({
-            error:'URL has no param'
-        });
-        return;
-    }
-    const timeoutMs = getRequestTimeoutMs(req.headers['risu-timeout-ms']);
-    const timeout = createTimeoutController(timeoutMs);
-    let originalResponse;
-    try {
-    const header = req.headers['risu-header'] ? JSON.parse(decodeURIComponent(req.headers['risu-header'])) : req.headers;
-    if (req.headers['x-risu-tk'] && !header['x-risu-tk']) {
-        header['x-risu-tk'] = req.headers['x-risu-tk'];
-    }
-    if (req.headers['risu-location'] && !header['risu-location']) {
-        header['risu-location'] = req.headers['risu-location'];
-    }
-    if(!header['x-forwarded-for']){
-        header['x-forwarded-for'] = req.ip
-    }
+//     if (!urlParam) {
+//         res.status(400).send({
+//             error:'URL has no param'
+//         });
+//         return;
+//     }
+//     const timeoutMs = getRequestTimeoutMs(req.headers['risu-timeout-ms']);
+//     const timeout = createTimeoutController(timeoutMs);
+//     let originalResponse;
+//     try {
+//     const header = req.headers['risu-header'] ? JSON.parse(decodeURIComponent(req.headers['risu-header'])) : req.headers;
+//     if (req.headers['x-risu-tk'] && !header['x-risu-tk']) {
+//         header['x-risu-tk'] = req.headers['x-risu-tk'];
+//     }
+//     if (req.headers['risu-location'] && !header['risu-location']) {
+//         header['risu-location'] = req.headers['risu-location'];
+//     }
+//     if(!header['x-forwarded-for']){
+//         header['x-forwarded-for'] = req.ip
+//     }
 
-    if(req.headers['authorization']?.startsWith('X-SERVER-REGISTER')){
-        if(!existsSync(authCodePath)){
-            delete header['authorization']
-        }
-        else{
-            const authCode = await fs.readFile(authCodePath, {
-                encoding: 'utf-8'
-            })
-            header['authorization'] = `Bearer ${authCode}`
-        }
-    }
-        let requestBody = undefined;
-        if (req.method !== 'GET' && req.method !== 'HEAD') {
-            if (Buffer.isBuffer(req.body) || typeof req.body === 'string') {
-                requestBody = req.body;
-            }
-            else if (req.body !== undefined) {
-                requestBody = JSON.stringify(req.body);
-            }
-        }
-        // make request to original server
-        originalResponse = await fetch(urlParam, {
-            method: req.method,
-            headers: header,
-            body: requestBody,
-            signal: timeout.signal
-        });
-        // get response body as stream
-        const originalBody = originalResponse.body;
-        // get response headers
-        const head = new Headers(originalResponse.headers);
-        head.delete('content-security-policy');
-        head.delete('content-security-policy-report-only');
-        head.delete('clear-site-data');
-        head.delete('Cache-Control');
-        head.delete('Content-Encoding');
-        const headObj = {};
-        for (let [k, v] of head) {
-            headObj[k] = v;
-        }
-        // send response headers to client
-        res.header(headObj);
-        // send response status to client
-        res.status(originalResponse.status);
-        // send response body to client
-        await pipeline(originalResponse.body, res);
+//     if(req.headers['authorization']?.startsWith('X-SERVER-REGISTER')){
+//         if(!existsSync(authCodePath)){
+//             delete header['authorization']
+//         }
+//         else{
+//             const authCode = await fs.readFile(authCodePath, {
+//                 encoding: 'utf-8'
+//             })
+//             header['authorization'] = `Bearer ${authCode}`
+//         }
+//     }
+//         let requestBody = undefined;
+//         if (req.method !== 'GET' && req.method !== 'HEAD') {
+//             if (Buffer.isBuffer(req.body) || typeof req.body === 'string') {
+//                 requestBody = req.body;
+//             }
+//             else if (req.body !== undefined) {
+//                 requestBody = JSON.stringify(req.body);
+//             }
+//         }
+//         // make request to original server
+//         originalResponse = await fetch(urlParam, {
+//             method: req.method,
+//             headers: header,
+//             body: requestBody,
+//             signal: timeout.signal
+//         });
+//         // get response body as stream
+//         const originalBody = originalResponse.body;
+//         // get response headers
+//         const head = new Headers(originalResponse.headers);
+//         head.delete('content-security-policy');
+//         head.delete('content-security-policy-report-only');
+//         head.delete('clear-site-data');
+//         head.delete('Cache-Control');
+//         head.delete('Content-Encoding');
+//         const headObj = {};
+//         for (let [k, v] of head) {
+//             headObj[k] = v;
+//         }
+//         // send response headers to client
+//         res.header(headObj);
+//         // send response status to client
+//         res.status(originalResponse.status);
+//         // send response body to client
+//         await pipeline(originalResponse.body, res);
 
 
-    }
-    catch (err) {
-        if (err?.name === 'AbortError') {
-            if (!res.headersSent) {
-                res.status(504).send({
-                    error: timeoutMs
-                        ? `Proxy request timed out after ${timeoutMs}ms`
-                        : 'Proxy request aborted'
-                });
-            } else {
-                res.end();
-            }
-            return;
-        }
-        console.error('[Proxy]', req.method, urlParam, err?.cause || err);
-        next(err);
-        return;
-    } finally {
-        timeout.cleanup();
-    }
-}
+//     }
+//     catch (err) {
+//         if (err?.name === 'AbortError') {
+//             if (!res.headersSent) {
+//                 res.status(504).send({
+//                     error: timeoutMs
+//                         ? `Proxy request timed out after ${timeoutMs}ms`
+//                         : 'Proxy request aborted'
+//                 });
+//             } else {
+//                 res.end();
+//             }
+//             return;
+//         }
+//         console.error('[Proxy]', req.method, urlParam, err?.cause || err);
+//         next(err);
+//         return;
+//     } finally {
+//         timeout.cleanup();
+//     }
+// }
 
-const reverseProxyFunc_get = async (req, res, next) => {
-    if(!await checkAuth(req, res)){
-        return;
-    }
+// const reverseProxyFunc_get = async (req, res, next) => {
+//     if(!await checkAuth(req, res)){
+//         return;
+//     }
     
-    const urlParam = req.headers['risu-url'] ? decodeURIComponent(req.headers['risu-url']) : req.query.url;
+//     const urlParam = req.headers['risu-url'] ? decodeURIComponent(req.headers['risu-url']) : req.query.url;
 
-    if (!urlParam) {
-        res.status(400).send({
-            error:'URL has no param'
-        });
-        return;
-    }
-    const timeoutMs = getRequestTimeoutMs(req.headers['risu-timeout-ms']);
-    const timeout = createTimeoutController(timeoutMs);
-    let originalResponse;
-    try {
-    const header = req.headers['risu-header'] ? JSON.parse(decodeURIComponent(req.headers['risu-header'])) : req.headers;
-    if (req.headers['x-risu-tk'] && !header['x-risu-tk']) {
-        header['x-risu-tk'] = req.headers['x-risu-tk'];
-    }
-    if (req.headers['risu-location'] && !header['risu-location']) {
-        header['risu-location'] = req.headers['risu-location'];
-    }
-    if(!header['x-forwarded-for']){
-        header['x-forwarded-for'] = req.ip
-    }
-        // make request to original server
-        originalResponse = await fetch(urlParam, {
-            method: 'GET',
-            headers: header,
-            signal: timeout.signal
-        });
-        // get response body as stream
-        const originalBody = originalResponse.body;
-        // get response headers
-        const head = new Headers(originalResponse.headers);
-        head.delete('content-security-policy');
-        head.delete('content-security-policy-report-only');
-        head.delete('clear-site-data');
-        head.delete('Cache-Control');
-        head.delete('Content-Encoding');
-        const headObj = {};
-        for (let [k, v] of head) {
-            headObj[k] = v;
-        }
-        // send response headers to client
-        res.header(headObj);
-        // send response status to client
-        res.status(originalResponse.status);
-        // send response body to client
-        await pipeline(originalResponse.body, res);
-    }
-    catch (err) {
-        if (err?.name === 'AbortError') {
-            if (!res.headersSent) {
-                res.status(504).send({
-                    error: timeoutMs
-                        ? `Proxy request timed out after ${timeoutMs}ms`
-                        : 'Proxy request aborted'
-                });
-            } else {
-                res.end();
-            }
-            return;
-        }
-        next(err);
-        return;
-    } finally {
-        timeout.cleanup();
-    }
-}
+//     if (!urlParam) {
+//         res.status(400).send({
+//             error:'URL has no param'
+//         });
+//         return;
+//     }
+//     const timeoutMs = getRequestTimeoutMs(req.headers['risu-timeout-ms']);
+//     const timeout = createTimeoutController(timeoutMs);
+//     let originalResponse;
+//     try {
+//     const header = req.headers['risu-header'] ? JSON.parse(decodeURIComponent(req.headers['risu-header'])) : req.headers;
+//     if (req.headers['x-risu-tk'] && !header['x-risu-tk']) {
+//         header['x-risu-tk'] = req.headers['x-risu-tk'];
+//     }
+//     if (req.headers['risu-location'] && !header['risu-location']) {
+//         header['risu-location'] = req.headers['risu-location'];
+//     }
+//     if(!header['x-forwarded-for']){
+//         header['x-forwarded-for'] = req.ip
+//     }
+//         // make request to original server
+//         originalResponse = await fetch(urlParam, {
+//             method: 'GET',
+//             headers: header,
+//             signal: timeout.signal
+//         });
+//         // get response body as stream
+//         const originalBody = originalResponse.body;
+//         // get response headers
+//         const head = new Headers(originalResponse.headers);
+//         head.delete('content-security-policy');
+//         head.delete('content-security-policy-report-only');
+//         head.delete('clear-site-data');
+//         head.delete('Cache-Control');
+//         head.delete('Content-Encoding');
+//         const headObj = {};
+//         for (let [k, v] of head) {
+//             headObj[k] = v;
+//         }
+//         // send response headers to client
+//         res.header(headObj);
+//         // send response status to client
+//         res.status(originalResponse.status);
+//         // send response body to client
+//         await pipeline(originalResponse.body, res);
+//     }
+//     catch (err) {
+//         if (err?.name === 'AbortError') {
+//             if (!res.headersSent) {
+//                 res.status(504).send({
+//                     error: timeoutMs
+//                         ? `Proxy request timed out after ${timeoutMs}ms`
+//                         : 'Proxy request aborted'
+//                 });
+//             } else {
+//                 res.end();
+//             }
+//             return;
+//         }
+//         next(err);
+//         return;
+//     } finally {
+//         timeout.cleanup();
+//     }
+// }
 
-let accessTokenCache = {
-    token: null,
-    expiry: 0
-}
-async function getSionywAccessToken() {
-    if(accessTokenCache.token && Date.now() < accessTokenCache.expiry){
-        return accessTokenCache.token;
-    }
-    //Schema of the client data file
-    // {
-    //     refresh_token: string;
-    //     client_id: string;
-    //     client_secret: string;
-    // }
+// let accessTokenCache = {
+//     token: null,
+//     expiry: 0
+// }
+// async function getSionywAccessToken() {
+//     if(accessTokenCache.token && Date.now() < accessTokenCache.expiry){
+//         return accessTokenCache.token;
+//     }
+//     //Schema of the client data file
+//     // {
+//     //     refresh_token: string;
+//     //     client_id: string;
+//     //     client_secret: string;
+//     // }
     
-    const clientDataPath = path.join(process.cwd(), 'save', '__sionyw_client_data.json');
-    let refreshToken = ''
-    let clientId = ''
-    let clientSecret = ''
-    if(!existsSync(clientDataPath)){
-        throw new Error('No Sionyw client data found');
-    }
-    const clientDataRaw = readFileSync(clientDataPath, 'utf-8');
-    const clientData = JSON.parse(clientDataRaw);
-    refreshToken = clientData.refresh_token;
-    clientId = clientData.client_id;
-    clientSecret = clientData.client_secret;
+//     const clientDataPath = path.join(process.cwd(), 'save', '__sionyw_client_data.json');
+//     let refreshToken = ''
+//     let clientId = ''
+//     let clientSecret = ''
+//     if(!existsSync(clientDataPath)){
+//         throw new Error('No Sionyw client data found');
+//     }
+//     const clientDataRaw = readFileSync(clientDataPath, 'utf-8');
+//     const clientData = JSON.parse(clientDataRaw);
+//     refreshToken = clientData.refresh_token;
+//     clientId = clientData.client_id;
+//     clientSecret = clientData.client_secret;
 
-    //Oauth Refresh Token Flow
+//     //Oauth Refresh Token Flow
     
-    const tokenResponse = await fetch('account.sionyw.com/account/api/oauth/token', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({
-            grant_type: 'refresh_token',
-            refresh_token: refreshToken,
-            client_id: clientId,
-            client_secret: clientSecret
-        })
-    })
+//     const tokenResponse = await fetch('account.sionyw.com/account/api/oauth/token', {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/x-www-form-urlencoded'
+//         },
+//         body: new URLSearchParams({
+//             grant_type: 'refresh_token',
+//             refresh_token: refreshToken,
+//             client_id: clientId,
+//             client_secret: clientSecret
+//         })
+//     })
 
-    if(!tokenResponse.ok){
-        throw new Error('Failed to refresh Sionyw access token');
-    }
+//     if(!tokenResponse.ok){
+//         throw new Error('Failed to refresh Sionyw access token');
+//     }
 
-    const tokenData = await tokenResponse.json();
+//     const tokenData = await tokenResponse.json();
 
-    //Update the refresh token in the client data file
-    if(tokenData.refresh_token && tokenData.refresh_token !== refreshToken){
-        clientData.refresh_token = tokenData.refresh_token;
-        writeFileSync(clientDataPath, JSON.stringify(clientData), 'utf-8');
-    }
+//     //Update the refresh token in the client data file
+//     if(tokenData.refresh_token && tokenData.refresh_token !== refreshToken){
+//         clientData.refresh_token = tokenData.refresh_token;
+//         writeFileSync(clientDataPath, JSON.stringify(clientData), 'utf-8');
+//     }
 
-    accessTokenCache.token = tokenData.access_token;
-    accessTokenCache.expiry = Date.now() + (tokenData.expires_in * 1000) - (5 * 60 * 1000); //5 minutes early
+//     accessTokenCache.token = tokenData.access_token;
+//     accessTokenCache.expiry = Date.now() + (tokenData.expires_in * 1000) - (5 * 60 * 1000); //5 minutes early
 
-    return tokenData.access_token;
-}
+//     return tokenData.access_token;
+// }
 
 
-async function hubProxyFunc(req, res) {
-    const excludedHeaders = [
-        'content-encoding',
-        'content-length',
-        'transfer-encoding'
-    ];
+// async function hubProxyFunc(req, res) {
+//     const excludedHeaders = [
+//         'content-encoding',
+//         'content-length',
+//         'transfer-encoding'
+//     ];
 
-    try {
-        let externalURL = '';
+//     try {
+//         let externalURL = '';
 
-        const pathHeader = req.headers['x-risu-node-path'];
-        if (pathHeader) {
-            const decodedPath = decodeURIComponent(pathHeader);
-            externalURL = decodedPath;
-        } else {
-            const pathAndQuery = req.originalUrl.replace(/^\/hub-proxy/, '');
-            externalURL = hubURL + pathAndQuery;
-        }
+//         const pathHeader = req.headers['x-risu-node-path'];
+//         if (pathHeader) {
+//             const decodedPath = decodeURIComponent(pathHeader);
+//             externalURL = decodedPath;
+//         } else {
+//             const pathAndQuery = req.originalUrl.replace(/^\/hub-proxy/, '');
+//             externalURL = hubURL + pathAndQuery;
+//         }
         
-        const headersToSend = { ...req.headers };
-        delete headersToSend.host;
-        delete headersToSend.connection;
-        delete headersToSend['content-length'];
-        delete headersToSend['x-risu-node-path'];
+//         const headersToSend = { ...req.headers };
+//         delete headersToSend.host;
+//         delete headersToSend.connection;
+//         delete headersToSend['content-length'];
+//         delete headersToSend['x-risu-node-path'];
 
-        const hubOrigin = new URL(hubURL).origin;
-        headersToSend.origin = hubOrigin;
+//         const hubOrigin = new URL(hubURL).origin;
+//         headersToSend.origin = hubOrigin;
 
-        //if Authorization header is "Server-Auth, set the token to be Server-Auth
-        if(headersToSend['Authorization'] === 'X-Node-Server-Auth'){
-            //this requires password auth
-            if(!await checkAuth(req, res)){
-                return;
-            }
+//         //if Authorization header is "Server-Auth, set the token to be Server-Auth
+//         if(headersToSend['Authorization'] === 'X-Node-Server-Auth'){
+//             //this requires password auth
+//             if(!await checkAuth(req, res)){
+//                 return;
+//             }
 
-            headersToSend['Authorization'] = "Bearer " + await getSionywAccessToken();
-            delete headersToSend['risu-auth'];
-        }
+//             headersToSend['Authorization'] = "Bearer " + await getSionywAccessToken();
+//             delete headersToSend['risu-auth'];
+//         }
         
         
-        const response = await fetch(externalURL, {
-            method: req.method,
-            headers: headersToSend,
-            body: req.method !== 'GET' && req.method !== 'HEAD' ? req.body : undefined,
-            redirect: 'manual',
-            duplex: 'half'
-        });
+//         const response = await fetch(externalURL, {
+//             method: req.method,
+//             headers: headersToSend,
+//             body: req.method !== 'GET' && req.method !== 'HEAD' ? req.body : undefined,
+//             redirect: 'manual',
+//             duplex: 'half'
+//         });
         
-        for (const [key, value] of response.headers.entries()) {
-            // Skip encoding-related headers to prevent double decoding
-            if (excludedHeaders.includes(key.toLowerCase())) {
-                continue;
-            }
-            res.setHeader(key, value);
-        }
-        res.status(response.status);
+//         for (const [key, value] of response.headers.entries()) {
+//             // Skip encoding-related headers to prevent double decoding
+//             if (excludedHeaders.includes(key.toLowerCase())) {
+//                 continue;
+//             }
+//             res.setHeader(key, value);
+//         }
+//         res.status(response.status);
 
-        if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
-            const redirectUrl = response.headers.get('location');
-            const newHeaders = { ...headersToSend };
-            const redirectResponse = await fetch(redirectUrl, {
-                method: req.method,
-                headers: newHeaders,
-                body: req.method !== 'GET' && req.method !== 'HEAD' ? req.body : undefined,
-                redirect: 'manual',
-                duplex: 'half'
-            });
-            for (const [key, value] of redirectResponse.headers.entries()) {
-                if (excludedHeaders.includes(key.toLowerCase())) {
-                    continue;
-                }
-                res.setHeader(key, value);
-            }
-            res.status(redirectResponse.status);
-            if (redirectResponse.body) {
-                await pipeline(redirectResponse.body, res);
-            } else {
-                res.end();
-            }
-            return;
-        }
+//         if (response.status >= 300 && response.status < 400 && response.headers.get('location')) {
+//             const redirectUrl = response.headers.get('location');
+//             const newHeaders = { ...headersToSend };
+//             const redirectResponse = await fetch(redirectUrl, {
+//                 method: req.method,
+//                 headers: newHeaders,
+//                 body: req.method !== 'GET' && req.method !== 'HEAD' ? req.body : undefined,
+//                 redirect: 'manual',
+//                 duplex: 'half'
+//             });
+//             for (const [key, value] of redirectResponse.headers.entries()) {
+//                 if (excludedHeaders.includes(key.toLowerCase())) {
+//                     continue;
+//                 }
+//                 res.setHeader(key, value);
+//             }
+//             res.status(redirectResponse.status);
+//             if (redirectResponse.body) {
+//                 await pipeline(redirectResponse.body, res);
+//             } else {
+//                 res.end();
+//             }
+//             return;
+//         }
         
-        if (response.body) {
-            await pipeline(response.body, res);
-        } else {
-            res.end();
-        }
+//         if (response.body) {
+//             await pipeline(response.body, res);
+//         } else {
+//             res.end();
+//         }
         
-    } catch (error) {
-        console.error("[Hub Proxy] Error:", error);
-        if (!res.headersSent) {
-            res.status(502).send({ error: 'Proxy request failed: ' + error.message });
-        } else {
-            res.end();
-        }
-    }
-}
+//     } catch (error) {
+//         console.error("[Hub Proxy] Error:", error);
+//         if (!res.headersSent) {
+//             res.status(502).send({ error: 'Proxy request failed: ' + error.message });
+//         } else {
+//             res.end();
+//         }
+//     }
+// }
 
-app.get('/proxy', reverseProxyFunc_get);
-app.get('/proxy2', reverseProxyFunc_get);
-app.get('/hub-proxy/*', hubProxyFunc);
+// app.get('/proxy', reverseProxyFunc_get);
+// app.get('/proxy2', reverseProxyFunc_get);
+// app.get('/hub-proxy/*', hubProxyFunc);
 
-app.post('/proxy', reverseProxyFunc);
-app.post('/proxy2', reverseProxyFunc);
-app.put('/proxy', reverseProxyFunc);
-app.put('/proxy2', reverseProxyFunc);
-app.delete('/proxy', reverseProxyFunc);
-app.delete('/proxy2', reverseProxyFunc);
-app.post('/hub-proxy/*', hubProxyFunc);
+// app.post('/proxy', reverseProxyFunc);
+// app.post('/proxy2', reverseProxyFunc);
+// app.put('/proxy', reverseProxyFunc);
+// app.put('/proxy2', reverseProxyFunc);
+// app.delete('/proxy', reverseProxyFunc);
+// app.delete('/proxy2', reverseProxyFunc);
+// app.post('/hub-proxy/*', hubProxyFunc);
 
 // --- Proxy Stream Job endpoints ---
 app.post('/proxy-stream-jobs', async (req, res) => {
