@@ -10,10 +10,8 @@ export const migrateApp = new Hono();
 
 let importInProgress = false;
 
-const BACKUP_IMPORT_MAX_BYTES = Number(process.env.RISU_BACKUP_IMPORT_MAX_BYTES ?? '0');
-const BACKUP_ENTRY_NAME_MAX_BYTES = 1024;
-// Minimum free disk space headroom multiplier: require 2× the backup size to be free
-const BACKUP_DISK_HEADROOM = 2;
+export const BACKUP_IMPORT_MAX_BYTES = Number(process.env.RISU_BACKUP_IMPORT_MAX_BYTES ?? '0');
+
 
 // ── Save-folder migration endpoints ──────────────────────────────────────────
 const migrationMarkerPath = path.join(savePath, '.migrated_to_sqlite');
@@ -251,3 +249,11 @@ migrateApp.post('/save-folder/cleanup/execute', async (c, next) => {
         throw error;
     }
 });
+
+export function setImportProgress(inProgress: boolean) {
+    importInProgress = inProgress;
+}
+
+export function isImportInProgress() {
+    return importInProgress;
+}

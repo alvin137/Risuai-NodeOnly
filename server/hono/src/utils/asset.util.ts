@@ -95,17 +95,6 @@ const ASSET_EXT_MIME: Record<string, string> = {
     mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav',
 }
 
-async function checkDiskSpace(requiredBytes: number) {
-    try {
-        const saveDir = path.join(process.cwd(), 'save');
-        const stats = await statfs(saveDir);
-        const availableBytes = stats.bavail * stats.bsize;
-        return { ok: availableBytes >= requiredBytes, available: availableBytes };
-    } catch {
-        // statfs unavailable on this platform — skip check
-        return { ok: true, available: -1 };
-    }
-}
 
 export async function readInlayFile(id: string) {
     const filePath = await resolveInlayFilePath(id);
@@ -299,7 +288,7 @@ export function getInlaySidecarPath(id: string) {
     return p;
 }
 
-async function ensureInlayDir() {
+export async function ensureInlayDir() {
     await mkdir(inlayDir, { recursive: true });
 }
 
@@ -631,7 +620,7 @@ function assignMissingChatIds(dbObj: any) {
     return changed;
 }
 
-function isInvalidBackupPathSegment(name: string) {
+export function isInvalidBackupPathSegment(name: string) {
     return (
         !name ||
         name.includes('\0') ||
@@ -644,7 +633,7 @@ function isInvalidBackupPathSegment(name: string) {
     );
 }
 
-function normalizeColdStorageStorageKey(nameOrKey: string) {
+export function normalizeColdStorageStorageKey(nameOrKey: string) {
     let key = nameOrKey;
     if (key.startsWith('coldstorage/')) {
         key = key.slice('coldstorage/'.length);
@@ -658,11 +647,11 @@ function normalizeColdStorageStorageKey(nameOrKey: string) {
     return `coldstorage/${key}`;
 }
 
-function toColdStorageBackupName(storageKey: string) {
+export function toColdStorageBackupName(storageKey: string) {
     return `${normalizeColdStorageStorageKey(storageKey)}.json`;
 }
 
-function parseColdStorageJsonBuffer(buffer: Buffer, sourceLabel: string, options: { allowPlainJson?: boolean } = {}) {
+export function parseColdStorageJsonBuffer(buffer: Buffer, sourceLabel: string, options: { allowPlainJson?: boolean } = {}) {
     const { allowPlainJson = false } = options;
     try {
         const decompressed = Bun.gunzipSync(buffer as Uint8Array<ArrayBuffer>);
@@ -686,11 +675,11 @@ function parseColdStorageJsonBuffer(buffer: Buffer, sourceLabel: string, options
     }
 }
 
-function encodeColdStorageCanonicalBuffer(coldData: any) {
+export function encodeColdStorageCanonicalBuffer(coldData: any) {
     return Buffer.from(Bun.gzipSync(Buffer.from(JSON.stringify(coldData), 'utf-8')));
 }
 
-function readColdStorageJsonEntry(nameOrKey: string, options: { migrateLegacy?: boolean; allowPlainJsonFallback?: boolean } = {}): any {
+export function readColdStorageJsonEntry(nameOrKey: string, options: { migrateLegacy?: boolean; allowPlainJsonFallback?: boolean } = {}): any {
     const { migrateLegacy = false, allowPlainJsonFallback = false } = options;
     const canonicalKey = normalizeColdStorageStorageKey(nameOrKey);
     const legacyBackupKey = `${canonicalKey}.json`;

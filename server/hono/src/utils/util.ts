@@ -28,17 +28,11 @@ if(!existsSync(savePath)) {
     mkdirSync(savePath)
 }
 
-const backupsDir = path.join(process.cwd(), "backups")
-if(!existsSync(backupsDir)){
-    mkdirSync(backupsDir)
-}
-const BACKUP_FILENAME_REGEX = /^risu-backup-\d+\.bin$/;
 
 
 
-
-const inlayDir = path.join(savePath, 'inlays')
-const inlayMigrationMarker = path.join(inlayDir, '.migrated_to_fs')
+export const inlayDir = path.join(savePath, 'inlays')
+export const inlayMigrationMarker = path.join(inlayDir, '.migrated_to_fs')
 export const hexRegex = /^[0-9a-fA-F]+$/;
 
 

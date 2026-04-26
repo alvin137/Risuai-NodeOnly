@@ -16,6 +16,7 @@ import { migrateApp } from './api/migrate.js'
 import { checkpointWal } from '../utils/db.js'
 import { flushPendingDb, migrateInlaysToFilesystem, migrateInlaysToFilesystem } from '../utils/asset.util.js'
 import { stopTunnel } from './cloudflared.js'
+import { backupApp } from './api/backup.js'
 
 const app = new Hono();
 
@@ -45,6 +46,7 @@ api.route('/asset', assetApp);
 api.route("/patch", patchApp);
 api.route("/chat-content", chatApp);
 api.route("/migrate", migrateApp);
+api.route("/backup", backupApp);
 app.route('/api', api);
 app.route("/", proxyApp);
 

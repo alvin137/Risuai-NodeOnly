@@ -1419,14 +1419,14 @@ async function hashJSON(json){
 //     });
 // }
 
-function encodeBackupEntry(name, data) {
-    const encodedName = Buffer.from(name, 'utf-8');
-    const nameLength = Buffer.allocUnsafe(4);
-    nameLength.writeUInt32LE(encodedName.length, 0);
-    const dataLength = Buffer.allocUnsafe(4);
-    dataLength.writeUInt32LE(data.length, 0);
-    return Buffer.concat([nameLength, encodedName, dataLength, data]);
-}
+// function encodeBackupEntry(name, data) {
+//     const encodedName = Buffer.from(name, 'utf-8');
+//     const nameLength = Buffer.allocUnsafe(4);
+//     nameLength.writeUInt32LE(encodedName.length, 0);
+//     const dataLength = Buffer.allocUnsafe(4);
+//     dataLength.writeUInt32LE(data.length, 0);
+//     return Buffer.concat([nameLength, encodedName, dataLength, data]);
+// }
 
 // function isInvalidBackupPathSegment(name) {
 //     return (
@@ -1441,26 +1441,26 @@ function encodeBackupEntry(name, data) {
 //     );
 // }
 
-function parseInlayBackupName(name) {
-    if (!name.startsWith('inlay/')) return null;
-    const suffix = name.slice('inlay/'.length);
-    if (!suffix || suffix.includes('/')) return null;
-    const dotIdx = suffix.lastIndexOf('.');
-    if (dotIdx <= 0) {
-        return { id: suffix, ext: null };
-    }
-    return {
-        id: suffix.slice(0, dotIdx),
-        ext: suffix.slice(dotIdx + 1),
-    };
-}
+// function parseInlayBackupName(name) {
+//     if (!name.startsWith('inlay/')) return null;
+//     const suffix = name.slice('inlay/'.length);
+//     if (!suffix || suffix.includes('/')) return null;
+//     const dotIdx = suffix.lastIndexOf('.');
+//     if (dotIdx <= 0) {
+//         return { id: suffix, ext: null };
+//     }
+//     return {
+//         id: suffix.slice(0, dotIdx),
+//         ext: suffix.slice(dotIdx + 1),
+//     };
+// }
 
-function parseInlaySidecarBackupName(name) {
-    if (!name.startsWith('inlay_sidecar/')) return null;
-    const id = name.slice('inlay_sidecar/'.length);
-    if (!isSafeInlayId(id)) return null;
-    return { id };
-}
+// function parseInlaySidecarBackupName(name) {
+//     if (!name.startsWith('inlay_sidecar/')) return null;
+//     const id = name.slice('inlay_sidecar/'.length);
+//     if (!isSafeInlayId(id)) return null;
+//     return { id };
+// }
 
 // function normalizeColdStorageStorageKey(nameOrKey) {
 //     let key = nameOrKey;
@@ -1541,333 +1541,333 @@ function parseInlaySidecarBackupName(name) {
 //     };
 // }
 
-function listColdStorageBackupEntries() {
-    const canonicalKeys = Array.from(new Set(
-        kvList('coldstorage/').map((key) => normalizeColdStorageStorageKey(key))
-    )).sort((a, b) => a.localeCompare(b));
+// function listColdStorageBackupEntries() {
+//     const canonicalKeys = Array.from(new Set(
+//         kvList('coldstorage/').map((key) => normalizeColdStorageStorageKey(key))
+//     )).sort((a, b) => a.localeCompare(b));
 
-    return canonicalKeys.map((storageKey) => {
-        const entry = readColdStorageJsonEntry(storageKey, {
-            migrateLegacy: true,
-            allowPlainJsonFallback: true,
-        });
-        if (!entry) {
-            throw new Error(`[ColdStorage] missing cold storage entry while exporting: ${storageKey}`);
-        }
-        const plainJson = Buffer.from(JSON.stringify(entry.coldData), 'utf-8');
-        return {
-            kind: 'buffer',
-            buffer: plainJson,
-            backupName: toColdStorageBackupName(storageKey),
-            sortKey: toColdStorageBackupName(storageKey),
-            size: plainJson.length,
-        };
-    });
-}
+//     return canonicalKeys.map((storageKey) => {
+//         const entry = readColdStorageJsonEntry(storageKey, {
+//             migrateLegacy: true,
+//             allowPlainJsonFallback: true,
+//         });
+//         if (!entry) {
+//             throw new Error(`[ColdStorage] missing cold storage entry while exporting: ${storageKey}`);
+//         }
+//         const plainJson = Buffer.from(JSON.stringify(entry.coldData), 'utf-8');
+//         return {
+//             kind: 'buffer',
+//             buffer: plainJson,
+//             backupName: toColdStorageBackupName(storageKey),
+//             sortKey: toColdStorageBackupName(storageKey),
+//             size: plainJson.length,
+//         };
+//     });
+// }
 
-function resolveBackupStorageKey(name) {
-    if (Buffer.byteLength(name, 'utf-8') > BACKUP_ENTRY_NAME_MAX_BYTES) {
-        throw new Error(`Backup entry name too long: ${name.slice(0, 64)}`);
-    }
+// function resolveBackupStorageKey(name) {
+//     if (Buffer.byteLength(name, 'utf-8') > BACKUP_ENTRY_NAME_MAX_BYTES) {
+//         throw new Error(`Backup entry name too long: ${name.slice(0, 64)}`);
+//     }
 
-    if (name === 'database.risudat') {
-        return 'database/database.bin';
-    }
+//     if (name === 'database.risudat') {
+//         return 'database/database.bin';
+//     }
 
-    if (
-        name.startsWith('inlay_thumb/') ||
-        name.startsWith('inlay_meta/')
-    ) {
-        if (isInvalidBackupPathSegment(name)) {
-            throw new Error(`Invalid backup entry name: ${name}`);
-        }
-        return name;
-    }
+//     if (
+//         name.startsWith('inlay_thumb/') ||
+//         name.startsWith('inlay_meta/')
+//     ) {
+//         if (isInvalidBackupPathSegment(name)) {
+//             throw new Error(`Invalid backup entry name: ${name}`);
+//         }
+//         return name;
+//     }
 
-    if (name.startsWith('inlay/')) {
-        const parsed = parseInlayBackupName(name);
-        if (!parsed || !isSafeInlayId(parsed.id)) {
-            throw new Error(`Invalid inlay backup entry name: ${name}`);
-        }
-        return name;
-    }
+//     if (name.startsWith('inlay/')) {
+//         const parsed = parseInlayBackupName(name);
+//         if (!parsed || !isSafeInlayId(parsed.id)) {
+//             throw new Error(`Invalid inlay backup entry name: ${name}`);
+//         }
+//         return name;
+//     }
 
-    if (name.startsWith('inlay_sidecar/')) {
-        const parsed = parseInlaySidecarBackupName(name);
-        if (!parsed) {
-            throw new Error(`Invalid inlay sidecar backup entry name: ${name}`);
-        }
-        return name;
-    }
+//     if (name.startsWith('inlay_sidecar/')) {
+//         const parsed = parseInlaySidecarBackupName(name);
+//         if (!parsed) {
+//             throw new Error(`Invalid inlay sidecar backup entry name: ${name}`);
+//         }
+//         return name;
+//     }
 
-    // Upstream backups transport cold storage as coldstorage/<uuid>.json.
-    // Normalize back to the runtime KV key: coldstorage/<uuid>.
-    if (name.startsWith('coldstorage/')) {
-        return normalizeColdStorageStorageKey(name);
-    }
+//     // Upstream backups transport cold storage as coldstorage/<uuid>.json.
+//     // Normalize back to the runtime KV key: coldstorage/<uuid>.
+//     if (name.startsWith('coldstorage/')) {
+//         return normalizeColdStorageStorageKey(name);
+//     }
 
-    if (isInvalidBackupPathSegment(name) || name !== path.basename(name)) {
-        throw new Error(`Invalid asset backup entry name: ${name}`);
-    }
+//     if (isInvalidBackupPathSegment(name) || name !== path.basename(name)) {
+//         throw new Error(`Invalid asset backup entry name: ${name}`);
+//     }
 
-    return `assets/${name}`;
-}
+//     return `assets/${name}`;
+// }
 
-function parseBackupChunk(buffer, onEntry) {
-    let offset = 0;
-    while (offset + 4 <= buffer.length) {
-        const nameLength = buffer.readUInt32LE(offset);
-        if (offset + 4 + nameLength > buffer.length) {
-            break;
-        }
-        const nameStart = offset + 4;
-        const nameEnd = nameStart + nameLength;
-        const name = buffer.subarray(nameStart, nameEnd).toString('utf-8');
-        if (nameEnd + 4 > buffer.length) {
-            break;
-        }
-        const dataLength = buffer.readUInt32LE(nameEnd);
-        const dataStart = nameEnd + 4;
-        const dataEnd = dataStart + dataLength;
-        if (dataEnd > buffer.length) {
-            break;
-        }
-        onEntry(name, buffer.subarray(dataStart, dataEnd));
-        offset = dataEnd;
-    }
-    return buffer.subarray(offset);
-}
+// function parseBackupChunk(buffer, onEntry) {
+//     let offset = 0;
+//     while (offset + 4 <= buffer.length) {
+//         const nameLength = buffer.readUInt32LE(offset);
+//         if (offset + 4 + nameLength > buffer.length) {
+//             break;
+//         }
+//         const nameStart = offset + 4;
+//         const nameEnd = nameStart + nameLength;
+//         const name = buffer.subarray(nameStart, nameEnd).toString('utf-8');
+//         if (nameEnd + 4 > buffer.length) {
+//             break;
+//         }
+//         const dataLength = buffer.readUInt32LE(nameEnd);
+//         const dataStart = nameEnd + 4;
+//         const dataEnd = dataStart + dataLength;
+//         if (dataEnd > buffer.length) {
+//             break;
+//         }
+//         onEntry(name, buffer.subarray(dataStart, dataEnd));
+//         offset = dataEnd;
+//     }
+//     return buffer.subarray(offset);
+// }
 
-// ─── Shared backup import logic ─────────────────────────────────────────────
-// Accepts any async iterable of Buffer chunks (HTTP request body, file stream, etc.)
-async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0, onProgress = null } = {}) {
-    const BATCH_SIZE = 5000;
-    let remainingBuffer = Buffer.alloc(0);
-    let hasDatabase = false;
-    let assetsRestored = 0;
-    let bytesReceived = 0;
-    let batchCount = 0;
-    const seenEntryNames = new Set();
-    const importedInlayIds = new Set();
-    const importedSidecarIds = new Set();
-    const explicitSidecarMap = new Map();
-    const legacyInlayInfoMap = new Map();
+// // ─── Shared backup import logic ─────────────────────────────────────────────
+// // Accepts any async iterable of Buffer chunks (HTTP request body, file stream, etc.)
+// async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0, onProgress = null } = {}) {
+//     const BATCH_SIZE = 5000;
+//     let remainingBuffer = Buffer.alloc(0);
+//     let hasDatabase = false;
+//     let assetsRestored = 0;
+//     let bytesReceived = 0;
+//     let batchCount = 0;
+//     const seenEntryNames = new Set();
+//     const importedInlayIds = new Set();
+//     const importedSidecarIds = new Set();
+//     const explicitSidecarMap = new Map();
+//     const legacyInlayInfoMap = new Map();
 
-    const stagingDir = path.join(savePath, 'inlays_import_staging');
-    const backupInlayDir = path.join(savePath, 'inlays_import_backup');
-    await fs.rm(stagingDir, { recursive: true, force: true });
-    await fs.rm(backupInlayDir, { recursive: true, force: true });
-    await fs.mkdir(stagingDir, { recursive: true });
+//     const stagingDir = path.join(savePath, 'inlays_import_staging');
+//     const backupInlayDir = path.join(savePath, 'inlays_import_backup');
+//     await fs.rm(stagingDir, { recursive: true, force: true });
+//     await fs.rm(backupInlayDir, { recursive: true, force: true });
+//     await fs.mkdir(stagingDir, { recursive: true });
 
-    function stagingInlayFilePath(id, ext) {
-        return path.join(stagingDir, `${id}.${normalizeInlayExt(ext)}`);
-    }
-    function stagingSidecarPath(id) {
-        return path.join(stagingDir, `${id}.meta.json`);
-    }
-    function writeStagingInlayFileSync(id, ext, buffer, info) {
-        const normalizedExt = normalizeInlayExt(ext);
-        writeFileSync(stagingInlayFilePath(id, normalizedExt), Buffer.from(buffer));
-        const sidecar = {
-            ext: normalizedExt,
-            name: typeof info?.name === 'string' ? info.name : id,
-            type: typeof info?.type === 'string' ? info.type : 'image',
-            height: typeof info?.height === 'number' ? info.height : undefined,
-            width: typeof info?.width === 'number' ? info.width : undefined,
-        };
-        writeFileSync(stagingSidecarPath(id), JSON.stringify(sidecar));
-    }
-    function writeStagingSidecarSync(id, info) {
-        const sidecar = {
-            ext: normalizeInlayExt(info?.ext),
-            name: typeof info?.name === 'string' ? info.name : id,
-            type: typeof info?.type === 'string' ? info.type : 'image',
-            height: typeof info?.height === 'number' ? info.height : undefined,
-            width: typeof info?.width === 'number' ? info.width : undefined,
-        };
-        writeFileSync(stagingSidecarPath(id), JSON.stringify(sidecar));
-    }
+//     function stagingInlayFilePath(id, ext) {
+//         return path.join(stagingDir, `${id}.${normalizeInlayExt(ext)}`);
+//     }
+//     function stagingSidecarPath(id) {
+//         return path.join(stagingDir, `${id}.meta.json`);
+//     }
+//     function writeStagingInlayFileSync(id, ext, buffer, info) {
+//         const normalizedExt = normalizeInlayExt(ext);
+//         writeFileSync(stagingInlayFilePath(id, normalizedExt), Buffer.from(buffer));
+//         const sidecar = {
+//             ext: normalizedExt,
+//             name: typeof info?.name === 'string' ? info.name : id,
+//             type: typeof info?.type === 'string' ? info.type : 'image',
+//             height: typeof info?.height === 'number' ? info.height : undefined,
+//             width: typeof info?.width === 'number' ? info.width : undefined,
+//         };
+//         writeFileSync(stagingSidecarPath(id), JSON.stringify(sidecar));
+//     }
+//     function writeStagingSidecarSync(id, info) {
+//         const sidecar = {
+//             ext: normalizeInlayExt(info?.ext),
+//             name: typeof info?.name === 'string' ? info.name : id,
+//             type: typeof info?.type === 'string' ? info.type : 'image',
+//             height: typeof info?.height === 'number' ? info.height : undefined,
+//             width: typeof info?.width === 'number' ? info.width : undefined,
+//         };
+//         writeFileSync(stagingSidecarPath(id), JSON.stringify(sidecar));
+//     }
 
-    await flushPendingDb();
-    createBackupAndRotate();
+//     await flushPendingDb();
+//     createBackupAndRotate();
 
-    sqliteDb.exec('PRAGMA synchronous = OFF');
+//     sqliteDb.exec('PRAGMA synchronous = OFF');
 
-    sqliteDb.exec('BEGIN');
-    kvDelPrefix('assets/');
-    kvDelPrefix('inlay/');
-    kvDelPrefix('inlay_thumb/');
-    kvDelPrefix('inlay_meta/');
-    kvDelPrefix('inlay_info/');
-    kvDelPrefix('coldstorage/');
-    clearEntities();
+//     sqliteDb.exec('BEGIN');
+//     kvDelPrefix('assets/');
+//     kvDelPrefix('inlay/');
+//     kvDelPrefix('inlay_thumb/');
+//     kvDelPrefix('inlay_meta/');
+//     kvDelPrefix('inlay_info/');
+//     kvDelPrefix('coldstorage/');
+//     clearEntities();
 
-    try {
-        for await (const chunk of dataSource) {
-            bytesReceived += chunk.length;
-            if (maxBytes > 0 && bytesReceived > maxBytes) {
-                throw new Error(`Backup exceeds max allowed size (${maxBytes} bytes)`);
-            }
-            if (onProgress) onProgress(bytesReceived, totalBytes);
+//     try {
+//         for await (const chunk of dataSource) {
+//             bytesReceived += chunk.length;
+//             if (maxBytes > 0 && bytesReceived > maxBytes) {
+//                 throw new Error(`Backup exceeds max allowed size (${maxBytes} bytes)`);
+//             }
+//             if (onProgress) onProgress(bytesReceived, totalBytes);
 
-            remainingBuffer = remainingBuffer.length === 0
-                ? Buffer.from(chunk)
-                : Buffer.concat([remainingBuffer, Buffer.from(chunk)]);
-            remainingBuffer = parseBackupChunk(remainingBuffer, (name, data) => {
-                if (seenEntryNames.has(name)) {
-                    throw new Error(`Duplicate backup entry: ${name}`);
-                }
-                seenEntryNames.add(name);
+//             remainingBuffer = remainingBuffer.length === 0
+//                 ? Buffer.from(chunk)
+//                 : Buffer.concat([remainingBuffer, Buffer.from(chunk)]);
+//             remainingBuffer = parseBackupChunk(remainingBuffer, (name, data) => {
+//                 if (seenEntryNames.has(name)) {
+//                     throw new Error(`Duplicate backup entry: ${name}`);
+//                 }
+//                 seenEntryNames.add(name);
 
-                const inlayRaw = parseInlayBackupName(name);
-                const inlaySidecar = parseInlaySidecarBackupName(name);
+//                 const inlayRaw = parseInlayBackupName(name);
+//                 const inlaySidecar = parseInlaySidecarBackupName(name);
 
-                if (inlayRaw) {
-                    importedInlayIds.add(inlayRaw.id);
-                    if (inlayRaw.ext) {
-                        writeStagingInlayFileSync(inlayRaw.id, inlayRaw.ext, data, legacyInlayInfoMap.get(inlayRaw.id) || { ext: inlayRaw.ext, name: inlayRaw.id, type: 'image' });
-                    } else if (data.length > 0 && data[0] === 0x7b) {
-                        const parsed = JSON.parse(data.toString('utf-8'));
-                        const type = typeof parsed?.type === 'string' ? parsed.type : 'image';
-                        const ext = normalizeInlayExt(parsed?.ext);
-                        const buffer = type === 'signature'
-                            ? Buffer.from(typeof parsed?.data === 'string' ? parsed.data : '', 'utf-8')
-                            : decodeDataUri(parsed?.data).buffer;
-                        writeStagingInlayFileSync(inlayRaw.id, ext, buffer, legacyInlayInfoMap.get(inlayRaw.id) || {
-                            ext,
-                            name: typeof parsed?.name === 'string' ? parsed.name : inlayRaw.id,
-                            type,
-                            height: typeof parsed?.height === 'number' ? parsed.height : undefined,
-                            width: typeof parsed?.width === 'number' ? parsed.width : undefined,
-                        });
-                    } else {
-                        writeStagingInlayFileSync(inlayRaw.id, 'bin', data, legacyInlayInfoMap.get(inlayRaw.id) || {
-                            ext: 'bin',
-                            name: inlayRaw.id,
-                            type: 'image',
-                        });
-                    }
-                    if (explicitSidecarMap.has(inlayRaw.id)) {
-                        writeStagingSidecarSync(inlayRaw.id, explicitSidecarMap.get(inlayRaw.id));
-                    } else if (!importedSidecarIds.has(inlayRaw.id)) {
-                        const legacyInfo = legacyInlayInfoMap.get(inlayRaw.id);
-                        if (legacyInfo) {
-                            writeStagingSidecarSync(inlayRaw.id, legacyInfo);
-                        }
-                    }
-                    assetsRestored += 1;
-                } else if (inlaySidecar) {
-                    const parsed = JSON.parse(data.toString('utf-8'));
-                    explicitSidecarMap.set(inlaySidecar.id, parsed);
-                    writeStagingSidecarSync(inlaySidecar.id, parsed);
-                    importedSidecarIds.add(inlaySidecar.id);
-                } else if (name.startsWith('inlay_info/')) {
-                    const id = name.slice('inlay_info/'.length);
-                    if (!isSafeInlayId(id)) {
-                        throw new Error(`Invalid legacy inlay info entry name: ${name}`);
-                    }
-                    const parsed = JSON.parse(data.toString('utf-8'));
-                    legacyInlayInfoMap.set(id, {
-                        ext: normalizeInlayExt(parsed?.ext),
-                        name: typeof parsed?.name === 'string' ? parsed.name : id,
-                        type: typeof parsed?.type === 'string' ? parsed.type : 'image',
-                        height: typeof parsed?.height === 'number' ? parsed.height : undefined,
-                        width: typeof parsed?.width === 'number' ? parsed.width : undefined,
-                    });
-                    if (importedInlayIds.has(id) && !importedSidecarIds.has(id)) {
-                        writeStagingSidecarSync(id, legacyInlayInfoMap.get(id));
-                    }
-                } else if (name.startsWith('inlay_thumb/')) {
-                    // Skip deprecated thumbnail entries from legacy backups
-                } else {
-                    const storageKey = resolveBackupStorageKey(name);
-                    const storageValue = storageKey.startsWith('coldstorage/')
-                        ? encodeColdStorageCanonicalBuffer(
-                            parseColdStorageJsonBuffer(data, name, { allowPlainJson: true }).coldData
-                        )
-                        : data;
-                    kvSet(storageKey, storageValue);
-                    if (storageKey === 'database/database.bin') {
-                        hasDatabase = true;
-                    } else {
-                        assetsRestored += 1;
-                    }
-                }
+//                 if (inlayRaw) {
+//                     importedInlayIds.add(inlayRaw.id);
+//                     if (inlayRaw.ext) {
+//                         writeStagingInlayFileSync(inlayRaw.id, inlayRaw.ext, data, legacyInlayInfoMap.get(inlayRaw.id) || { ext: inlayRaw.ext, name: inlayRaw.id, type: 'image' });
+//                     } else if (data.length > 0 && data[0] === 0x7b) {
+//                         const parsed = JSON.parse(data.toString('utf-8'));
+//                         const type = typeof parsed?.type === 'string' ? parsed.type : 'image';
+//                         const ext = normalizeInlayExt(parsed?.ext);
+//                         const buffer = type === 'signature'
+//                             ? Buffer.from(typeof parsed?.data === 'string' ? parsed.data : '', 'utf-8')
+//                             : decodeDataUri(parsed?.data).buffer;
+//                         writeStagingInlayFileSync(inlayRaw.id, ext, buffer, legacyInlayInfoMap.get(inlayRaw.id) || {
+//                             ext,
+//                             name: typeof parsed?.name === 'string' ? parsed.name : inlayRaw.id,
+//                             type,
+//                             height: typeof parsed?.height === 'number' ? parsed.height : undefined,
+//                             width: typeof parsed?.width === 'number' ? parsed.width : undefined,
+//                         });
+//                     } else {
+//                         writeStagingInlayFileSync(inlayRaw.id, 'bin', data, legacyInlayInfoMap.get(inlayRaw.id) || {
+//                             ext: 'bin',
+//                             name: inlayRaw.id,
+//                             type: 'image',
+//                         });
+//                     }
+//                     if (explicitSidecarMap.has(inlayRaw.id)) {
+//                         writeStagingSidecarSync(inlayRaw.id, explicitSidecarMap.get(inlayRaw.id));
+//                     } else if (!importedSidecarIds.has(inlayRaw.id)) {
+//                         const legacyInfo = legacyInlayInfoMap.get(inlayRaw.id);
+//                         if (legacyInfo) {
+//                             writeStagingSidecarSync(inlayRaw.id, legacyInfo);
+//                         }
+//                     }
+//                     assetsRestored += 1;
+//                 } else if (inlaySidecar) {
+//                     const parsed = JSON.parse(data.toString('utf-8'));
+//                     explicitSidecarMap.set(inlaySidecar.id, parsed);
+//                     writeStagingSidecarSync(inlaySidecar.id, parsed);
+//                     importedSidecarIds.add(inlaySidecar.id);
+//                 } else if (name.startsWith('inlay_info/')) {
+//                     const id = name.slice('inlay_info/'.length);
+//                     if (!isSafeInlayId(id)) {
+//                         throw new Error(`Invalid legacy inlay info entry name: ${name}`);
+//                     }
+//                     const parsed = JSON.parse(data.toString('utf-8'));
+//                     legacyInlayInfoMap.set(id, {
+//                         ext: normalizeInlayExt(parsed?.ext),
+//                         name: typeof parsed?.name === 'string' ? parsed.name : id,
+//                         type: typeof parsed?.type === 'string' ? parsed.type : 'image',
+//                         height: typeof parsed?.height === 'number' ? parsed.height : undefined,
+//                         width: typeof parsed?.width === 'number' ? parsed.width : undefined,
+//                     });
+//                     if (importedInlayIds.has(id) && !importedSidecarIds.has(id)) {
+//                         writeStagingSidecarSync(id, legacyInlayInfoMap.get(id));
+//                     }
+//                 } else if (name.startsWith('inlay_thumb/')) {
+//                     // Skip deprecated thumbnail entries from legacy backups
+//                 } else {
+//                     const storageKey = resolveBackupStorageKey(name);
+//                     const storageValue = storageKey.startsWith('coldstorage/')
+//                         ? encodeColdStorageCanonicalBuffer(
+//                             parseColdStorageJsonBuffer(data, name, { allowPlainJson: true }).coldData
+//                         )
+//                         : data;
+//                     kvSet(storageKey, storageValue);
+//                     if (storageKey === 'database/database.bin') {
+//                         hasDatabase = true;
+//                     } else {
+//                         assetsRestored += 1;
+//                     }
+//                 }
 
-                batchCount++;
-                if (batchCount >= BATCH_SIZE) {
-                    sqliteDb.exec('COMMIT');
-                    sqliteDb.exec('BEGIN');
-                    batchCount = 0;
-                }
-            });
-        }
+//                 batchCount++;
+//                 if (batchCount >= BATCH_SIZE) {
+//                     sqliteDb.exec('COMMIT');
+//                     sqliteDb.exec('BEGIN');
+//                     batchCount = 0;
+//                 }
+//             });
+//         }
 
-        if (remainingBuffer.length > 0) {
-            throw new Error('Backup stream ended with incomplete entry');
-        }
-        if (!hasDatabase) {
-            throw new Error('Backup does not contain database.risudat');
-        }
-        for (const [id, info] of legacyInlayInfoMap.entries()) {
-            if (importedInlayIds.has(id) && !importedSidecarIds.has(id)) {
-                writeStagingSidecarSync(id, info);
-            }
-        }
-        sqliteDb.exec('COMMIT');
-    } catch (error) {
-        try { sqliteDb.exec('ROLLBACK'); } catch (_) {}
-        await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
-        await fs.rm(backupInlayDir, { recursive: true, force: true }).catch(() => {});
-        throw error;
-    } finally {
-        sqliteDb.exec('PRAGMA synchronous = NORMAL');
-    }
+//         if (remainingBuffer.length > 0) {
+//             throw new Error('Backup stream ended with incomplete entry');
+//         }
+//         if (!hasDatabase) {
+//             throw new Error('Backup does not contain database.risudat');
+//         }
+//         for (const [id, info] of legacyInlayInfoMap.entries()) {
+//             if (importedInlayIds.has(id) && !importedSidecarIds.has(id)) {
+//                 writeStagingSidecarSync(id, info);
+//             }
+//         }
+//         sqliteDb.exec('COMMIT');
+//     } catch (error) {
+//         try { sqliteDb.exec('ROLLBACK'); } catch (_) {}
+//         await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
+//         await fs.rm(backupInlayDir, { recursive: true, force: true }).catch(() => {});
+//         throw error;
+//     } finally {
+//         sqliteDb.exec('PRAGMA synchronous = NORMAL');
+//     }
 
-    await ensureInlayDir();
-    try {
-        if (existsSync(inlayDir)) {
-            await fs.rename(inlayDir, backupInlayDir);
-        }
-        await fs.rename(stagingDir, inlayDir);
-        await fs.writeFile(inlayMigrationMarker, new Date().toISOString(), 'utf-8');
-        await fs.rm(backupInlayDir, { recursive: true, force: true }).catch(() => {});
-    } catch (swapError) {
-        if (existsSync(backupInlayDir)) {
-            await fs.rm(inlayDir, { recursive: true, force: true }).catch(() => {});
-            await fs.rename(backupInlayDir, inlayDir).catch(() => {});
-        }
-        await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
-        throw swapError;
-    }
+//     await ensureInlayDir();
+//     try {
+//         if (existsSync(inlayDir)) {
+//             await fs.rename(inlayDir, backupInlayDir);
+//         }
+//         await fs.rename(stagingDir, inlayDir);
+//         await fs.writeFile(inlayMigrationMarker, new Date().toISOString(), 'utf-8');
+//         await fs.rm(backupInlayDir, { recursive: true, force: true }).catch(() => {});
+//     } catch (swapError) {
+//         if (existsSync(backupInlayDir)) {
+//             await fs.rm(inlayDir, { recursive: true, force: true }).catch(() => {});
+//             await fs.rename(backupInlayDir, inlayDir).catch(() => {});
+//         }
+//         await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
+//         throw swapError;
+//     }
 
-    invalidateDbCache();
+//     invalidateDbCache();
 
-    // Trigger cold storage migration now so import result includes failure count.
-    const dbRaw = kvGet('database/database.bin');
-    let coldStorageFailed = 0;
-    if (dbRaw) {
-        const migration = {};
-        const dbObj = await decodeDatabaseWithPersistentChatIds(dbRaw, {
-            createBackup: false,
-            migrationResult: migration,
-        });
-        coldStorageFailed = migration.coldStorageFailed || 0;
-        initChatStore(dbObj);
-    }
+//     // Trigger cold storage migration now so import result includes failure count.
+//     const dbRaw = kvGet('database/database.bin');
+//     let coldStorageFailed = 0;
+//     if (dbRaw) {
+//         const migration = {};
+//         const dbObj = await decodeDatabaseWithPersistentChatIds(dbRaw, {
+//             createBackup: false,
+//             migrationResult: migration,
+//         });
+//         coldStorageFailed = migration.coldStorageFailed || 0;
+//         initChatStore(dbObj);
+//     }
 
-    try {
-        checkpointWal('TRUNCATE');
-    } catch (checkpointError) {
-        console.warn('[Backup Import] WAL checkpoint after import failed:', checkpointError);
-    }
+//     try {
+//         checkpointWal('TRUNCATE');
+//     } catch (checkpointError) {
+//         console.warn('[Backup Import] WAL checkpoint after import failed:', checkpointError);
+//     }
 
-    console.log(`[Backup Import] Complete: ${assetsRestored} assets restored, ${(bytesReceived / 1024 / 1024).toFixed(1)}MB processed`);
-    if (coldStorageFailed > 0) {
-        console.error(`[Backup Import] ${coldStorageFailed} cold storage character(s) could not be restored`);
-    }
-    return { assetsRestored, bytesReceived, coldStorageFailed };
-}
+//     console.log(`[Backup Import] Complete: ${assetsRestored} assets restored, ${(bytesReceived / 1024 / 1024).toFixed(1)}MB processed`);
+//     if (coldStorageFailed > 0) {
+//         console.error(`[Backup Import] ${coldStorageFailed} cold storage character(s) could not be restored`);
+//     }
+//     return { assetsRestored, bytesReceived, coldStorageFailed };
+// }
 
 // app.get('/', async (req, res, next) => {
 
@@ -3034,452 +3034,452 @@ async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0
 //     } catch(error){ next(error); }
 // });
 
-app.get('/api/backup/export', async (req, res, next) => {
-    if(!await checkAuth(req, res)){ return; }
-    try {
-        // Flush any pending patches to ensure export includes latest data
-        await flushPendingDb();
-        const inlayFiles = await listInlayFiles();
-        const inlayEntries = await Promise.all(inlayFiles.map(async (entry) => {
-            const stat = await fs.stat(entry.filePath);
-            return {
-                kind: 'file',
-                sourcePath: entry.filePath,
-                backupName: `inlay/${entry.id}.${entry.ext}`,
-                sortKey: `inlay/${entry.id}`,
-                size: stat.size,
-            };
-        }));
-        const sidecarEntries = await Promise.all(inlayFiles.map(async (entry) => {
-            const sidecarPath = getInlaySidecarPath(entry.id);
-            try {
-                const stat = await fs.stat(sidecarPath);
-                return {
-                    kind: 'sidecar',
-                    sourcePath: sidecarPath,
-                    backupName: `inlay_sidecar/${entry.id}`,
-                    sortKey: `inlay_sidecar/${entry.id}`,
-                    size: stat.size,
-                };
-            } catch {
-                return null;
-            }
-        }));
-        const namespacedEntries = [
-            ...kvListWithSizes('assets/').map((entry) => ({
-                kind: 'kv',
-                key: entry.key,
-                backupName: path.basename(entry.key),
-                sortKey: entry.key,
-                size: entry.size,
-            })),
-            ...listColdStorageBackupEntries(),
-            ...kvListWithSizes('inlay_meta/').map((entry) => ({
-                kind: 'kv',
-                key: entry.key,
-                backupName: entry.key,
-                sortKey: entry.key,
-                size: entry.size,
-            })),
-            ...inlayEntries,
-            ...sidecarEntries.filter(Boolean),
-        ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-        const dbSize = kvSize('database/database.bin');
-        const totalBytes = namespacedEntries.reduce((sum, entry) => {
-            return sum + 8 + Buffer.byteLength(entry.backupName, 'utf-8') + entry.size;
-        }, 0) + (dbSize ? 8 + Buffer.byteLength('database.risudat', 'utf-8') + dbSize : 0);
+// app.get('/api/backup/export', async (req, res, next) => {
+//     if(!await checkAuth(req, res)){ return; }
+//     try {
+//         // Flush any pending patches to ensure export includes latest data
+//         await flushPendingDb();
+//         const inlayFiles = await listInlayFiles();
+//         const inlayEntries = await Promise.all(inlayFiles.map(async (entry) => {
+//             const stat = await fs.stat(entry.filePath);
+//             return {
+//                 kind: 'file',
+//                 sourcePath: entry.filePath,
+//                 backupName: `inlay/${entry.id}.${entry.ext}`,
+//                 sortKey: `inlay/${entry.id}`,
+//                 size: stat.size,
+//             };
+//         }));
+//         const sidecarEntries = await Promise.all(inlayFiles.map(async (entry) => {
+//             const sidecarPath = getInlaySidecarPath(entry.id);
+//             try {
+//                 const stat = await fs.stat(sidecarPath);
+//                 return {
+//                     kind: 'sidecar',
+//                     sourcePath: sidecarPath,
+//                     backupName: `inlay_sidecar/${entry.id}`,
+//                     sortKey: `inlay_sidecar/${entry.id}`,
+//                     size: stat.size,
+//                 };
+//             } catch {
+//                 return null;
+//             }
+//         }));
+//         const namespacedEntries = [
+//             ...kvListWithSizes('assets/').map((entry) => ({
+//                 kind: 'kv',
+//                 key: entry.key,
+//                 backupName: path.basename(entry.key),
+//                 sortKey: entry.key,
+//                 size: entry.size,
+//             })),
+//             ...listColdStorageBackupEntries(),
+//             ...kvListWithSizes('inlay_meta/').map((entry) => ({
+//                 kind: 'kv',
+//                 key: entry.key,
+//                 backupName: entry.key,
+//                 sortKey: entry.key,
+//                 size: entry.size,
+//             })),
+//             ...inlayEntries,
+//             ...sidecarEntries.filter(Boolean),
+//         ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+//         const dbSize = kvSize('database/database.bin');
+//         const totalBytes = namespacedEntries.reduce((sum, entry) => {
+//             return sum + 8 + Buffer.byteLength(entry.backupName, 'utf-8') + entry.size;
+//         }, 0) + (dbSize ? 8 + Buffer.byteLength('database.risudat', 'utf-8') + dbSize : 0);
 
-        res.setHeader('content-type', 'application/octet-stream');
-        res.setHeader('content-disposition', `attachment; filename="risu-backup-${Date.now()}.bin"`);
-        res.setHeader('content-length', totalBytes);
-        res.setHeader('x-risu-backup-assets', namespacedEntries.length);
+//         res.setHeader('content-type', 'application/octet-stream');
+//         res.setHeader('content-disposition', `attachment; filename="risu-backup-${Date.now()}.bin"`);
+//         res.setHeader('content-length', totalBytes);
+//         res.setHeader('x-risu-backup-assets', namespacedEntries.length);
 
-        let closed = false;
-        res.once('close', () => { closed = true; });
+//         let closed = false;
+//         res.once('close', () => { closed = true; });
 
-        function waitForDrain() {
-            if (closed) return Promise.resolve();
-            return new Promise(resolve => {
-                function done() {
-                    res.removeListener('drain', done);
-                    res.removeListener('close', done);
-                    resolve();
-                }
-                res.once('drain', done);
-                res.once('close', done);
-            });
-        }
+//         function waitForDrain() {
+//             if (closed) return Promise.resolve();
+//             return new Promise(resolve => {
+//                 function done() {
+//                     res.removeListener('drain', done);
+//                     res.removeListener('close', done);
+//                     resolve();
+//                 }
+//                 res.once('drain', done);
+//                 res.once('close', done);
+//             });
+//         }
 
-        for (const entry of namespacedEntries) {
-            if (closed) break;
-            const value = entry.kind === 'kv'
-                ? kvGet(entry.key)
-                : entry.kind === 'buffer'
-                    ? entry.buffer
-                    : await fs.readFile(entry.sourcePath);
-            if (closed) break;
-            if (value) {
-                const ok = res.write(encodeBackupEntry(entry.backupName, value));
-                if (!ok) {
-                    await waitForDrain();
-                    if (closed) break;
-                }
-            }
-        }
+//         for (const entry of namespacedEntries) {
+//             if (closed) break;
+//             const value = entry.kind === 'kv'
+//                 ? kvGet(entry.key)
+//                 : entry.kind === 'buffer'
+//                     ? entry.buffer
+//                     : await fs.readFile(entry.sourcePath);
+//             if (closed) break;
+//             if (value) {
+//                 const ok = res.write(encodeBackupEntry(entry.backupName, value));
+//                 if (!ok) {
+//                     await waitForDrain();
+//                     if (closed) break;
+//                 }
+//             }
+//         }
 
-        if (!closed && dbSize) {
-            const dbValue = kvGet('database/database.bin');
-            if (dbValue) {
-                const ok = res.write(encodeBackupEntry('database.risudat', dbValue));
-                if (!ok) {
-                    await waitForDrain();
-                }
-            }
-        }
-        if (!closed) res.end();
-    } catch (error) {
-        next(error);
-    }
-});
+//         if (!closed && dbSize) {
+//             const dbValue = kvGet('database/database.bin');
+//             if (dbValue) {
+//                 const ok = res.write(encodeBackupEntry('database.risudat', dbValue));
+//                 if (!ok) {
+//                     await waitForDrain();
+//                 }
+//             }
+//         }
+//         if (!closed) res.end();
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
-// Pre-flight check: auth + size + disk space before client starts uploading
-app.post('/api/backup/import/prepare', async (req, res, next) => {
-    if (!await checkAuth(req, res)) { return; }
-    if (!checkActiveSession(req, res)) return;
-    try {
-        if (importInProgress) {
-            res.status(409).json({ error: 'Another import is already in progress' });
-            return;
-        }
+// // Pre-flight check: auth + size + disk space before client starts uploading
+// app.post('/api/backup/import/prepare', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) { return; }
+//     if (!checkActiveSession(req, res)) return;
+//     try {
+//         if (importInProgress) {
+//             res.status(409).json({ error: 'Another import is already in progress' });
+//             return;
+//         }
 
-        const size = Number(req.body?.size ?? 0);
-        if (BACKUP_IMPORT_MAX_BYTES > 0 && size > BACKUP_IMPORT_MAX_BYTES) {
-            res.status(413).json({ error: `Backup exceeds max allowed size (${BACKUP_IMPORT_MAX_BYTES} bytes)` });
-            return;
-        }
+//         const size = Number(req.body?.size ?? 0);
+//         if (BACKUP_IMPORT_MAX_BYTES > 0 && size > BACKUP_IMPORT_MAX_BYTES) {
+//             res.status(413).json({ error: `Backup exceeds max allowed size (${BACKUP_IMPORT_MAX_BYTES} bytes)` });
+//             return;
+//         }
 
-        if (size > 0) {
-            const disk = await checkDiskSpace(size * BACKUP_DISK_HEADROOM);
-            if (!disk.ok) {
-                res.status(507).json({
-                    error: 'Insufficient disk space',
-                    available: disk.available,
-                    required: size * BACKUP_DISK_HEADROOM,
-                });
-                return;
-            }
-        }
+//         if (size > 0) {
+//             const disk = await checkDiskSpace(size * BACKUP_DISK_HEADROOM);
+//             if (!disk.ok) {
+//                 res.status(507).json({
+//                     error: 'Insufficient disk space',
+//                     available: disk.available,
+//                     required: size * BACKUP_DISK_HEADROOM,
+//                 });
+//                 return;
+//             }
+//         }
 
-        res.json({ ok: true });
-    } catch (error) {
-        next(error);
-    }
-});
+//         res.json({ ok: true });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
-app.post('/api/backup/import', async (req, res, next) => {
-    if(!await checkAuth(req, res)){ return; }
-    if (!checkActiveSession(req, res)) return;
+// app.post('/api/backup/import', async (req, res, next) => {
+//     if(!await checkAuth(req, res)){ return; }
+//     if (!checkActiveSession(req, res)) return;
 
-    if (importInProgress) {
-        res.status(409).json({ error: 'Another import is already in progress' });
-        return;
-    }
-    importInProgress = true;
+//     if (importInProgress) {
+//         res.status(409).json({ error: 'Another import is already in progress' });
+//         return;
+//     }
+//     importInProgress = true;
 
-    // Disable timeouts for large backup uploads
-    const prevRequestTimeout = req.socket.server?.requestTimeout;
-    req.socket.setTimeout(0);
-    req.socket.setKeepAlive(true);
-    if (req.socket.server) req.socket.server.requestTimeout = 0;
+//     // Disable timeouts for large backup uploads
+//     const prevRequestTimeout = req.socket.server?.requestTimeout;
+//     req.socket.setTimeout(0);
+//     req.socket.setKeepAlive(true);
+//     if (req.socket.server) req.socket.server.requestTimeout = 0;
 
-    try {
-        const contentType = String(req.headers['content-type'] ?? '');
-        if (contentType && !contentType.includes('application/x-risu-backup') && !contentType.includes('application/octet-stream')) {
-            res.status(415).json({ error: 'Unsupported backup content-type' });
-            return;
-        }
+//     try {
+//         const contentType = String(req.headers['content-type'] ?? '');
+//         if (contentType && !contentType.includes('application/x-risu-backup') && !contentType.includes('application/octet-stream')) {
+//             res.status(415).json({ error: 'Unsupported backup content-type' });
+//             return;
+//         }
 
-        const contentLength = Number(req.headers['content-length'] ?? '0');
-        if (BACKUP_IMPORT_MAX_BYTES > 0 && Number.isFinite(contentLength) && contentLength > BACKUP_IMPORT_MAX_BYTES) {
-            res.status(413).json({ error: `Backup exceeds max allowed size (${BACKUP_IMPORT_MAX_BYTES} bytes)` });
-            return;
-        }
+//         const contentLength = Number(req.headers['content-length'] ?? '0');
+//         if (BACKUP_IMPORT_MAX_BYTES > 0 && Number.isFinite(contentLength) && contentLength > BACKUP_IMPORT_MAX_BYTES) {
+//             res.status(413).json({ error: `Backup exceeds max allowed size (${BACKUP_IMPORT_MAX_BYTES} bytes)` });
+//             return;
+//         }
 
-        const result = await importBackupFromSource(req, { maxBytes: BACKUP_IMPORT_MAX_BYTES });
-        res.json({
-            ok: true,
-            assetsRestored: result.assetsRestored,
-            coldStorageFailed: result.coldStorageFailed,
-        });
-    } catch (error) {
-        next(error);
-    } finally {
-        importInProgress = false;
-        if (req.socket.server && prevRequestTimeout !== undefined) {
-            req.socket.server.requestTimeout = prevRequestTimeout;
-        }
-    }
-});
+//         const result = await importBackupFromSource(req, { maxBytes: BACKUP_IMPORT_MAX_BYTES });
+//         res.json({
+//             ok: true,
+//             assetsRestored: result.assetsRestored,
+//             coldStorageFailed: result.coldStorageFailed,
+//         });
+//     } catch (error) {
+//         next(error);
+//     } finally {
+//         importInProgress = false;
+//         if (req.socket.server && prevRequestTimeout !== undefined) {
+//             req.socket.server.requestTimeout = prevRequestTimeout;
+//         }
+//     }
+// });
 
-// ── Server-side backup endpoints ────────────────────────────────────────────
+// // ── Server-side backup endpoints ────────────────────────────────────────────
 
-// Save current data as a .bin backup file on the server
-app.post('/api/backup/server/save', async (req, res, next) => {
-    if (!await checkAuth(req, res)) { return; }
-    if (!checkActiveSession(req, res)) return;
-    try {
-        await flushPendingDb();
+// // Save current data as a .bin backup file on the server
+// app.post('/api/backup/server/save', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) { return; }
+//     if (!checkActiveSession(req, res)) return;
+//     try {
+//         await flushPendingDb();
 
-        const inlayFiles = await listInlayFiles();
-        const inlayEntries = await Promise.all(inlayFiles.map(async (entry) => {
-            const stat = await fs.stat(entry.filePath);
-            return { kind: 'file', sourcePath: entry.filePath, backupName: `inlay/${entry.id}.${entry.ext}`, size: stat.size };
-        }));
-        const sidecarEntries = (await Promise.all(inlayFiles.map(async (entry) => {
-            const sidecarPath = getInlaySidecarPath(entry.id);
-            try {
-                const stat = await fs.stat(sidecarPath);
-                return { kind: 'sidecar', sourcePath: sidecarPath, backupName: `inlay_sidecar/${entry.id}`, size: stat.size };
-            } catch { return null; }
-        }))).filter(Boolean);
+//         const inlayFiles = await listInlayFiles();
+//         const inlayEntries = await Promise.all(inlayFiles.map(async (entry) => {
+//             const stat = await fs.stat(entry.filePath);
+//             return { kind: 'file', sourcePath: entry.filePath, backupName: `inlay/${entry.id}.${entry.ext}`, size: stat.size };
+//         }));
+//         const sidecarEntries = (await Promise.all(inlayFiles.map(async (entry) => {
+//             const sidecarPath = getInlaySidecarPath(entry.id);
+//             try {
+//                 const stat = await fs.stat(sidecarPath);
+//                 return { kind: 'sidecar', sourcePath: sidecarPath, backupName: `inlay_sidecar/${entry.id}`, size: stat.size };
+//             } catch { return null; }
+//         }))).filter(Boolean);
 
-        const namespacedEntries = [
-            ...kvListWithSizes('assets/').map((e) => ({ kind: 'kv', key: e.key, backupName: path.basename(e.key), size: e.size })),
-            ...listColdStorageBackupEntries(),
-            ...kvListWithSizes('inlay_meta/').map((e) => ({ kind: 'kv', key: e.key, backupName: e.key, size: e.size })),
-            ...inlayEntries,
-            ...sidecarEntries,
-        ];
+//         const namespacedEntries = [
+//             ...kvListWithSizes('assets/').map((e) => ({ kind: 'kv', key: e.key, backupName: path.basename(e.key), size: e.size })),
+//             ...listColdStorageBackupEntries(),
+//             ...kvListWithSizes('inlay_meta/').map((e) => ({ kind: 'kv', key: e.key, backupName: e.key, size: e.size })),
+//             ...inlayEntries,
+//             ...sidecarEntries,
+//         ];
 
-        const totalEntries = namespacedEntries.length + 1; // +1 for database
-        const totalBytes = namespacedEntries.reduce((sum, e) => sum + e.size, 0);
+//         const totalEntries = namespacedEntries.length + 1; // +1 for database
+//         const totalBytes = namespacedEntries.reduce((sum, e) => sum + e.size, 0);
 
-        // Stream progress as NDJSON
-        res.setHeader('content-type', 'application/x-ndjson');
-        res.flushHeaders();
+//         // Stream progress as NDJSON
+//         res.setHeader('content-type', 'application/x-ndjson');
+//         res.flushHeaders();
 
-        const filename = `risu-backup-${Date.now()}.bin`;
-        const finalPath = path.join(backupsDir, filename);
-        const tmpPath = finalPath + '.tmp';
-        const { createWriteStream: createFsWriteStream } = require('fs');
-        const writeStream = createFsWriteStream(tmpPath);
+//         const filename = `risu-backup-${Date.now()}.bin`;
+//         const finalPath = path.join(backupsDir, filename);
+//         const tmpPath = finalPath + '.tmp';
+//         const { createWriteStream: createFsWriteStream } = require('fs');
+//         const writeStream = createFsWriteStream(tmpPath);
 
-        let closed = false;
-        let writeComplete = false;
-        res.once('close', () => { closed = true; });
+//         let closed = false;
+//         let writeComplete = false;
+//         res.once('close', () => { closed = true; });
 
-        try {
-            await new Promise((resolve, reject) => {
-                writeStream.on('error', reject);
+//         try {
+//             await new Promise((resolve, reject) => {
+//                 writeStream.on('error', reject);
 
-                (async () => {
-                    let written = 0;
-                    let bytesWritten = 0;
-                    for (const entry of namespacedEntries) {
-                        if (closed) break;
-                        const value = entry.kind === 'kv'
-                            ? kvGet(entry.key)
-                            : entry.kind === 'buffer'
-                                ? entry.buffer
-                                : await fs.readFile(entry.sourcePath);
-                        if (value) {
-                            const ok = writeStream.write(encodeBackupEntry(entry.backupName, value));
-                            if (!ok) await new Promise(r => writeStream.once('drain', r));
-                            bytesWritten += value.length;
-                        }
-                        written++;
-                        if (written % 50 === 0 || written === namespacedEntries.length) {
-                            res.write(JSON.stringify({ type: 'progress', current: written, total: totalEntries, bytes: bytesWritten, totalBytes }) + '\n');
-                        }
-                    }
-                    if (closed) throw new Error('Client disconnected during backup save');
-                    const dbValue = kvGet('database/database.bin');
-                    if (dbValue) {
-                        const ok = writeStream.write(encodeBackupEntry('database.risudat', dbValue));
-                        if (!ok) await new Promise(r => writeStream.once('drain', r));
-                        bytesWritten += dbValue.length;
-                    }
-                    res.write(JSON.stringify({ type: 'progress', current: totalEntries, total: totalEntries, bytes: bytesWritten, totalBytes }) + '\n');
-                    writeStream.end(resolve);
-                })().catch(reject);
-            });
+//                 (async () => {
+//                     let written = 0;
+//                     let bytesWritten = 0;
+//                     for (const entry of namespacedEntries) {
+//                         if (closed) break;
+//                         const value = entry.kind === 'kv'
+//                             ? kvGet(entry.key)
+//                             : entry.kind === 'buffer'
+//                                 ? entry.buffer
+//                                 : await fs.readFile(entry.sourcePath);
+//                         if (value) {
+//                             const ok = writeStream.write(encodeBackupEntry(entry.backupName, value));
+//                             if (!ok) await new Promise(r => writeStream.once('drain', r));
+//                             bytesWritten += value.length;
+//                         }
+//                         written++;
+//                         if (written % 50 === 0 || written === namespacedEntries.length) {
+//                             res.write(JSON.stringify({ type: 'progress', current: written, total: totalEntries, bytes: bytesWritten, totalBytes }) + '\n');
+//                         }
+//                     }
+//                     if (closed) throw new Error('Client disconnected during backup save');
+//                     const dbValue = kvGet('database/database.bin');
+//                     if (dbValue) {
+//                         const ok = writeStream.write(encodeBackupEntry('database.risudat', dbValue));
+//                         if (!ok) await new Promise(r => writeStream.once('drain', r));
+//                         bytesWritten += dbValue.length;
+//                     }
+//                     res.write(JSON.stringify({ type: 'progress', current: totalEntries, total: totalEntries, bytes: bytesWritten, totalBytes }) + '\n');
+//                     writeStream.end(resolve);
+//                 })().catch(reject);
+//             });
 
-            // Atomic rename: only expose the file after successful write
-            await fs.rename(tmpPath, finalPath);
-            writeComplete = true;
+//             // Atomic rename: only expose the file after successful write
+//             await fs.rename(tmpPath, finalPath);
+//             writeComplete = true;
 
-            const stat = await fs.stat(finalPath);
-            console.log(`[Server Backup] Saved: ${filename} (${(stat.size / 1024 / 1024).toFixed(1)} MB)`);
-            res.write(JSON.stringify({ type: 'done', ok: true, filename, size: stat.size }) + '\n');
-            res.end();
-        } catch (innerError) {
-            // Clean up incomplete temp file
-            if (!writeComplete) {
-                await fs.unlink(tmpPath).catch(() => {});
-            }
-            throw innerError;
-        }
-    } catch (error) {
-        if (!res.headersSent) {
-            next(error);
-        } else {
-            res.write(JSON.stringify({ type: 'error', message: error.message }) + '\n');
-            res.end();
-        }
-    }
-});
+//             const stat = await fs.stat(finalPath);
+//             console.log(`[Server Backup] Saved: ${filename} (${(stat.size / 1024 / 1024).toFixed(1)} MB)`);
+//             res.write(JSON.stringify({ type: 'done', ok: true, filename, size: stat.size }) + '\n');
+//             res.end();
+//         } catch (innerError) {
+//             // Clean up incomplete temp file
+//             if (!writeComplete) {
+//                 await fs.unlink(tmpPath).catch(() => {});
+//             }
+//             throw innerError;
+//         }
+//     } catch (error) {
+//         if (!res.headersSent) {
+//             next(error);
+//         } else {
+//             res.write(JSON.stringify({ type: 'error', message: error.message }) + '\n');
+//             res.end();
+//         }
+//     }
+// });
 
-// List backup files on the server
-app.get('/api/backup/server/list', async (req, res, next) => {
-    if (!await checkAuth(req, res)) { return; }
-    try {
-        let entries;
-        try {
-            entries = await fs.readdir(backupsDir, { withFileTypes: true });
-        } catch {
-            res.json({ backups: [] });
-            return;
-        }
-        const backups = [];
-        for (const entry of entries) {
-            if (!entry.isFile() || !BACKUP_FILENAME_REGEX.test(entry.name)) continue;
-            const stat = await fs.stat(path.join(backupsDir, entry.name));
-            const tsMatch = entry.name.match(/^risu-backup-(\d+)\.bin$/);
-            backups.push({
-                filename: entry.name,
-                size: stat.size,
-                createdAt: tsMatch ? Number(tsMatch[1]) : stat.mtimeMs,
-            });
-        }
-        backups.sort((a, b) => b.createdAt - a.createdAt);
-        res.json({ backups });
-    } catch (error) {
-        next(error);
-    }
-});
+// // List backup files on the server
+// app.get('/api/backup/server/list', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) { return; }
+//     try {
+//         let entries;
+//         try {
+//             entries = await fs.readdir(backupsDir, { withFileTypes: true });
+//         } catch {
+//             res.json({ backups: [] });
+//             return;
+//         }
+//         const backups = [];
+//         for (const entry of entries) {
+//             if (!entry.isFile() || !BACKUP_FILENAME_REGEX.test(entry.name)) continue;
+//             const stat = await fs.stat(path.join(backupsDir, entry.name));
+//             const tsMatch = entry.name.match(/^risu-backup-(\d+)\.bin$/);
+//             backups.push({
+//                 filename: entry.name,
+//                 size: stat.size,
+//                 createdAt: tsMatch ? Number(tsMatch[1]) : stat.mtimeMs,
+//             });
+//         }
+//         backups.sort((a, b) => b.createdAt - a.createdAt);
+//         res.json({ backups });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
-// Restore from a server backup file
-app.post('/api/backup/server/restore', async (req, res, next) => {
-    if (!await checkAuth(req, res)) { return; }
-    if (!checkActiveSession(req, res)) return;
+// // Restore from a server backup file
+// app.post('/api/backup/server/restore', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) { return; }
+//     if (!checkActiveSession(req, res)) return;
 
-    if (importInProgress) {
-        res.status(409).json({ error: 'Another import is already in progress' });
-        return;
-    }
-    importInProgress = true;
+//     if (importInProgress) {
+//         res.status(409).json({ error: 'Another import is already in progress' });
+//         return;
+//     }
+//     importInProgress = true;
 
-    try {
-        const filename = req.body?.filename;
-        if (!filename || !BACKUP_FILENAME_REGEX.test(filename)) {
-            res.status(400).json({ error: 'Invalid backup filename' });
-            return;
-        }
-        const filePath = path.join(backupsDir, filename);
-        let fileStat;
-        try {
-            fileStat = await fs.stat(filePath);
-        } catch {
-            res.status(404).json({ error: 'Backup file not found' });
-            return;
-        }
+//     try {
+//         const filename = req.body?.filename;
+//         if (!filename || !BACKUP_FILENAME_REGEX.test(filename)) {
+//             res.status(400).json({ error: 'Invalid backup filename' });
+//             return;
+//         }
+//         const filePath = path.join(backupsDir, filename);
+//         let fileStat;
+//         try {
+//             fileStat = await fs.stat(filePath);
+//         } catch {
+//             res.status(404).json({ error: 'Backup file not found' });
+//             return;
+//         }
 
-        const disk = await checkDiskSpace(fileStat.size * BACKUP_DISK_HEADROOM);
-        if (!disk.ok) {
-            res.status(507).json({
-                error: 'Insufficient disk space',
-                available: disk.available,
-                required: fileStat.size * BACKUP_DISK_HEADROOM,
-            });
-            return;
-        }
+//         const disk = await checkDiskSpace(fileStat.size * BACKUP_DISK_HEADROOM);
+//         if (!disk.ok) {
+//             res.status(507).json({
+//                 error: 'Insufficient disk space',
+//                 available: disk.available,
+//                 required: fileStat.size * BACKUP_DISK_HEADROOM,
+//             });
+//             return;
+//         }
 
-        res.setHeader('content-type', 'application/x-ndjson');
-        res.flushHeaders();
+//         res.setHeader('content-type', 'application/x-ndjson');
+//         res.flushHeaders();
 
-        let lastProgressWrite = 0;
-        const { createReadStream } = require('fs');
-        const stream = createReadStream(filePath, { highWaterMark: 256 * 1024 });
-        const result = await importBackupFromSource(stream, {
-            totalBytes: fileStat.size,
-            onProgress: (received, total) => {
-                const now = Date.now();
-                if (now - lastProgressWrite < 200) return;
-                lastProgressWrite = now;
-                res.write(JSON.stringify({ type: 'progress', bytes: received, totalBytes: total }) + '\n');
-            },
-        });
-        res.write(JSON.stringify({
-            type: 'done',
-            ok: true,
-            assetsRestored: result.assetsRestored,
-            coldStorageFailed: result.coldStorageFailed,
-        }) + '\n');
-        res.end();
-    } catch (error) {
-        if (!res.headersSent) {
-            next(error);
-        } else {
-            res.write(JSON.stringify({ type: 'error', message: error.message }) + '\n');
-            res.end();
-        }
-    } finally {
-        importInProgress = false;
-    }
-});
+//         let lastProgressWrite = 0;
+//         const { createReadStream } = require('fs');
+//         const stream = createReadStream(filePath, { highWaterMark: 256 * 1024 });
+//         const result = await importBackupFromSource(stream, {
+//             totalBytes: fileStat.size,
+//             onProgress: (received, total) => {
+//                 const now = Date.now();
+//                 if (now - lastProgressWrite < 200) return;
+//                 lastProgressWrite = now;
+//                 res.write(JSON.stringify({ type: 'progress', bytes: received, totalBytes: total }) + '\n');
+//             },
+//         });
+//         res.write(JSON.stringify({
+//             type: 'done',
+//             ok: true,
+//             assetsRestored: result.assetsRestored,
+//             coldStorageFailed: result.coldStorageFailed,
+//         }) + '\n');
+//         res.end();
+//     } catch (error) {
+//         if (!res.headersSent) {
+//             next(error);
+//         } else {
+//             res.write(JSON.stringify({ type: 'error', message: error.message }) + '\n');
+//             res.end();
+//         }
+//     } finally {
+//         importInProgress = false;
+//     }
+// });
 
-// Delete a server backup file
-app.delete('/api/backup/server/:filename', async (req, res, next) => {
-    if (!await checkAuth(req, res)) { return; }
-    if (!checkActiveSession(req, res)) return;
-    try {
-        const filename = req.params.filename;
-        if (!BACKUP_FILENAME_REGEX.test(filename)) {
-            res.status(400).json({ error: 'Invalid backup filename' });
-            return;
-        }
-        const filePath = path.join(backupsDir, filename);
-        try {
-            await fs.unlink(filePath);
-        } catch (err) {
-            if (err.code === 'ENOENT') {
-                res.status(404).json({ error: 'Backup file not found' });
-                return;
-            }
-            throw err;
-        }
-        res.json({ ok: true });
-    } catch (error) {
-        next(error);
-    }
-});
+// // Delete a server backup file
+// app.delete('/api/backup/server/:filename', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) { return; }
+//     if (!checkActiveSession(req, res)) return;
+//     try {
+//         const filename = req.params.filename;
+//         if (!BACKUP_FILENAME_REGEX.test(filename)) {
+//             res.status(400).json({ error: 'Invalid backup filename' });
+//             return;
+//         }
+//         const filePath = path.join(backupsDir, filename);
+//         try {
+//             await fs.unlink(filePath);
+//         } catch (err) {
+//             if (err.code === 'ENOENT') {
+//                 res.status(404).json({ error: 'Backup file not found' });
+//                 return;
+//             }
+//             throw err;
+//         }
+//         res.json({ ok: true });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
-// Download a server backup file
-app.get('/api/backup/server/download/:filename', async (req, res, next) => {
-    if (!await checkAuth(req, res)) { return; }
-    try {
-        const filename = req.params.filename;
-        if (!BACKUP_FILENAME_REGEX.test(filename)) {
-            res.status(400).json({ error: 'Invalid backup filename' });
-            return;
-        }
-        const filePath = path.join(backupsDir, filename);
-        let stat;
-        try {
-            stat = await fs.stat(filePath);
-        } catch {
-            res.status(404).json({ error: 'Backup file not found' });
-            return;
-        }
-        res.setHeader('content-type', 'application/octet-stream');
-        res.setHeader('content-disposition', `attachment; filename="${filename}"`);
-        res.setHeader('content-length', stat.size);
-        const { createReadStream } = require('fs');
-        createReadStream(filePath).pipe(res);
-    } catch (error) {
-        next(error);
-    }
-});
+// // Download a server backup file
+// app.get('/api/backup/server/download/:filename', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) { return; }
+//     try {
+//         const filename = req.params.filename;
+//         if (!BACKUP_FILENAME_REGEX.test(filename)) {
+//             res.status(400).json({ error: 'Invalid backup filename' });
+//             return;
+//         }
+//         const filePath = path.join(backupsDir, filename);
+//         let stat;
+//         try {
+//             stat = await fs.stat(filePath);
+//         } catch {
+//             res.status(404).json({ error: 'Backup file not found' });
+//             return;
+//         }
+//         res.setHeader('content-type', 'application/octet-stream');
+//         res.setHeader('content-disposition', `attachment; filename="${filename}"`);
+//         res.setHeader('content-length', stat.size);
+//         const { createReadStream } = require('fs');
+//         createReadStream(filePath).pipe(res);
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
 // ── Chat content endpoints (runtime lazy load) ─────────────────────────────
 
