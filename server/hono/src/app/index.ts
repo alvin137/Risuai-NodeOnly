@@ -8,9 +8,10 @@ import fs from "node:fs/promises"
 import api from './api.js'
 import { proxyApp } from './proxy.js'
 
-// import { sessionApp } from './session.js';
+import { sessionApp } from './session.js';
 import { assetApp } from './asset.js'
 import { patchApp } from './api/patch.js';
+import { chatApp } from './api/chat.js'
 
 const app = new Hono();
 
@@ -36,9 +37,10 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error' }, 500);
 });
 
-//api.route('/session', sessionApp);
+api.route('/session', sessionApp);
 api.route('/asset', assetApp);
 api.route("/patch", patchApp);
+api.route("/chat-content", chatApp);
 app.route('/api', api);
 app.route("/", proxyApp);
 

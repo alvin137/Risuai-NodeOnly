@@ -962,14 +962,14 @@ function invalidateDbCache() {
 // const PROXY_STREAM_MAX_BODY_BASE64_BYTES = 8 * 1024 * 1024;
 // const proxyStreamJobs = new Map();
 
-const loginRouteLimiter = rateLimit({
-    windowMs: 30 * 1000,
-    max: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many attempts. Please wait and try again later.' },
-    validate: { xForwardedForHeader: false }
-});
+// const loginRouteLimiter = rateLimit({
+//     windowMs: 30 * 1000,
+//     max: 10,
+//     standardHeaders: true,
+//     legacyHeaders: false,
+//     message: { error: 'Too many attempts. Please wait and try again later.' },
+//     validate: { xForwardedForHeader: false }
+// });
 
 function isHex(str) {
     return hexRegex.test(str.toUpperCase().trim()) || str === '__password';
@@ -981,18 +981,18 @@ async function hashJSON(json){
     return hash.digest('hex');
 }
 
-// NodeOnly: server-issued JWT (see jwt_secret comment above)
-function createServerJwt() {
-    const now = Math.floor(Date.now() / 1000)
-    const header = { alg: 'HS256', typ: 'JWT' }
-    const payload = { iat: now, exp: now + 5 * 60 }
-    const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url')
-    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url')
-    const sig = nodeCrypto.createHmac('sha256', jwtSecret)
-        .update(`${headerB64}.${payloadB64}`)
-        .digest('base64url')
-    return `${headerB64}.${payloadB64}.${sig}`
-}
+// // NodeOnly: server-issued JWT (see jwt_secret comment above)
+// function createServerJwt() {
+//     const now = Math.floor(Date.now() / 1000)
+//     const header = { alg: 'HS256', typ: 'JWT' }
+//     const payload = { iat: now, exp: now + 5 * 60 }
+//     const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url')
+//     const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url')
+//     const sig = nodeCrypto.createHmac('sha256', jwtSecret)
+//         .update(`${headerB64}.${payloadB64}`)
+//         .digest('base64url')
+//     return `${headerB64}.${payloadB64}.${sig}`
+// }
 
 // function getRequestTimeoutMs(timeoutHeader) {
 //     const raw = Array.isArray(timeoutHeader) ? timeoutHeader[0] : timeoutHeader;
@@ -2393,66 +2393,66 @@ async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0
 //     }
 // })
 
-app.get('/api/test_auth', async(req, res) => {
+// app.get('/api/test_auth', async(req, res) => {
 
-    if(!password){
-        res.send({status: 'unset'})
-    }
-    else if(!await checkAuth(req, res, true)){
-        // JWT missing/invalid – fall back to session cookie (survives page refresh)
-        const sessionToken = parseSessionCookie(req)
-        if (sessionToken && (sessions.get(sessionToken) ?? 0) > Date.now()) {
-            res.send({status: 'success', token: createServerJwt()})
-        } else {
-            res.send({status: 'incorrect'})
-        }
-    }
-    else{
-        res.send({status: 'success', token: createServerJwt()})
-    }
-})
+//     if(!password){
+//         res.send({status: 'unset'})
+//     }
+//     else if(!await checkAuth(req, res, true)){
+//         // JWT missing/invalid – fall back to session cookie (survives page refresh)
+//         const sessionToken = parseSessionCookie(req)
+//         if (sessionToken && (sessions.get(sessionToken) ?? 0) > Date.now()) {
+//             res.send({status: 'success', token: createServerJwt()})
+//         } else {
+//             res.send({status: 'incorrect'})
+//         }
+//     }
+//     else{
+//         res.send({status: 'success', token: createServerJwt()})
+//     }
+// })
 
-app.post('/api/login', loginRouteLimiter, async (req, res) => {
-    if(password === ''){
-        res.status(400).send({error: 'Password not set'})
-        return;
-    }
-    if(req.body.password && req.body.password.trim() === password.trim()){
-        res.send({status:'success', token: createServerJwt()})
-    }
-    else{
-        res.status(400).send({error: 'Password incorrect'})
-    }
-})
+// app.post('/api/login', loginRouteLimiter, async (req, res) => {
+//     if(password === ''){
+//         res.status(400).send({error: 'Password not set'})
+//         return;
+//     }
+//     if(req.body.password && req.body.password.trim() === password.trim()){
+//         res.send({status:'success', token: createServerJwt()})
+//     }
+//     else{
+//         res.status(400).send({error: 'Password incorrect'})
+//     }
+// })
 
-// NodeOnly: token refresh endpoint (pairs with server-side JWT)
-app.post('/api/token/refresh', async (req, res) => {
-    if (!await checkAuth(req, res, false, {allowExpired: true})) return
-    res.json({ token: createServerJwt() })
-})
+// // NodeOnly: token refresh endpoint (pairs with server-side JWT)
+// app.post('/api/token/refresh', async (req, res) => {
+//     if (!await checkAuth(req, res, false, {allowExpired: true})) return
+//     res.json({ token: createServerJwt() })
+// })
 
 // ── Session cookie issuance (F-0) ──────────────────────────────────────────
 // Called once after JWT auth succeeds. Issues a long-lived cookie so that
 // <img src="/api/asset/..."> requests can be authenticated without JS.
-app.post('/api/session', async (req, res) => {
-    if (!await checkAuth(req, res)) return
-    const clientSessionId = req.headers['x-session-id']
-    if (clientSessionId) {
-        activeSessionId = clientSessionId
-        console.log('[Session] Active writer session updated')
-    }
-    const token = nodeCrypto.randomBytes(32).toString('hex')
-    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000
-    sessions.set(token, expiresAt)
-    // Prune stale sessions (bounded by single-user usage, safe to do inline)
-    for (const [t, exp] of sessions) {
-        if (exp < Date.now()) sessions.delete(t)
-    }
-    saveSessions()
-    const maxAge = 7 * 24 * 60 * 60 // seconds
-    res.setHeader('Set-Cookie', `risu-session=${token}; HttpOnly; SameSite=Strict; Max-Age=${maxAge}; Path=/`)
-    res.json({ ok: true })
-})
+// app.post('/api/session', async (req, res) => {
+//     if (!await checkAuth(req, res)) return
+//     const clientSessionId = req.headers['x-session-id']
+//     if (clientSessionId) {
+//         activeSessionId = clientSessionId
+//         console.log('[Session] Active writer session updated')
+//     }
+//     const token = nodeCrypto.randomBytes(32).toString('hex')
+//     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000
+//     sessions.set(token, expiresAt)
+//     // Prune stale sessions (bounded by single-user usage, safe to do inline)
+//     for (const [t, exp] of sessions) {
+//         if (exp < Date.now()) sessions.delete(t)
+//     }
+//     saveSessions()
+//     const maxAge = 7 * 24 * 60 * 60 // seconds
+//     res.setHeader('Set-Cookie', `risu-session=${token}; HttpOnly; SameSite=Strict; Max-Age=${maxAge}; Path=/`)
+//     res.json({ ok: true })
+// })
 
 // ── Direct asset serving (F-1) ─────────────────────────────────────────────
 // Serves KV-stored assets as proper HTTP responses with long-term caching.
@@ -2575,27 +2575,27 @@ app.post('/api/session', async (req, res) => {
 //     }
 // })
 
-app.post('/api/crypto', async (req, res) => {
-    try {
-        const hash = nodeCrypto.createHash('sha256')
-        hash.update(Buffer.from(req.body.data, 'utf-8'))
-        res.send(hash.digest('hex'))
-    } catch (error) {
-        res.status(500).send({ error: 'Crypto operation failed' });
-    }
-})
+// app.post('/api/crypto', async (req, res) => {
+//     try {
+//         const hash = nodeCrypto.createHash('sha256')
+//         hash.update(Buffer.from(req.body.data, 'utf-8'))
+//         res.send(hash.digest('hex'))
+//     } catch (error) {
+//         res.status(500).send({ error: 'Crypto operation failed' });
+//     }
+// })
 
 
-app.post('/api/set_password', async (req, res) => {
-    if(password === ''){
-        password = req.body.password
-        writeFileSync(passwordPath, password, 'utf-8')
-        res.send({status: 'success'})
-    }
-    else{
-        res.status(400).send("already set")
-    }
-})
+// app.post('/api/set_password', async (req, res) => {
+//     if(password === ''){
+//         password = req.body.password
+//         writeFileSync(passwordPath, password, 'utf-8')
+//         res.send({status: 'success'})
+//     }
+//     else{
+//         res.status(400).send("already set")
+//     }
+// })
 
 // app.get('/api/read', async (req, res, next) => {
 //     if(!await checkAuth(req, res)){
@@ -2941,98 +2941,98 @@ app.post('/api/set_password', async (req, res) => {
 //     }
 // });
 
-// ─── Bulk asset endpoints (3-2-B) ─────────────────────────────────────────────
-const BULK_BATCH = 50;
+// // ─── Bulk asset endpoints (3-2-B) ─────────────────────────────────────────────
+// const BULK_BATCH = 50;
 
-app.post('/api/assets/bulk-read', async (req, res, next) => {
-    if(!await checkAuth(req, res)){ return; }
-    try {
-        const keys = req.body; // string[] — decoded key strings
-        if(!Array.isArray(keys)){
-            res.status(400).send({ error: 'Body must be a JSON array of keys' });
-            return;
-        }
+// app.post('/api/assets/bulk-read', async (req, res, next) => {
+//     if(!await checkAuth(req, res)){ return; }
+//     try {
+//         const keys = req.body; // string[] — decoded key strings
+//         if(!Array.isArray(keys)){
+//             res.status(400).send({ error: 'Body must be a JSON array of keys' });
+//             return;
+//         }
 
-        const acceptsBinary = (req.headers['accept'] || '').includes('application/octet-stream');
+//         const acceptsBinary = (req.headers['accept'] || '').includes('application/octet-stream');
 
-        if (acceptsBinary) {
-            // Binary protocol: [count(4)] then per entry: [keyLen(4)][key][valLen(4)][value]
-            // Eliminates ~33% base64 overhead
-            const entries = [];
-            let totalSize = 4; // count header
-            for (let i = 0; i < keys.length; i += BULK_BATCH) {
-                const batch = keys.slice(i, i + BULK_BATCH);
-                for (const key of batch) {
-                    let value = null;
-                    if (typeof key === 'string' && key.startsWith('inlay_info/')) {
-                        value = await readInlayInfoPayload(key.slice('inlay_info/'.length));
-                    }
-                    if (value === null) {
-                        value = kvGet(key);
-                    }
-                    if (value !== null) {
-                        const keyBuf = Buffer.from(key, 'utf-8');
-                        const valBuf = Buffer.from(value);
-                        entries.push({ keyBuf, valBuf });
-                        totalSize += 4 + keyBuf.length + 4 + valBuf.length;
-                    }
-                }
-            }
-            const out = Buffer.allocUnsafe(totalSize);
-            let offset = 0;
-            out.writeUInt32BE(entries.length, offset); offset += 4;
-            for (const { keyBuf, valBuf } of entries) {
-                out.writeUInt32BE(keyBuf.length, offset); offset += 4;
-                keyBuf.copy(out, offset); offset += keyBuf.length;
-                out.writeUInt32BE(valBuf.length, offset); offset += 4;
-                valBuf.copy(out, offset); offset += valBuf.length;
-            }
-            res.set('Content-Type', 'application/octet-stream');
-            res.send(out);
-        } else {
-            // Legacy JSON+base64 fallback
-            const results = [];
-            for (let i = 0; i < keys.length; i += BULK_BATCH) {
-                const batch = keys.slice(i, i + BULK_BATCH);
-                for (const key of batch) {
-                    let value = null;
-                    if (typeof key === 'string' && key.startsWith('inlay_info/')) {
-                        value = await readInlayInfoPayload(key.slice('inlay_info/'.length));
-                    }
-                    if (value === null) {
-                        value = kvGet(key);
-                    }
-                    if (value !== null) {
-                        results.push({ key, value: Buffer.from(value).toString('base64') });
-                    }
-                }
-            }
-            res.json(results);
-        }
-    } catch(error){ next(error); }
-});
+//         if (acceptsBinary) {
+//             // Binary protocol: [count(4)] then per entry: [keyLen(4)][key][valLen(4)][value]
+//             // Eliminates ~33% base64 overhead
+//             const entries = [];
+//             let totalSize = 4; // count header
+//             for (let i = 0; i < keys.length; i += BULK_BATCH) {
+//                 const batch = keys.slice(i, i + BULK_BATCH);
+//                 for (const key of batch) {
+//                     let value = null;
+//                     if (typeof key === 'string' && key.startsWith('inlay_info/')) {
+//                         value = await readInlayInfoPayload(key.slice('inlay_info/'.length));
+//                     }
+//                     if (value === null) {
+//                         value = kvGet(key);
+//                     }
+//                     if (value !== null) {
+//                         const keyBuf = Buffer.from(key, 'utf-8');
+//                         const valBuf = Buffer.from(value);
+//                         entries.push({ keyBuf, valBuf });
+//                         totalSize += 4 + keyBuf.length + 4 + valBuf.length;
+//                     }
+//                 }
+//             }
+//             const out = Buffer.allocUnsafe(totalSize);
+//             let offset = 0;
+//             out.writeUInt32BE(entries.length, offset); offset += 4;
+//             for (const { keyBuf, valBuf } of entries) {
+//                 out.writeUInt32BE(keyBuf.length, offset); offset += 4;
+//                 keyBuf.copy(out, offset); offset += keyBuf.length;
+//                 out.writeUInt32BE(valBuf.length, offset); offset += 4;
+//                 valBuf.copy(out, offset); offset += valBuf.length;
+//             }
+//             res.set('Content-Type', 'application/octet-stream');
+//             res.send(out);
+//         } else {
+//             // Legacy JSON+base64 fallback
+//             const results = [];
+//             for (let i = 0; i < keys.length; i += BULK_BATCH) {
+//                 const batch = keys.slice(i, i + BULK_BATCH);
+//                 for (const key of batch) {
+//                     let value = null;
+//                     if (typeof key === 'string' && key.startsWith('inlay_info/')) {
+//                         value = await readInlayInfoPayload(key.slice('inlay_info/'.length));
+//                     }
+//                     if (value === null) {
+//                         value = kvGet(key);
+//                     }
+//                     if (value !== null) {
+//                         results.push({ key, value: Buffer.from(value).toString('base64') });
+//                     }
+//                 }
+//             }
+//             res.json(results);
+//         }
+//     } catch(error){ next(error); }
+// });
 
-app.post('/api/assets/bulk-write', async (req, res, next) => {
-    if(!await checkAuth(req, res)){ return; }
-    if (!checkActiveSession(req, res)) return;
-    try {
-        const entries = req.body; // {key: string, value: base64}[]
-        if(!Array.isArray(entries)){
-            res.status(400).send({ error: 'Body must be a JSON array of {key, value}' });
-            return;
-        }
-        for(let i = 0; i < entries.length; i += BULK_BATCH){
-            const batch = entries.slice(i, i + BULK_BATCH);
-            const writeBatch = sqliteDb.transaction(() => {
-                for(const { key, value } of batch){
-                    kvSet(key, Buffer.from(value, 'base64'));
-                }
-            });
-            writeBatch();
-        }
-        res.json({ success: true, count: entries.length });
-    } catch(error){ next(error); }
-});
+// app.post('/api/assets/bulk-write', async (req, res, next) => {
+//     if(!await checkAuth(req, res)){ return; }
+//     if (!checkActiveSession(req, res)) return;
+//     try {
+//         const entries = req.body; // {key: string, value: base64}[]
+//         if(!Array.isArray(entries)){
+//             res.status(400).send({ error: 'Body must be a JSON array of {key, value}' });
+//             return;
+//         }
+//         for(let i = 0; i < entries.length; i += BULK_BATCH){
+//             const batch = entries.slice(i, i + BULK_BATCH);
+//             const writeBatch = sqliteDb.transaction(() => {
+//                 for(const { key, value } of batch){
+//                     kvSet(key, Buffer.from(value, 'base64'));
+//                 }
+//             });
+//             writeBatch();
+//         }
+//         res.json({ success: true, count: entries.length });
+//     } catch(error){ next(error); }
+// });
 
 app.get('/api/backup/export', async (req, res, next) => {
     if(!await checkAuth(req, res)){ return; }
@@ -3603,121 +3603,121 @@ app.get('/api/backup/server/download/:filename', async (req, res, next) => {
 //     }
 // }
 
-// GET /api/chat-content/:chaId/:chatIndex — retrieve full chat from server
-app.get('/api/chat-content/:chaId/:chatIndex', async (req, res, next) => {
-    if (!await checkAuth(req, res)) { return; }
-    try {
-        const chaId = req.params.chaId;
-        const chatIndex = parseInt(req.params.chatIndex, 10);
-        const expectedChatId = req.headers['x-chat-id'];
+// // GET /api/chat-content/:chaId/:chatIndex — retrieve full chat from server
+// app.get('/api/chat-content/:chaId/:chatIndex', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) { return; }
+//     try {
+//         const chaId = req.params.chaId;
+//         const chatIndex = parseInt(req.params.chatIndex, 10);
+//         const expectedChatId = req.headers['x-chat-id'];
 
-        await ensureChatStore();
-        // First try fullChatStore (fast path)
-        const charChats = fullChatStore.get(chaId);
-        if (charChats && expectedChatId) {
-            const chat = charChats.get(expectedChatId);
-            if (chat) {
-                if (!restoreColdStorageChat(chat)) {
-                    return res.status(500).json({ error: 'Cold storage restore failed' });
-                }
-                const encoded = Buffer.from(encodeRisuSaveLegacy(chat));
-                res.setHeader('Content-Type', 'application/octet-stream');
-                return res.send(encoded);
-            }
-        }
+//         await ensureChatStore();
+//         // First try fullChatStore (fast path)
+//         const charChats = fullChatStore.get(chaId);
+//         if (charChats && expectedChatId) {
+//             const chat = charChats.get(expectedChatId);
+//             if (chat) {
+//                 if (!restoreColdStorageChat(chat)) {
+//                     return res.status(500).json({ error: 'Cold storage restore failed' });
+//                 }
+//                 const encoded = Buffer.from(encodeRisuSaveLegacy(chat));
+//                 res.setHeader('Content-Type', 'application/octet-stream');
+//                 return res.send(encoded);
+//             }
+//         }
 
-        // Fallback: load from disk and find by index
-        const raw = kvGet('database/database.bin');
-        if (!raw) {
-            return res.status(404).json({ error: 'Database not found' });
-        }
-        const dbObj = await decodeRisuSave(raw);
-        const char = dbObj.characters?.find(c => c?.chaId === chaId);
-        if (!char?.chats?.[chatIndex]) {
-            return res.status(404).json({ error: 'Chat not found' });
-        }
-        const chat = char.chats[chatIndex];
-        // Verify chatId matches if provided
-        if (expectedChatId && chat.id !== expectedChatId) {
-            return res.status(409).json({ error: 'Chat ID mismatch — index may have shifted' });
-        }
-        if (!restoreColdStorageChat(chat)) {
-            return res.status(500).json({ error: 'Cold storage restore failed' });
-        }
-        const encoded = Buffer.from(encodeRisuSaveLegacy(chat));
-        res.setHeader('Content-Type', 'application/octet-stream');
-        res.send(encoded);
-    } catch (error) {
-        next(error);
-    }
-});
+//         // Fallback: load from disk and find by index
+//         const raw = kvGet('database/database.bin');
+//         if (!raw) {
+//             return res.status(404).json({ error: 'Database not found' });
+//         }
+//         const dbObj = await decodeRisuSave(raw);
+//         const char = dbObj.characters?.find(c => c?.chaId === chaId);
+//         if (!char?.chats?.[chatIndex]) {
+//             return res.status(404).json({ error: 'Chat not found' });
+//         }
+//         const chat = char.chats[chatIndex];
+//         // Verify chatId matches if provided
+//         if (expectedChatId && chat.id !== expectedChatId) {
+//             return res.status(409).json({ error: 'Chat ID mismatch — index may have shifted' });
+//         }
+//         if (!restoreColdStorageChat(chat)) {
+//             return res.status(500).json({ error: 'Cold storage restore failed' });
+//         }
+//         const encoded = Buffer.from(encodeRisuSaveLegacy(chat));
+//         res.setHeader('Content-Type', 'application/octet-stream');
+//         res.send(encoded);
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
-// POST /api/chat-content/:chaId/:chatIndex — save chat content to server
-app.post('/api/chat-content/:chaId/:chatIndex', async (req, res, next) => {
-    if (!await checkAuth(req, res)) { return; }
-    if (!checkActiveSession(req, res)) return;
-    try {
-        await queueStorageOperation(async () => {
-            const chaId = req.params.chaId;
-            const chatIndex = parseInt(req.params.chatIndex, 10);
-            const expectedChatId = req.headers['x-chat-id'];
-            let chatData;
-            if (Buffer.isBuffer(req.body)) {
-                // Binary msgpack body (application/octet-stream)
-                try {
-                    chatData = await decodeRisuSave(req.body);
-                } catch (e) {
-                    return res.status(400).json({ error: 'Invalid binary chat data' });
-                }
-            } else {
-                // JSON body (legacy)
-                chatData = req.body;
-            }
+// // POST /api/chat-content/:chaId/:chatIndex — save chat content to server
+// app.post('/api/chat-content/:chaId/:chatIndex', async (req, res, next) => {
+//     if (!await checkAuth(req, res)) { return; }
+//     if (!checkActiveSession(req, res)) return;
+//     try {
+//         await queueStorageOperation(async () => {
+//             const chaId = req.params.chaId;
+//             const chatIndex = parseInt(req.params.chatIndex, 10);
+//             const expectedChatId = req.headers['x-chat-id'];
+//             let chatData;
+//             if (Buffer.isBuffer(req.body)) {
+//                 // Binary msgpack body (application/octet-stream)
+//                 try {
+//                     chatData = await decodeRisuSave(req.body);
+//                 } catch (e) {
+//                     return res.status(400).json({ error: 'Invalid binary chat data' });
+//                 }
+//             } else {
+//                 // JSON body (legacy)
+//                 chatData = req.body;
+//             }
 
-            if (!chatData || !expectedChatId) {
-                return res.status(400).json({ error: 'Chat data and x-chat-id required' });
-            }
+//             if (!chatData || !expectedChatId) {
+//                 return res.status(400).json({ error: 'Chat data and x-chat-id required' });
+//             }
 
-            await ensureChatStore();
+//             await ensureChatStore();
 
-            // Update fullChatStore
-            if (!fullChatStore.has(chaId)) {
-                fullChatStore.set(chaId, new Map());
-            }
-            fullChatStore.get(chaId).set(expectedChatId, chatData);
+//             // Update fullChatStore
+//             if (!fullChatStore.has(chaId)) {
+//                 fullChatStore.set(chaId, new Map());
+//             }
+//             fullChatStore.get(chaId).set(expectedChatId, chatData);
 
-            // Schedule debounced persist (reuses existing timer mechanism)
-            if (saveTimers[DB_HEX_KEY]) {
-                clearTimeout(saveTimers[DB_HEX_KEY]);
-            }
-            saveTimers[DB_HEX_KEY] = setTimeout(async () => {
-                try {
-                    // If dbCache has stripped DB, persist with merged chats
-                    if (dbCache[DB_HEX_KEY]) {
-                        await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin');
-                    } else {
-                        // No stripped cache — load, merge, save
-                        const raw = kvGet('database/database.bin');
-                        if (raw) {
-                            const dbObj = normalizeJSON(await decodeRisuSave(raw));
-                            const fullDb = reassembleFullDb(stripChatsFromDb(dbObj));
-                            kvSet('database/database.bin', Buffer.from(encodeRisuSaveLegacy(fullDb)));
-                        }
-                    }
-                    createBackupAndRotate();
-                } catch (error) {
-                    console.error('[ChatContent] Error persisting chat:', error);
-                } finally {
-                    delete saveTimers[DB_HEX_KEY];
-                }
-            }, SAVE_INTERVAL);
+//             // Schedule debounced persist (reuses existing timer mechanism)
+//             if (saveTimers[DB_HEX_KEY]) {
+//                 clearTimeout(saveTimers[DB_HEX_KEY]);
+//             }
+//             saveTimers[DB_HEX_KEY] = setTimeout(async () => {
+//                 try {
+//                     // If dbCache has stripped DB, persist with merged chats
+//                     if (dbCache[DB_HEX_KEY]) {
+//                         await persistDbCacheWithChats(DB_HEX_KEY, 'database/database.bin');
+//                     } else {
+//                         // No stripped cache — load, merge, save
+//                         const raw = kvGet('database/database.bin');
+//                         if (raw) {
+//                             const dbObj = normalizeJSON(await decodeRisuSave(raw));
+//                             const fullDb = reassembleFullDb(stripChatsFromDb(dbObj));
+//                             kvSet('database/database.bin', Buffer.from(encodeRisuSaveLegacy(fullDb)));
+//                         }
+//                     }
+//                     createBackupAndRotate();
+//                 } catch (error) {
+//                     console.error('[ChatContent] Error persisting chat:', error);
+//                 } finally {
+//                     delete saveTimers[DB_HEX_KEY];
+//                 }
+//             }, SAVE_INTERVAL);
 
-            res.json({ success: true });
-        });
-    } catch (error) {
-        next(error);
-    }
-});
+//             res.json({ success: true });
+//         });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
 
 // ── Save-folder migration endpoints ──────────────────────────────────────────
 const migrationMarkerPath = path.join(savePath, '.migrated_to_sqlite');

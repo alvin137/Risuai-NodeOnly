@@ -675,7 +675,6 @@ async function getSionywAccessToken() {
 
 
 async function hubProxyFunc(c: Context) {
-    console.log("[Hub Proxy] Incoming request:", c.req.method, c.req.url);
     const excludedHeaders = [
         'content-encoding',
         'content-length',

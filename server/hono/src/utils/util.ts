@@ -34,14 +34,8 @@ if(!existsSync(backupsDir)){
 const BACKUP_FILENAME_REGEX = /^risu-backup-\d+\.bin$/;
 
 
-let password = "";
 
-const passwordPath = path.join(process.cwd(), 'save', '__password')
-if(existsSync(passwordPath)){
-    password = readFileSync(passwordPath, 'utf-8')
-}
 
-const authCodePath = path.join(process.cwd(), 'save', '__authcode')
 const inlayDir = path.join(savePath, 'inlays')
 const inlayMigrationMarker = path.join(inlayDir, '.migrated_to_fs')
 const hexRegex = /^[0-9a-fA-F]+$/;
