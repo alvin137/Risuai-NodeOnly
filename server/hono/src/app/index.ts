@@ -6,17 +6,19 @@ import { bodyLimit } from 'hono/body-limit'
 import path, { join } from 'path'
 import fs from "node:fs/promises"
 import api from './api.js'
-import { proxyApp } from './proxy.js'
+import { cleanupJob, PROXY_STREAM_DEFAULT_TIMEOUT_MS, PROXY_STREAM_GC_INTERVAL_MS, proxyApp, proxyStreamJobs } from './proxy.js'
 
 import { sessionApp } from './session.js';
 import { assetApp } from './asset.js'
 import { patchApp } from './api/patch.js';
 import { chatApp } from './api/chat.js'
 import { migrateApp } from './api/migrate.js'
+import { checkpointWal } from '../utils/db.js'
+import { flushPendingDb, migrateInlaysToFilesystem, migrateInlaysToFilesystem } from '../utils/asset.util.js'
+import { stopTunnel } from './cloudflared.js'
 
 const app = new Hono();
 
-const sslPath = join(process.cwd(), 'server/node/ssl/certificate');
 
 
 app.use('*', csrf())
@@ -66,5 +68,40 @@ app.all('*', async (c) => {
     statusText: res.statusText,
   })
 })
+
+await migrateInlaysToFilesystem();
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [jobId, job] of proxyStreamJobs.entries()) {
+    if (!job.done && now >= job.deadlineAt && !job.abortController.signal.aborted) {
+      job.abortController.abort();
+    }
+    if (job.done && job.clients.size === 0 && job.cleanupAt > 0 && now >= job.cleanupAt) {
+      cleanupJob(jobId);
+      continue;
+    }
+    if (!job.done && now - job.updatedAt > Math.max(PROXY_STREAM_DEFAULT_TIMEOUT_MS, job.timeoutMs * 2)) {
+      cleanupJob(jobId);
+    }
+  }
+}, PROXY_STREAM_GC_INTERVAL_MS);
+
+// WAL 체크포인트
+setInterval(() => {
+  try { checkpointWal('RESTART'); }
+  catch { /* non-fatal */ }
+}, 5 * 60 * 1000);
+
+// Graceful shutdown
+for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(sig, async () => {
+    console.log(`[Server] Received ${sig}, flushing pending data...`);
+    stopTunnel();
+    try { await flushPendingDb(); } catch (e) { console.error('[Server] Flush error:', e); }
+    try { checkpointWal('TRUNCATE'); } catch { /* non-fatal */ }
+    process.exit(0);
+  });
+}
 
 export default app

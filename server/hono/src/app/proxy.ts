@@ -16,18 +16,18 @@ const authCodePath = path.join(process.cwd(), 'save', '__authcode')
 const hubURL = 'https://sv.risuai.xyz';
 
 // --- Proxy Stream Job constants ---
-const PROXY_STREAM_DEFAULT_TIMEOUT_MS = 600000;
+export const PROXY_STREAM_DEFAULT_TIMEOUT_MS = 600000;
 const PROXY_STREAM_MAX_TIMEOUT_MS = 3600000;
 const PROXY_STREAM_DEFAULT_HEARTBEAT_SEC = 15;
 const PROXY_STREAM_HEARTBEAT_MIN_SEC = 5;
 const PROXY_STREAM_HEARTBEAT_MAX_SEC = 60;
-const PROXY_STREAM_GC_INTERVAL_MS = 60000;
+export const PROXY_STREAM_GC_INTERVAL_MS = 60000;
 const PROXY_STREAM_DONE_GRACE_MS = 30000;
 const PROXY_STREAM_MAX_ACTIVE_JOBS = 64;
 const PROXY_STREAM_MAX_PENDING_EVENTS = 512;
 const PROXY_STREAM_MAX_PENDING_BYTES = 2 * 1024 * 1024;
 const PROXY_STREAM_MAX_BODY_BASE64_BYTES = 8 * 1024 * 1024;
-const proxyStreamJobs = new Map();
+export const proxyStreamJobs = new Map();
 
 // --- Proxy Stream: auth helpers ---
 
@@ -294,7 +294,7 @@ function markJobDone(job: any) {
     job.cleanupAt = Date.now() + PROXY_STREAM_DONE_GRACE_MS;
 }
 
-function cleanupJob(jobId: string) {
+export function cleanupJob(jobId: string) {
     const job = proxyStreamJobs.get(jobId);
     if (!job) return;
     for (const client of job.clients) {

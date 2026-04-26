@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import fs from "node:fs/promises"
 import { decode, Unpackr, Packr } from "msgpackr";
 import path from "node:path";
 
@@ -543,3 +544,29 @@ export function normalizeJSON(value: any): unknown {
 //     }
 //     return compression.filter(req, res);
 // }
+
+const sslPath = path.join(process.cwd(), 'server/node/ssl/certificate');
+
+export async function getHttpsOptions() {
+
+    const keyPath = path.join(sslPath, 'server.key');
+    const certPath = path.join(sslPath, 'server.crt');
+
+    try {
+ 
+        await fs.access(keyPath);
+        await fs.access(certPath);
+
+        const [key, cert] = await Promise.all([
+            fs.readFile(keyPath),
+            fs.readFile(certPath)
+        ]);
+       
+        return { key, cert };
+
+    } catch (error) {
+        console.error('[Server] SSL setup errors:', error.message);
+        console.log('[Server] Start the server with HTTP instead of HTTPS...');
+        return null;
+    }
+}

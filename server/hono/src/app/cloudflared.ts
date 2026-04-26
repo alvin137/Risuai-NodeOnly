@@ -76,7 +76,7 @@ async function downloadCloudflared() {
     return dest;
 }
 
-function stopTunnel() {
+export function stopTunnel() {
     if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
     if (tunnelProcess) {
         try { tunnelProcess.kill('SIGTERM'); } catch {}

@@ -5,7 +5,7 @@ import { Hono } from 'hono';
 import { getConnInfo } from 'hono/bun';
 import fs from "node:fs/promises"
 import htmlparser from "node-html-parser";
-
+import { getHttpsOptions } from './utils/util.js';
 
 // Configuration flags for patch-based sync
 const enablePatchSync = true;
@@ -48,9 +48,16 @@ app.get("/", async (c, next) => {
 });
 
 
+const httpsOptions = await getHttpsOptions();
 
 export default {
     port: 6002,
     fetch: app.fetch,
     maxRequestBodySize: 2* 1024 * 1024 * 1024,
+    ...(httpsOptions && {
+      tls: {
+        cert: httpsOptions.cert,
+        key: httpsOptions.key,
+      }
+    })
 }

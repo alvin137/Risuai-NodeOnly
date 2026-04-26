@@ -444,7 +444,7 @@ export async function readInlayAssetPayload(id: string) {
     }));
 }
 
-async function migrateInlaysToFilesystem() {
+export async function migrateInlaysToFilesystem() {
     await ensureInlayDir();
     if (existsSync(inlayMigrationMarker)) return;
 

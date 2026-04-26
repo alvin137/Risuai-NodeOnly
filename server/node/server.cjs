@@ -4497,96 +4497,96 @@ app.post('/api/tunnel/stop', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function getHttpsOptions() {
+// async function getHttpsOptions() {
 
-    const keyPath = path.join(sslPath, 'server.key');
-    const certPath = path.join(sslPath, 'server.crt');
+//     const keyPath = path.join(sslPath, 'server.key');
+//     const certPath = path.join(sslPath, 'server.crt');
 
-    try {
+//     try {
  
-        await fs.access(keyPath);
-        await fs.access(certPath);
+//         await fs.access(keyPath);
+//         await fs.access(certPath);
 
-        const [key, cert] = await Promise.all([
-            fs.readFile(keyPath),
-            fs.readFile(certPath)
-        ]);
+//         const [key, cert] = await Promise.all([
+//             fs.readFile(keyPath),
+//             fs.readFile(certPath)
+//         ]);
        
-        return { key, cert };
+//         return { key, cert };
 
-    } catch (error) {
-        console.error('[Server] SSL setup errors:', error.message);
-        console.log('[Server] Start the server with HTTP instead of HTTPS...');
-        return null;
-    }
-}
+//     } catch (error) {
+//         console.error('[Server] SSL setup errors:', error.message);
+//         console.log('[Server] Start the server with HTTP instead of HTTPS...');
+//         return null;
+//     }
+// }
 
-async function startServer() {
-    try {
-        await migrateInlaysToFilesystem();
-        const port = process.env.PORT || 6001;
-        const httpsOptions = await getHttpsOptions();
-        let server;
+// async function startServer() {
+//     try {
+//         await migrateInlaysToFilesystem();
+//         const port = process.env.PORT || 6001;
+//         const httpsOptions = await getHttpsOptions();
+//         let server;
 
-        if (httpsOptions) {
-            // HTTPS
-            server = https.createServer(httpsOptions, app);
-            setupProxyStreamWebSocket(server);
-            server.listen(port, () => {
-                console.log("[Server] HTTPS server is running.");
-                console.log(`[Server] https://localhost:${port}/`);
-            });
-        } else {
-            // HTTP
-            server = http.createServer(app);
-            setupProxyStreamWebSocket(server);
-            server.listen(port, () => {
-                console.log("[Server] HTTP server is running.");
-                console.log(`[Server] http://localhost:${port}/`);
-            });
-        }
-    } catch (error) {
-        console.error('[Server] Failed to start server :', error);
-        process.exit(1);
-    }
-}
+//         if (httpsOptions) {
+//             // HTTPS
+//             server = https.createServer(httpsOptions, app);
+//             setupProxyStreamWebSocket(server);
+//             server.listen(port, () => {
+//                 console.log("[Server] HTTPS server is running.");
+//                 console.log(`[Server] https://localhost:${port}/`);
+//             });
+//         } else {
+//             // HTTP
+//             server = http.createServer(app);
+//             setupProxyStreamWebSocket(server);
+//             server.listen(port, () => {
+//                 console.log("[Server] HTTP server is running.");
+//                 console.log(`[Server] http://localhost:${port}/`);
+//             });
+//         }
+//     } catch (error) {
+//         console.error('[Server] Failed to start server :', error);
+//         process.exit(1);
+//     }
+// }
 
-// Graceful shutdown: flush pending patches and checkpoint WAL before exit
-for (const sig of ['SIGTERM', 'SIGINT']) {
-    process.on(sig, async () => {
-        console.log(`[Server] Received ${sig}, flushing pending data...`);
-        stopTunnel();
-        try { await flushPendingDb(); } catch (e) { console.error('[Server] Flush error:', e); }
-        try { checkpointWal('TRUNCATE'); } catch { /* non-fatal */ }
-        process.exit(0);
-    });
-}
+// // Graceful shutdown: flush pending patches and checkpoint WAL before exit
+// for (const sig of ['SIGTERM', 'SIGINT']) {
+//     process.on(sig, async () => {
+//         console.log(`[Server] Received ${sig}, flushing pending data...`);
+//         stopTunnel();
+//         try { await flushPendingDb(); } catch (e) { console.error('[Server] Flush error:', e); }
+//         try { checkpointWal('TRUNCATE'); } catch { /* non-fatal */ }
+//         process.exit(0);
+//     });
+// }
 
-(async () => {
-    // Proxy stream job garbage collection
-    setInterval(() => {
-        const now = Date.now();
-        for (const [jobId, job] of proxyStreamJobs.entries()) {
-            if (!job.done && now >= job.deadlineAt && !job.abortController.signal.aborted) {
-                job.abortController.abort();
-            }
-            if (job.done && job.clients.size === 0 && job.cleanupAt > 0 && now >= job.cleanupAt) {
-                cleanupJob(jobId);
-                continue;
-            }
-            if (!job.done && now - job.updatedAt > Math.max(PROXY_STREAM_DEFAULT_TIMEOUT_MS, job.timeoutMs * 2)) {
-                cleanupJob(jobId);
-            }
-        }
-    }, PROXY_STREAM_GC_INTERVAL_MS);
+// (async () => {
+//     // Proxy stream job garbage collection
+//     setInterval(() => {
+//         const now = Date.now();
+//         for (const [jobId, job] of proxyStreamJobs.entries()) {
+//             if (!job.done && now >= job.deadlineAt && !job.abortController.signal.aborted) {
+//                 job.abortController.abort();
+//             }
+//             if (job.done && job.clients.size === 0 && job.cleanupAt > 0 && now >= job.cleanupAt) {
+//                 cleanupJob(jobId);
+//                 continue;
+//             }
+//             if (!job.done && now - job.updatedAt > Math.max(PROXY_STREAM_DEFAULT_TIMEOUT_MS, job.timeoutMs * 2)) {
+//                 cleanupJob(jobId);
+//             }
+//         }
+//     }, PROXY_STREAM_GC_INTERVAL_MS);
 
-    await startServer();
+//     await startServer();
 
-    // Periodically checkpoint WAL to reclaim disk space.
-    // Without this, the -wal file grows unbounded as inlay/asset writes accumulate.
-    setInterval(() => {
-        try { checkpointWal('RESTART'); }
-        catch { /* non-fatal */ }
-    }, 5 * 60 * 1000); // every 5 minutes
+//     // Periodically checkpoint WAL to reclaim disk space.
+//     // Without this, the -wal file grows unbounded as inlay/asset writes accumulate.
+//     setInterval(() => {
+//         try { checkpointWal('RESTART'); }
+//         catch { /* non-fatal */ }
+//     }, 5 * 60 * 1000); // every 5 minutes
 
-})();
+// })();
