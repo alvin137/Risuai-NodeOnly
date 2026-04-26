@@ -4391,109 +4391,109 @@ async function restoreBackup(backupDir, rootDir) {
     }
 }
 
-// ── Cloudflare Quick Tunnel API ──────────────────────────────────────────────
+// // ── Cloudflare Quick Tunnel API ──────────────────────────────────────────────
 
-app.get('/api/tunnel/status', async (req, res) => {
-    if (!await checkAuth(req, res)) return;
-    res.json({ disabled: TUNNEL_DISABLED, status: tunnelStatus, url: tunnelUrl, error: tunnelError });
-});
+// app.get('/api/tunnel/status', async (req, res) => {
+//     if (!await checkAuth(req, res)) return;
+//     res.json({ disabled: TUNNEL_DISABLED, status: tunnelStatus, url: tunnelUrl, error: tunnelError });
+// });
 
-app.post('/api/tunnel/start', async (req, res) => {
-    if (!await checkAuth(req, res)) return;
-    if (TUNNEL_DISABLED) return res.status(403).json({ error: 'Tunnel is disabled via RISU_TUNNEL_DISABLED' });
-    if (tunnelStatus === 'running' || tunnelStatus === 'starting' || tunnelStatus === 'downloading') {
-        return res.status(409).json({ error: 'Tunnel is already ' + tunnelStatus });
-    }
+// app.post('/api/tunnel/start', async (req, res) => {
+//     if (!await checkAuth(req, res)) return;
+//     if (TUNNEL_DISABLED) return res.status(403).json({ error: 'Tunnel is disabled via RISU_TUNNEL_DISABLED' });
+//     if (tunnelStatus === 'running' || tunnelStatus === 'starting' || tunnelStatus === 'downloading') {
+//         return res.status(409).json({ error: 'Tunnel is already ' + tunnelStatus });
+//     }
 
-    let cfPath = findCloudflaredBinary();
+//     let cfPath = findCloudflaredBinary();
 
-    // Auto-download if not found
-    if (!cfPath) {
-        tunnelStatus = 'downloading';
-        tunnelError = null;
-        res.json({ status: 'downloading' });
+//     // Auto-download if not found
+//     if (!cfPath) {
+//         tunnelStatus = 'downloading';
+//         tunnelError = null;
+//         res.json({ status: 'downloading' });
 
-        try {
-            cfPath = await downloadCloudflared();
-        } catch (e) {
-            console.error('[Tunnel] Download failed:', e.message);
-            tunnelStatus = 'error';
-            tunnelError = `Failed to download cloudflared: ${e.message}`;
-            return;
-        }
-        // After download, start the tunnel (response already sent)
-        startTunnelProcess(cfPath);
-        return;
-    }
+//         try {
+//             cfPath = await downloadCloudflared();
+//         } catch (e) {
+//             console.error('[Tunnel] Download failed:', e.message);
+//             tunnelStatus = 'error';
+//             tunnelError = `Failed to download cloudflared: ${e.message}`;
+//             return;
+//         }
+//         // After download, start the tunnel (response already sent)
+//         startTunnelProcess(cfPath);
+//         return;
+//     }
 
-    tunnelStatus = 'starting';
-    tunnelError = null;
-    tunnelUrl = null;
-    startTunnelProcess(cfPath);
-    res.json({ status: 'starting' });
-});
+//     tunnelStatus = 'starting';
+//     tunnelError = null;
+//     tunnelUrl = null;
+//     startTunnelProcess(cfPath);
+//     res.json({ status: 'starting' });
+// });
 
-function startTunnelProcess(cfPath) {
-    const port = process.env.PORT || 6001;
-    tunnelStatus = 'starting';
-    tunnelError = null;
-    tunnelUrl = null;
+// function startTunnelProcess(cfPath) {
+//     const port = process.env.PORT || 6001;
+//     tunnelStatus = 'starting';
+//     tunnelError = null;
+//     tunnelUrl = null;
 
-    try {
-        tunnelProcess = spawn(cfPath, ['tunnel', '--url', 'http://localhost:' + port], {
-            stdio: ['ignore', 'pipe', 'pipe']
-        });
+//     try {
+//         tunnelProcess = spawn(cfPath, ['tunnel', '--url', 'http://localhost:' + port], {
+//             stdio: ['ignore', 'pipe', 'pipe']
+//         });
 
-        tunnelProcess.stderr.on('data', (chunk) => {
-            const text = chunk.toString();
-            const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
-            if (match && tunnelStatus === 'starting') {
-                tunnelUrl = match[0];
-                tunnelStatus = 'running';
-                if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
-                console.log(`[Tunnel] Quick tunnel URL: ${tunnelUrl}`);
-            }
-        });
+//         tunnelProcess.stderr.on('data', (chunk) => {
+//             const text = chunk.toString();
+//             const match = text.match(/https:\/\/[a-zA-Z0-9-]+\.trycloudflare\.com/);
+//             if (match && tunnelStatus === 'starting') {
+//                 tunnelUrl = match[0];
+//                 tunnelStatus = 'running';
+//                 if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
+//                 console.log(`[Tunnel] Quick tunnel URL: ${tunnelUrl}`);
+//             }
+//         });
 
-        tunnelProcess.on('error', (err) => {
-            console.error('[Tunnel] Process error:', err.message);
-            tunnelStatus = 'error';
-            tunnelError = err.message;
-            tunnelProcess = null;
-            if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
-        });
+//         tunnelProcess.on('error', (err) => {
+//             console.error('[Tunnel] Process error:', err.message);
+//             tunnelStatus = 'error';
+//             tunnelError = err.message;
+//             tunnelProcess = null;
+//             if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
+//         });
 
-        tunnelProcess.on('exit', (code) => {
-            if (tunnelStatus === 'running' || tunnelStatus === 'starting') {
-                console.log(`[Tunnel] Process exited with code ${code}`);
-                tunnelStatus = 'error';
-                tunnelError = `cloudflared exited unexpectedly (code ${code})`;
-            }
-            tunnelProcess = null;
-            tunnelUrl = null;
-            if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
-        });
+//         tunnelProcess.on('exit', (code) => {
+//             if (tunnelStatus === 'running' || tunnelStatus === 'starting') {
+//                 console.log(`[Tunnel] Process exited with code ${code}`);
+//                 tunnelStatus = 'error';
+//                 tunnelError = `cloudflared exited unexpectedly (code ${code})`;
+//             }
+//             tunnelProcess = null;
+//             tunnelUrl = null;
+//             if (tunnelStartTimeout) { clearTimeout(tunnelStartTimeout); tunnelStartTimeout = null; }
+//         });
 
-        tunnelStartTimeout = setTimeout(() => {
-            if (tunnelStatus === 'starting') {
-                tunnelStatus = 'error';
-                tunnelError = 'Tunnel failed to start within 30 seconds';
-                if (tunnelProcess) { try { tunnelProcess.kill('SIGTERM'); } catch {} tunnelProcess = null; }
-            }
-            tunnelStartTimeout = null;
-        }, 30000);
-    } catch (e) {
-        tunnelStatus = 'error';
-        tunnelError = e.message;
-        tunnelProcess = null;
-    }
-}
+//         tunnelStartTimeout = setTimeout(() => {
+//             if (tunnelStatus === 'starting') {
+//                 tunnelStatus = 'error';
+//                 tunnelError = 'Tunnel failed to start within 30 seconds';
+//                 if (tunnelProcess) { try { tunnelProcess.kill('SIGTERM'); } catch {} tunnelProcess = null; }
+//             }
+//             tunnelStartTimeout = null;
+//         }, 30000);
+//     } catch (e) {
+//         tunnelStatus = 'error';
+//         tunnelError = e.message;
+//         tunnelProcess = null;
+//     }
+// }
 
-app.post('/api/tunnel/stop', async (req, res) => {
-    if (!await checkAuth(req, res)) return;
-    stopTunnel();
-    res.json({ status: 'off' });
-});
+// app.post('/api/tunnel/stop', async (req, res) => {
+//     if (!await checkAuth(req, res)) return;
+//     stopTunnel();
+//     res.json({ status: 'off' });
+// });
 
 // ─────────────────────────────────────────────────────────────────────────────
 
