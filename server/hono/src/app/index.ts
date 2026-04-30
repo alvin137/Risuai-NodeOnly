@@ -3,8 +3,6 @@ import { csrf } from 'hono/csrf'
 import { logger } from 'hono/logger'
 import { compress } from 'hono/compress'
 import { bodyLimit } from 'hono/body-limit'
-import path, { join } from 'path'
-import fs from "node:fs/promises"
 import api from './api.js'
 import { cleanupJob, PROXY_STREAM_DEFAULT_TIMEOUT_MS, PROXY_STREAM_GC_INTERVAL_MS, proxyApp, proxyStreamJobs } from './proxy.js'
 
@@ -14,7 +12,7 @@ import { patchApp } from './api/patch.js';
 import { chatApp } from './api/chat.js'
 import { migrateApp } from './api/migrate.js'
 import { checkpointWal } from '../utils/db.js'
-import { flushPendingDb, migrateInlaysToFilesystem, migrateInlaysToFilesystem } from '../utils/asset.util.js'
+import { flushPendingDb, migrateInlaysToFilesystem } from '../utils/asset.util.js'
 import { tunnelApp, stopTunnel } from './api/tunnel.js'
 import { backupApp } from './api/backup.js'
 
