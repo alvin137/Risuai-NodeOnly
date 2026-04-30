@@ -38,7 +38,7 @@ api.get("/read", async (c, next) => {
       value = kvGet(key);
     }
     if (value === null) {
-      return c.json({ error: "Not Found" }, 404);
+      return c.body(null);
     } else {
       // Strip chat payloads from database.bin — client gets stubs only
       if (key === "database/database.bin") {
