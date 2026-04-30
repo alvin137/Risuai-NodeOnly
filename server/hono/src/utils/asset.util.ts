@@ -897,3 +897,38 @@ export function invalidateDbCache() {
     // Should handle dbEtag
     //dbEtag = null;
 }
+
+export async function readAndLoadValue(key: string) {
+    // Flush pending patches before reading database.bin
+    if (key === "database/database.bin") {
+      await flushPendingDb();
+    }
+
+    let value = null;
+    if (key.startsWith("inlay/")) {
+      value = await readInlayAssetPayload(key.slice("inlay/".length));
+    } else if (key.startsWith("inlay_info/")) {
+      value = await readInlayInfoPayload(key.slice("inlay_info/".length));
+    } else {
+      value = kvGet(key);
+    }
+
+    return value;
+}
+
+export function setDbCache(key: string, value: unknown) {
+    dbCache[key] = value;
+}
+
+// Returns stripped data from the database
+export async function getStrippedData(value: Buffer, filePath: string) {
+  const dbObj = await decodeDatabaseWithPersistentChatIds(value, {
+    createBackup: true,
+  });
+  initChatStore(dbObj);
+  const stripped = normalizeJSON(stripChatsFromDb(dbObj));
+  // Populate dbCache so patch endpoint uses the same data
+  setDbCache(filePath, stripped);
+
+  return stripped;
+}

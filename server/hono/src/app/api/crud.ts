@@ -2,73 +2,45 @@ import { Hono } from "hono";
 import { unlink } from "node:fs/promises";
 import { checkAuth } from "../api";
 import { decodeRisuSave, encodeRisuSaveLegacy, isHex, normalizeJSON } from "../../utils/util";
-import { readInlayAssetPayload, readInlayInfoPayload, decodeDatabaseWithPersistentChatIds, stripChatsFromDb, initChatStore, flushPendingDb, dbCache, computeBufferEtag, queueStorageOperation, normalizeInlayExt, decodeDataUri, writeInlayFile, writeInlaySidecar, ensureChatStore, reassembleFullDb, DB_HEX_KEY, saveTimers, createBackupAndRotate, getInlaySidecarPath, deleteInlayFile } from "../../utils/asset.util";
-import { kvDel, kvGet, kvSet } from "../../utils/db";
+import { initChatStore, flushPendingDb, dbCache, computeBufferEtag, queueStorageOperation, normalizeInlayExt, decodeDataUri, writeInlayFile, writeInlaySidecar, ensureChatStore, reassembleFullDb, DB_HEX_KEY, saveTimers, createBackupAndRotate, getInlaySidecarPath, deleteInlayFile, readAndLoadValue, getStrippedData } from "../../utils/asset.util";
+import { kvDel, kvSet } from "../../utils/db";
 
 export function registerCrud(api: Hono) {
-api.get("/read", async (c, next) => {
-  const auth = await checkAuth(c);
 
-  //if (auth instanceof Response) return auth;
+  api.get("/read", async (c) => {
+    const auth = await checkAuth(c);
 
-  const filePath = c.req.header("file-path");
-  if (!filePath) {
-    console.log("no path");
-    return c.json({ error: "Invalid Request" }, 400);
-  }
+    //if (auth instanceof Response) return auth;
 
-  if (!isHex(filePath)) {
-    console.log("not hex");
-    return c.json({ error: "Invalid Request" }, 400);
-  }
+    const filePath = c.req.header("file-path");
+    if (!filePath) {
+      console.log("no path");
+      return c.json({ error: "Invalid Request" }, 400);
+    }
 
-  try {
+    if (!isHex(filePath)) {
+      console.log("not hex");
+      return c.json({ error: "Invalid Request" }, 400);
+    }
+
     const key = Buffer.from(filePath, "hex").toString("utf-8");
-    // Flush pending patches before reading database.bin
+    let value = await readAndLoadValue(key);
+
+    if (value === null) return c.body(null);
+
+    // Strip chat payloads from database.bin — client gets stubs only
     if (key === "database/database.bin") {
-      await flushPendingDb();
-    }
-    let value = null;
-    if (key.startsWith("inlay/")) {
-      value = await readInlayAssetPayload(key.slice("inlay/".length));
-    } else if (key.startsWith("inlay_info/")) {
-      value = await readInlayInfoPayload(key.slice("inlay_info/".length));
-    }
-    if (value === null) {
-      value = kvGet(key);
-    }
-    if (value === null) {
-      return c.body(null);
-    } else {
-      // Strip chat payloads from database.bin — client gets stubs only
-      if (key === "database/database.bin") {
-        try {
-          const dbObj = await decodeDatabaseWithPersistentChatIds(value, {
-            createBackup: true,
-          });
-          initChatStore(dbObj);
-          const stripped = normalizeJSON(stripChatsFromDb(dbObj));
-          // Populate dbCache so patch endpoint uses the same data
-          dbCache[filePath] = stripped;
-          value = Buffer.from(encodeRisuSaveLegacy(stripped, true));
-        } catch (e) {
-          // TODO: Remove catch
-          throw e;
-        }
-        let dbEtag = computeBufferEtag(value);
-        if (c.req.header("if-none-match") === dbEtag) {
-          return c.status(304);
-        }
-        c.header("x-db-etag", dbEtag);
+      const stripped = await getStrippedData(value, filePath);
+      value = Buffer.from(encodeRisuSaveLegacy(stripped, true));
+      let dbEtag = computeBufferEtag(value);
+      if (c.req.header("if-none-match") === dbEtag) {
+        return c.body(null, 304);
       }
-      c.header("Content-Type", "application/octet-stream");
-      return c.body(value);
+      c.header("x-db-etag", dbEtag);
     }
-  } catch (error) {
-    console.error("[Read] Error processing read request:", error);
-    return c.json({ error: "Internal Server Error" }, 500);
-  }
-});
+    c.header("Content-Type", "application/octet-stream");
+    return c.body(value);
+  });
 
 api.post("/write", async (c) => {
     const auth = await checkAuth(c);
