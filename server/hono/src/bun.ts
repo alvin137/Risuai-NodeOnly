@@ -11,7 +11,7 @@ import { getHttpsOptions } from './utils/util.js';
 const enablePatchSync = true;
 
 app.use("/assets/*", serveStatic({ 
-    root: path.join(process.cwd(), "dist/assets"), 
+    root: path.join(process.cwd(), "assets"), 
     onFound: (path, c) => {
         c.header("Cache-Control", "public, max-age=31536000, immutable");
     }

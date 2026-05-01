@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { unlink } from "node:fs/promises";
-import { checkAuth } from "..";
+import { checkAuth } from "../api";
 import { decodeRisuSave, encodeRisuSaveLegacy, isHex, normalizeJSON } from "../../utils/util";
 import { initChatStore, flushPendingDb, dbCache, computeBufferEtag, queueStorageOperation, normalizeInlayExt, decodeDataUri, writeInlayFile, writeInlaySidecar, ensureChatStore, reassembleFullDb, DB_HEX_KEY, saveTimers, createBackupAndRotate, getInlaySidecarPath, deleteInlayFile, readAndLoadValue, getStrippedData, setDbetag, getDbetag } from "../../utils/asset.util";
 import { kvDel, kvSet } from "../../utils/db";
