@@ -9,8 +9,6 @@ import { language } from "src/lang"
 import { alertError, alertInput, waitAlert } from "../alert"
 import { decodeRisuSave, encodeRisuSaveLegacy } from "./risuSave"
 import { normalizeChat } from "./database.svelte"
-import { magicHeader, magicCompressedHeader } from '../../../shared/constants'
-import { decompressSync } from 'fflate'
 
 // Custom error class for database conflict detection
 export class ConflictError extends Error {
@@ -219,14 +217,7 @@ export class NodeStorage{
             return null
         }
 
-        if (data.subarray(0, magicCompressedHeader.length).equals(Buffer.from(magicCompressedHeader))) {
-            const compressed = data.subarray(magicCompressedHeader.length);
-            const decompressed = decompressSync(compressed);
-            return Buffer.from(decompressed);
-        } else {
-            const raw = data.subarray(magicHeader.length);
-            return Buffer.from(raw);
-        }
+        return data
     }
     async keys(prefix: string = ''):Promise<string[]>{
         const headers: Record<string, string> = {
