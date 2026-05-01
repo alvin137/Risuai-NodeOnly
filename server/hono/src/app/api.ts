@@ -12,6 +12,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import { streamSSE } from "hono/streaming";
 import sharp from "sharp";
+import { registerUpdateApi } from "./api/update.js";
 
 
 const api = new Hono();
@@ -20,6 +21,7 @@ const api = new Hono();
 
 
 registerCrud(api);
+registerUpdateApi(api);
 
 // TODO: Need to setup rateLimit
 // const loginRouteLimiter = rateLimit({
