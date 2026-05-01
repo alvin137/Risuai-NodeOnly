@@ -1,16 +1,13 @@
 import { Hono } from "hono";
-import { decodeRisuSave, encodeRisuSaveLegacy, isHex, normalizeJSON } from "../../utils/util";
+import { decodeRisuSave, encodeRisuSaveLegacy, isHex, normalizeJSON, calculateHash } from "../../utils/util";
 import { kvGet, kvSet } from "../../utils/db";
 import { applyPatch } from "fast-json-patch";
-import { dbCache, saveTimers, SAVE_INTERVAL, queueStorageOperation, decodeDatabaseWithPersistentChatIds, initChatStore, stripChatsFromDb, persistDbCacheWithChats, createBackupAndRotate, computeBufferEtag } from "../../utils/asset.util";
+import { dbCache, saveTimers, SAVE_INTERVAL, queueStorageOperation, decodeDatabaseWithPersistentChatIds, initChatStore, stripChatsFromDb, persistDbCacheWithChats, createBackupAndRotate, computeBufferEtag, setDbetag, getDbetag } from "../../utils/asset.util";
 
 export const patchApp = new Hono();
 
 // Configuration flags for patch-based sync
 const enablePatchSync = true;
-
-// ETag for database.bin
-let dbEtag: string | null = null;
 
 
 // TODO: Add authentication and session checks as needed
@@ -56,17 +53,17 @@ patchApp.post("", async(c) => {
 
     // TODO: Because of still developing things, skip hash check for now.
     
-    // const serverHash = calculateHash(dbCache[filePath]).toString(16);
+    const serverHash = calculateHash(dbCache[filePath]).toString(16);
 
-    // if (expectedHash !== serverHash) {
-    //   console.log(`[Patch] Hash mismatch for ${decodedKey}: expected=${expectedHash}, server=${serverHash}`);
-    //   let currentEtag = undefined;
-    //   if (decodedKey === "database/database.bin") {
-    //     currentEtag = computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(dbCache[filePath])));
-    //     dbEtag = currentEtag;
-    //   }
-    //   return c.json({error: "Hash mismatch", currentEtag}, 409);
-    // }
+    if (expectedHash !== serverHash) {
+      console.log(`[Patch] Hash mismatch for ${decodedKey}: expected=${expectedHash}, server=${serverHash}`);
+      let currentEtag = undefined;
+      if (decodedKey === "database/database.bin") {
+        currentEtag = computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(dbCache[filePath])));
+        setDbetag(currentEtag);
+      }
+      return c.json({error: "Hash mismatch", currentEtag}, 409);
+    }
     
     let result;
     try {
@@ -98,10 +95,10 @@ patchApp.post("", async(c) => {
     }, SAVE_INTERVAL);
 
     if (decodedKey === "database/database.bin") {
-      dbEtag = computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(dbCache[filePath])));
+      setDbetag(computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(dbCache[filePath]))));
     }
 
-    return c.json({success: true, appliedOperations: result.length, etag: decodedKey === "database/database.bin" ? dbEtag: undefined});
+    return c.json({success: true, appliedOperations: result.length, etag: decodedKey === "database/database.bin" ? getDbetag(): undefined});
   })
   } catch (error) {
     console.error("Error applying patch:", error);

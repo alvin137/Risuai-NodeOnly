@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { unlink } from "node:fs/promises";
-import { checkAuth } from "../api";
+import { checkAuth } from "..";
 import { decodeRisuSave, encodeRisuSaveLegacy, isHex, normalizeJSON } from "../../utils/util";
-import { initChatStore, flushPendingDb, dbCache, computeBufferEtag, queueStorageOperation, normalizeInlayExt, decodeDataUri, writeInlayFile, writeInlaySidecar, ensureChatStore, reassembleFullDb, DB_HEX_KEY, saveTimers, createBackupAndRotate, getInlaySidecarPath, deleteInlayFile, readAndLoadValue, getStrippedData } from "../../utils/asset.util";
+import { initChatStore, flushPendingDb, dbCache, computeBufferEtag, queueStorageOperation, normalizeInlayExt, decodeDataUri, writeInlayFile, writeInlaySidecar, ensureChatStore, reassembleFullDb, DB_HEX_KEY, saveTimers, createBackupAndRotate, getInlaySidecarPath, deleteInlayFile, readAndLoadValue, getStrippedData, setDbetag, getDbetag } from "../../utils/asset.util";
 import { kvDel, kvSet } from "../../utils/db";
 
 export function registerCrud(api: Hono) {
@@ -32,11 +32,13 @@ export function registerCrud(api: Hono) {
     if (key === "database/database.bin") {
       const stripped = await getStrippedData(value, filePath);
       value = Buffer.from(encodeRisuSaveLegacy(stripped, true));
-      let dbEtag = computeBufferEtag(value);
-      if (c.req.header("if-none-match") === dbEtag) {
+      setDbetag(computeBufferEtag(value));
+      if (c.req.header("if-none-match") === getDbetag()) {
         return c.body(null, 304);
       }
-      c.header("x-db-etag", dbEtag);
+
+      // Already set dbEtag before, why making error?
+      c.header("x-db-etag", getDbetag() ?? "");
     }
     c.header("Content-Type", "application/octet-stream");
     return c.body(value);
@@ -60,17 +62,16 @@ api.post("/write", async (c) => {
         return await queueStorageOperation(async () => {
             const key = Buffer.from(filePath, 'hex').toString('utf-8');
 
-            // TODO: dbEtag handling
-            // // ETag conflict detection for database.bin
-            // if (key === 'database/database.bin') {
-            //     const ifMatch = c.req.header('x-if-match');
-            //     if (ifMatch && dbEtag && ifMatch !== dbEtag) {
-            //         return c.json({
-            //             error: 'ETag mismatch - concurrent modification detected',
-            //             currentEtag: dbEtag
-            //         }, 409);
-            //     }
-            // }
+            // ETag conflict detection for database.bin
+            if (key === 'database/database.bin') {
+                const ifMatch = c.req.header('x-if-match');
+                if (ifMatch && getDbetag() && ifMatch !== getDbetag()) {
+                    return c.json({
+                        error: 'ETag mismatch - concurrent modification detected',
+                        currentEtag: getDbetag()
+                    }, 409);
+                }
+            }
 
             if (key.startsWith('inlay/')) {
                 const id = key.slice('inlay/'.length)
@@ -123,14 +124,13 @@ api.post("/write", async (c) => {
                     delete saveTimers[DB_HEX_KEY];
                 }
                 // ETag based on stripped version (what client sees)
-                //dbEtag = computeBufferEtag(fileContent);
+                setDbetag(computeBufferEtag(fileContent));
                 createBackupAndRotate();
             }
             // TODO: handle dbEtag
             return c.json({
                 success: true,
-                etag : undefined
-                // etag: key === 'database/database.bin' ? dbEtag : undefined
+                etag: key === 'database/database.bin' ? getDbetag() : undefined
             });
         });
     } catch (error) {
@@ -175,10 +175,9 @@ api.post('/db/flush', async (c) => {
     try {
         return await queueStorageOperation(async () => {
             await flushPendingDb();
-            //TODO: handle dbEtag
             return c.json({
                 success: true,
-                //etag: dbEtag ?? undefined
+                etag: getDbetag() ?? undefined
             });
         });
     } catch (error) {

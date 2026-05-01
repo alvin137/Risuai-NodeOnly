@@ -19,6 +19,9 @@ const inlayMigrationMarker = path.join(inlayDir, '.migrated_to_fs')
 
 export let fullChatStore: Map<string, Map<string, unknown>> | null = null; // Map<chaId, Map<chatId, chatObject>> — lazy-initialized
 
+// ETag for database.bin
+let dbEtag: string | null = null;
+
 
 // ── Direct asset serving (F-1) ─────────────────────────────────────────────
 // Serves KV-stored assets as proper HTTP responses with long-term caching.
@@ -895,7 +898,7 @@ export function invalidateDbCache() {
         delete saveTimers[DB_HEX_KEY];
     }
     // Should handle dbEtag
-    //dbEtag = null;
+    setDbetag(null);
 }
 
 export async function readAndLoadValue(key: string) {
@@ -931,4 +934,12 @@ export async function getStrippedData(value: Buffer, filePath: string) {
   setDbCache(filePath, stripped);
 
   return stripped;
+}
+
+export function setDbetag(etag: string | null) {
+    dbEtag = etag;
+}
+
+export function getDbetag() {
+    return dbEtag;
 }
