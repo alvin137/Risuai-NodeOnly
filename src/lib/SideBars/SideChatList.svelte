@@ -32,6 +32,17 @@
     let { chara = $bindable() }: Props = $props();
     let editMode = $state(false)
 
+    // Safety net: chats whose folderId references a deleted folder would
+    // otherwise be invisible (excluded from both the no-folder section and
+    // any folder section). Render them in the no-folder section instead.
+    // The server-side fix prevents new orphans; this guard rescues existing
+    // ones until boot-time normalize touches the disk.
+    const validFolderIds = $derived(
+        new Set((chara.chatFolders ?? []).map(f => f.id).filter(Boolean))
+    )
+    const isOrphanFolder = (folderId: string | null | undefined): boolean =>
+        folderId != null && !validFolderIds.has(folderId)
+
     let chatsStb: Sortable[] = []
     let folderStb: Sortable = null
 
@@ -335,7 +346,7 @@
         <!-- chat without folder div -->
         <div class="risu-chat flex flex-col">
             {#each chara.chats as chat, i}
-            {#if chat.folderId == null}
+            {#if chat.folderId == null || isOrphanFolder(chat.folderId)}
             <button data-risu-chat-idx={i} onclick={() => {
                 if(!editMode){
                     if(i === chara.chatPage && !$chatDeselected){
