@@ -29,6 +29,7 @@
     interface Stats {
         files: { db: number; wal: number; shm: number }
         disk: { free: number | null; total: number | null }
+        backupDisk?: { free: number | null; total: number | null; path?: string; sameAsSaveDir?: boolean }
         sqlite: {
             pageSize: number; pageCount: number; freelistCount: number;
             reclaimable: number; journalMode: string; autoVacuum: number | string;
@@ -207,16 +208,20 @@
         if (!stats) return []
         const p = stats.prefixes
         const get = (k: string) => p[k]?.totalSize ?? 0
-        // Inlay payload now lives mostly on the filesystem (post-migration);
-        // include the fs bytes here so the chart doesn't underreport.
+        // Two separate quantities for inlay:
+        //  - inlayKvTotal: bytes inside the SQLite kv table (counts against
+        //    kvTotalBytes for uncategorized accounting).
+        //  - inlayTotal:   what we display in the chart, includes fs payload
+        //    that lives in save/inlays/ post-migration.
+        const inlayKvTotal = get('inlay/') + get('inlay_thumb/') + get('inlay_meta/') + get('inlay_info/')
         const inlayFsBytes = stats.inlayFsBytes ?? 0
-        const inlayTotal = get('inlay/') + get('inlay_thumb/') + get('inlay_meta/') + get('inlay_info/') + inlayFsBytes
-        // Known prefixes I track explicitly. If anything else lives in kv (test
-        // keys, migration leftovers), it shows up under "uncategorized" so the
-        // bar always sums correctly in internal-only mode.
+        const inlayTotal = inlayKvTotal + inlayFsBytes
+        // Known kv prefixes I track explicitly — kv-side only. If anything
+        // else lives in kv (test keys, migration leftovers), it shows up
+        // under "uncategorized" so the bar always sums correctly.
         const knownKv =
             get('database/database.bin') + get('database/dbbackup-') +
-            get('assets/') + inlayTotal + get('remotes/') + get('coldstorage/')
+            get('assets/') + inlayKvTotal + get('remotes/') + get('coldstorage/')
         const uncategorizedKv = Math.max(0, stats.kvTotalBytes - knownKv)
         // SQLite overhead splits into "structural" (always present — indexes,
         // page headers, alignment) and "reclaimable" (the freelist, removable
@@ -236,15 +241,25 @@
             { id: 'reclaimable',     label: language.storageRowReclaimablePages, desc: language.storageRowReclaimablePagesDesc, size: reclaimable,               color: 'bg-yellow-500' },
             { id: 'wal',             label: language.storageRowWal,            desc: language.storageRowWalDesc,            size: stats.files.wal,               color: 'bg-sky-500' },
             { id: 'shm',             label: language.storageRowShm,            desc: language.storageRowShmDesc,            size: stats.files.shm,               color: 'bg-lime-500' },
-            { id: 'file-backup',     label: language.storageRowFileBackups,    desc: language.storageRowFileBackupsDesc,    size: stats.backups.file.totalSize,  color: 'bg-fuchsia-500' },
+            // File backups are only on the same disk as save/ when sameAsSaveDir
+            // is true. If user pointed backupsDir at a different mount, those
+            // bytes don't belong in this chart's geometry — they're shown in
+            // the dedicated Backups card instead.
+            ...(stats.backupDisk?.sameAsSaveDir !== false
+                ? [{ id: 'file-backup', label: language.storageRowFileBackups, desc: language.storageRowFileBackupsDesc, size: stats.backups.file.totalSize, color: 'bg-fuchsia-500' }]
+                : []),
         ]
         return rows.filter(r => r.size > 0)
     })
 
+    // Footprint relative to save/ disk — file backups counted only when they
+    // live on the same filesystem as save/ (otherwise they're elsewhere and
+    // don't consume save/ space).
     const risuFootprint = $derived(
         stats
             ? stats.files.db + stats.files.wal + stats.files.shm
-              + stats.backups.file.totalSize + (stats.inlayFsBytes ?? 0)
+              + (stats.backupDisk?.sameAsSaveDir !== false ? stats.backups.file.totalSize : 0)
+              + (stats.inlayFsBytes ?? 0)
             : 0
     )
 

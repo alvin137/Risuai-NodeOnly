@@ -4377,9 +4377,22 @@ app.get('/api/db/stats', async (req, res, next) => {
         // Backup destination disk — same as save/ in the default config but
         // can diverge when the user points backupsDir at a different mount.
         // Surfaced separately so backup-side warnings target the right disk.
-        const backupDisk = backupsDir === DEFAULT_BACKUPS_DIR
-            ? { ...disk, path: backupsDir }
-            : { ...(await diskFreeStat(backupsDir)), path: backupsDir };
+        // `sameAsSaveDir` is true when both paths land on the same filesystem
+        // (compared by Stat.dev). Dashboard uses this to decide whether to
+        // count file backups against the save/ disk in the storage chart.
+        let backupDisk;
+        if (backupsDir === DEFAULT_BACKUPS_DIR) {
+            backupDisk = { ...disk, path: backupsDir, sameAsSaveDir: true };
+        } else {
+            const bDisk = await diskFreeStat(backupsDir);
+            let sameAsSaveDir = false;
+            try {
+                const saveStat = require('fs').statSync(saveDir);
+                const bStat = require('fs').statSync(backupsDir);
+                sameAsSaveDir = saveStat.dev === bStat.dev;
+            } catch { /* non-fatal */ }
+            backupDisk = { ...bDisk, path: backupsDir, sameAsSaveDir };
+        }
 
         const pageSize = sqliteDb.pragma('page_size', { simple: true });
         const pageCount = sqliteDb.pragma('page_count', { simple: true });
@@ -4771,11 +4784,10 @@ app.post('/api/db/snapshots/restore', async (req, res, next) => {
             return res.status(404).json({ error: 'Snapshot not found' });
         }
         await queueStorageOperation(async () => {
-            // Cancel any pending debounced persist so it can't overwrite our restore.
-            if (saveTimers[DB_HEX_KEY]) {
-                clearTimeout(saveTimers[DB_HEX_KEY]);
-                delete saveTimers[DB_HEX_KEY];
-            }
+            // Drain any pending debounced persist first — same pattern as
+            // /api/db/optimize. Without this, an in-flight save could land
+            // after kvCopyValue and overwrite the restored snapshot.
+            await flushPendingDb();
             kvCopyValue(key, DB_BLOB_KEY);
             invalidateDbCache();
             // Pre-warm chat store from the just-restored blob so subsequent
