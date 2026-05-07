@@ -181,6 +181,22 @@ export async function loadData() {
 
 
 /**
+ * Hard-bounded fetch — the boot path can't tolerate an indefinite hang on a
+ * stuck endpoint, since the loading screen blocks the user until we set
+ * loadedStore. AbortError is rethrown like any fetch failure; the call site
+ * swallows it.
+ */
+async function fetchWithTimeout(input: RequestInfo, init: RequestInit = {}, ms = 5000): Promise<Response> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), ms)
+    try {
+        return await fetch(input, { ...init, signal: controller.signal })
+    } finally {
+        clearTimeout(timer)
+    }
+}
+
+/**
  * If the user has enabled the boot-time server-backup reminder, prompt with a
  * confirm dialog before the main UI loads. Confirming runs SaveServerBackup
  * synchronously (its alertWait progress overlays the loading screen).
@@ -189,17 +205,17 @@ async function maybeRunBootBackupReminder() {
     let enabled = false
     try {
         const auth = await forageStorage.createAuth()
-        const res = await fetch('/api/backup/boot-reminder', { headers: { 'risu-auth': auth } })
+        const res = await fetchWithTimeout('/api/backup/boot-reminder', { headers: { 'risu-auth': auth } })
         if (!res.ok) return
         const json = await res.json()
         enabled = !!json.enabled
     } catch {
-        return  // Non-fatal — skip the prompt if the endpoint is unreachable.
+        return  // Non-fatal — skip the prompt if the endpoint is unreachable / slow.
     }
     if (!enabled) return
 
-    // Best-effort stats fetch. The prompt component will render whatever we
-    // can supply; missing values just hide their respective lines. Uses
+    // Best-effort stats fetch. The prompt component renders whatever we can
+    // supply; missing values just hide their respective lines. Uses
     // backupDisk (actual backup destination) so warnings target the right
     // mount when backupsDir is on a different drive than save/.
     let estimate: number | null = null
@@ -207,7 +223,7 @@ async function maybeRunBootBackupReminder() {
     let total: number | null = null
     try {
         const auth = await forageStorage.createAuth()
-        const res = await fetch('/api/db/stats', { headers: { 'risu-auth': auth } })
+        const res = await fetchWithTimeout('/api/db/stats', { headers: { 'risu-auth': auth } })
         if (res.ok) {
             const stats = await res.json()
             if (typeof stats?.estimatedBackupSize === 'number') estimate = stats.estimatedBackupSize
