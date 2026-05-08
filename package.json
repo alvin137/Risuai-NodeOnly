@@ -120,7 +120,6 @@
     "vitest": "^4.1.0"
   },
   "pnpm": {
-    "neverBuiltDependencies": [],
     "onlyBuiltDependencies": [
       "@swc/core",
       "better-sqlite3",
