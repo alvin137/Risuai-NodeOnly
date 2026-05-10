@@ -16,16 +16,23 @@ const sharp = require('sharp')
 const { kvGet, kvSet, kvDel, kvList,
         kvDelPrefix, kvListWithSizes, kvSize, kvGetUpdatedAt, kvCopyValue, clearEntities, checkpointWal,
         db: sqliteDb } = require('./db.cjs');
+const {
+    addLogBatch, queryLogs, clearLogs, countLogs,
+    logger, installProcessHandlers, expressErrorMiddleware,
+} = require('./logs.cjs');
 const { applyPatch } = require('fast-json-patch');
 const { decodeRisuSave, encodeRisuSaveLegacy, calculateHash, normalizeJSON } = require('./utils.cjs');
 const { spawn, execSync } = require('child_process');
 const os = require('os');
 const { Readable, Transform } = require('stream');
 
+// Install process-level error handlers before any other init so early crashes get logged.
+installProcessHandlers();
+
 // Node.js version check
 const [nodeMajor] = process.version.slice(1).split('.').map(Number);
 if (nodeMajor < 24) {
-    console.warn(`[Server] Node.js ${process.version} is below the recommended version (v24.x). Consider upgrading for best compatibility.`);
+    logger.warn(`[Server] Node.js ${process.version} is below the recommended version (v24.x). Consider upgrading for best compatibility.`);
 }
 
 // Configuration flags for patch-based sync
