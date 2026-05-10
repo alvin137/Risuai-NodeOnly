@@ -99,6 +99,21 @@ api.get('/update-check', async (c) => {
 // ── Self-update endpoint (portable only) ─────────────────────────────────────
 let selfUpdateInProgress = false;
 
+// Helper: rename, falling back to copy+remove when src and dest are on
+// different volumes (Windows EXDEV — e.g. app on D:, os.tmpdir() on C:)
+async function moveAcrossVolumes(src, dest) {
+    try {
+        await fs.rename(src, dest);
+    } catch (err) {
+        if (err && err.code === 'EXDEV') {
+            await fs.cp(src, dest, { recursive: true, force: true });
+            await fs.rm(src, { recursive: true, force: true });
+            return;
+        }
+        throw err;
+    }
+}
+
 api.post('/self-update', async (c) => {
   if (deploymentType !== 'portable') {
     return c.json({ error: 'Self-update is only available for portable deployments' }, 400);
@@ -282,7 +297,7 @@ api.post('/self-update', async (c) => {
           if (skipMove.has(e)) continue;
           const dest = path.join(appDir, e);
           await fs.rm(dest, { recursive: true, force: true }).catch(() => {});
-          await fs.rename(path.join(sourceDir, e), dest);
+          await moveAcrossVolumes(path.join(sourceDir, e), dest);
           moved.push(e);
         }
         for (const entry of REQUIRED_ENTRIES) {

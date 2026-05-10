@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { createBackupAndRotate, DB_HEX_KEY, dbCache, ensureChatStore, fullChatStore, persistDbCacheWithChats, queueStorageOperation, reassembleFullDb, restoreColdStorageChat, SAVE_INTERVAL, saveTimers, stripChatsFromDb } from "../../utils/asset.util";
+import { clearPersistFailure, createBackupAndRotate, DB_HEX_KEY, dbCache, ensureChatStore, fullChatStore, persistDbCacheWithChats, queueStorageOperation, reassembleFullDb, recordPersistFailure, restoreColdStorageChat, SAVE_INTERVAL, saveTimers, stripChatsFromDb } from "../../utils/asset.util";
 import { decodeRisuSave, encodeRisuSaveLegacy, normalizeJSON } from "../../utils/util";
 import { kvGet, kvSet } from "../../utils/db";
 
@@ -110,12 +110,28 @@ chatApp.post('/:chaId/:chatIndex', async (c) => {
                         if (raw) {
                             const dbObj = normalizeJSON(await decodeRisuSave(raw));
                             const fullDb = reassembleFullDb(stripChatsFromDb(dbObj));
-                            kvSet('database/database.bin', Buffer.from(encodeRisuSaveLegacy(fullDb)));
+                            const encoded = Buffer.from(encodeRisuSaveLegacy(fullDb));
+                            try {
+                                kvSet('database/database.bin', encoded);
+                            } catch (err) {
+                                if (err && typeof err === 'object') {
+                                    try { err.attemptedSize = encoded.length; } catch {}
+                                }
+                                throw err;
+                            }
                         }
                     }
-                    createBackupAndRotate();
+                    // Persist succeeded — clear before backup so a backup-only
+                    // failure isn't attributed to data loss.
+                    clearPersistFailure();
+                    try {
+                        createBackupAndRotate();
+                    } catch (backupErr) {
+                        console.warn('[ChatContent] Backup rotation failed:', backupErr);
+                    }
                 } catch (error) {
                     console.error('[ChatContent] Error persisting chat:', error);
+                    recordPersistFailure(error, 'chat-content');
                 } finally {
                     delete saveTimers[DB_HEX_KEY];
                 }

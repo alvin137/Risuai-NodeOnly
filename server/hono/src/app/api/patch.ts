@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { decodeRisuSave, encodeRisuSaveLegacy, isHex, normalizeJSON, calculateHash } from "../../utils/util";
 import { kvGet, kvSet } from "../../utils/db";
 import { applyPatch } from "fast-json-patch";
-import { dbCache, saveTimers, SAVE_INTERVAL, queueStorageOperation, decodeDatabaseWithPersistentChatIds, initChatStore, stripChatsFromDb, persistDbCacheWithChats, createBackupAndRotate, computeBufferEtag, setDbetag, getDbetag } from "../../utils/asset.util";
+import { dbCache, saveTimers, SAVE_INTERVAL, queueStorageOperation, decodeDatabaseWithPersistentChatIds, initChatStore, stripChatsFromDb, persistDbCacheWithChats, createBackupAndRotate, computeBufferEtag, setDbetag, getDbetag, findChatInternalFieldOps, clearPersistFailure, recordPersistFailure, currentPersistWarning } from "../../utils/asset.util";
 
 export const patchApp = new Hono();
 
@@ -51,7 +51,37 @@ patchApp.post("", async(c) => {
       }
     }
 
-    // TODO: Because of still developing things, skip hash check for now.
+      // Reject patch ops that touch chat-internal fields. Lazy loading
+      // strips chats to stubs in dbCache; the only legitimate chat ops
+      // are stub metadata (id, name, _stub, lastDate, folderId, modules)
+      // or whole-chat add/replace/remove. Field-level ops on chats —
+      // particularly remove of message/hypaV3Data/scriptstate/etc —
+      // strip the `_stub` flag and cause silent on-disk data loss when
+      // reassembleFullDb later sees the metadata-only chat. Reject as
+      // 409 so the client falls through to a full write and rebases its
+      // patcher baseline. See findStubFlagLossChats for the disk-side
+      // partner guard.
+      const chatInternalOps = decodedKey === 'database/database.bin'
+        ? findChatInternalFieldOps(patch)
+        : [];
+      if (chatInternalOps.length > 0) {
+        const sample = chatInternalOps.slice(0, 5).map(v => `${v.op} ${v.path}`).join(', ');
+        console.warn(
+          `[Patch] Rejected ${chatInternalOps.length} chat-internal field op(s) `
+          + `(would corrupt lazy-loaded chats): ${sample}`
+        );
+        let currentEtag;
+        try {
+          currentEtag = computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(dbCache[filePath])));
+          setDbetag(currentEtag);
+        } catch { }
+        return c.json({
+          error: 'Patch rejected: chat-internal field ops not allowed for lazy-loaded chats',
+          code: 'CHAT_GUARD_REJECTED',
+          chatGuardRejected: true,
+          currentEtag,
+        }, 409);
+      }
     
     const serverHash = calculateHash(dbCache[filePath]).toString(16);
 
@@ -82,13 +112,28 @@ patchApp.post("", async(c) => {
           await persistDbCacheWithChats(filePath, decodedKey);
         } else {
           const data = Buffer.from(encodeRisuSaveLegacy(dbCache[filePath]));
-          kvSet(decodedKey, data);
+          try {
+            kvSet(decodedKey, data);
+          } catch (err) {
+            if (err && typeof err === 'object') {
+              try { err.attemptedSize = data.length; } catch { }
+            }
+            throw err;
+          }
         }
+        // Persist succeeded — clear before backup so a backup-only
+        // failure isn't attributed to data loss.
+        clearPersistFailure();
         if (decodedKey === "database/database.bin") {
-          createBackupAndRotate();
+          try {
+            createBackupAndRotate();
+          } catch (backupErr) {
+            console.warn(`[Patch] Backup rotation failed for ${decodedKey}:`, backupErr);
+          }
         }
       } catch (error) {
         console.error(`Error saving ${decodedKey}:`, error);
+        recordPersistFailure(error, `patch:${decodedKey}`);
       } finally {
         delete saveTimers[filePath];
       }
@@ -98,8 +143,19 @@ patchApp.post("", async(c) => {
       setDbetag(computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(dbCache[filePath]))));
     }
 
-    return c.json({success: true, appliedOperations: result.length, etag: decodedKey === "database/database.bin" ? getDbetag(): undefined});
-  })
+    const responsePayload = {
+      success: true,
+      appliedOperations: result.length,
+      etag: decodedKey === "database/database.bin" ? getDbetag() : undefined,
+    };
+
+    const persistWraning = currentPersistWarning();
+    if (persistWraning) {
+      responsePayload.persistWarning = persistWraning;
+    }
+
+    return c.json(responsePayload);
+  });
   } catch (error) {
     console.error("Error applying patch:", error);
     return c.json({error: 'Failed to apply patch'}, 500);

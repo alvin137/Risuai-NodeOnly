@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { unlink } from "node:fs/promises";
 import { checkAuth } from "../api";
 import { decodeRisuSave, encodeRisuSaveLegacy, isHex, normalizeJSON } from "../../utils/util";
-import { initChatStore, flushPendingDb, dbCache, computeBufferEtag, queueStorageOperation, normalizeInlayExt, decodeDataUri, writeInlayFile, writeInlaySidecar, ensureChatStore, reassembleFullDb, DB_HEX_KEY, saveTimers, createBackupAndRotate, getInlaySidecarPath, deleteInlayFile, readAndLoadValue, getStrippedData, setDbetag, getDbetag } from "../../utils/asset.util";
+import { initChatStore, flushPendingDb, dbCache, computeBufferEtag, queueStorageOperation, normalizeInlayExt, decodeDataUri, writeInlayFile, writeInlaySidecar, ensureChatStore, reassembleFullDb, DB_HEX_KEY, saveTimers, createBackupAndRotate, getInlaySidecarPath, deleteInlayFile, readAndLoadValue, getStrippedData, setDbetag, getDbetag, recordPersistFailure, findStubFlagLossChats } from "../../utils/asset.util";
 import { kvDel, kvSet } from "../../utils/db";
 
 export function registerCrud(api: Hono) {
@@ -102,6 +102,29 @@ api.post("/write", async (c) => {
                     const incomingDb = await decodeRisuSave(fileContent);
                     await ensureChatStore();
                     const fullDb = reassembleFullDb(incomingDb);
+
+                    // Mirror the patch-persist guard (persistDbCacheWithChats):
+                    // a malformed full-write payload could carry chats with
+                    // neither `_stub` nor `message` (the v1.4.x metadata-only
+                    // pattern). reassembleFullDb passes them through unchanged
+                    // because there's no fullChat lookup to merge in, so they
+                    // would land on disk and silently strip user messages.
+                    // Normal clients are safe (RisuSaveEncoder runs chatToStub
+                    // on every chat first), but external tools / future
+                    // regressions could bypass that — keep the guard at the
+                    // disk boundary for defense in depth.
+                    const losses = findStubFlagLossChats(fullDb);
+                    if (losses.length > 0) {
+                        const sample = losses.slice(0, 3).map(l => `${l.chaId}/${l.chatId ?? l.chatIndex}`).join(', ');
+                        const err = new Error(
+                            `write aborted: ${losses.length} chat(s) lost _stub flag without upgrade — `
+                            + `would silently strip messages on disk. sample=[${sample}]`
+                        );
+                        recordPersistFailure(err, '/api/write:stub-flag-loss');
+                        console.error(`[Write] ${err.message}`);
+                        return c.json({ error: 'Write aborted: chat data integrity check failed' }, 500);
+                    }
+
                     const mergedContent = Buffer.from(encodeRisuSaveLegacy(fullDb));
                     // Re-init chat store from merged result
                     initChatStore(fullDb);

@@ -364,7 +364,7 @@ export class NodeStorage{
 
     // ── Bulk asset operations (3-2-B) ──────────────────────────────────────────
     async getItems(keys: string[]): Promise<{key: string, value: Buffer}[]> {
-        const da = await this.authFetch('/api/assets/bulk-read', {
+        const da = await this.authFetch('/api/asset/bulk-read', {
             method: 'POST',
             body: JSON.stringify(keys),
             headers: {
@@ -403,7 +403,7 @@ export class NodeStorage{
                 key: e.key,
                 value: Buffer.from(e.value).toString('base64')
             }))
-            const da = await this.authFetch('/api/assets/bulk-write', {
+            const da = await this.authFetch('/api/asset/bulk-write', {
                 method: 'POST',
                 body: JSON.stringify(body),
                 headers: {

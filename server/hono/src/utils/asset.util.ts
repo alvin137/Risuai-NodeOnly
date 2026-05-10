@@ -3,7 +3,7 @@ import { readFile, stat, access, readdir, mkdir, statfs, writeFile, unlink} from
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import sharp from "sharp";
 import { decodeRisuSave, encodeRisuSaveLegacy, normalizeJSON, savePath } from "./util"
-import { kvCopyValue, kvDel, kvGet, kvList, kvSet, kvSize } from "./db";
+import { kvCopyValue, kvDel, kvGet, kvList, kvListWithSizes, kvSet, kvSize } from "./db";
 import { randomUUID } from "node:crypto";
 
 // In-memory database cache for patch-based sync
@@ -21,6 +21,12 @@ export let fullChatStore: Map<string, Map<string, unknown>> | null = null; // Ma
 
 // ETag for database.bin
 let dbEtag: string | null = null;
+
+const DB_BLOB_KEY = 'database/database.bin';
+const DB_BACKUP_PREFIX = 'database/dbbackup-';
+const ASSET_PREFIXES = ['assets/', 'remotes/', 'inlay/', 'inlay_thumb/', 'inlay_meta/', 'inlay_info/', 'coldstorage/'];
+// Slightly above 2GB BLOB ceiling — better-sqlite3 throws RangeError near INT_MAX.
+const BLOB_INT_MAX = 2 * 1024 * 1024 * 1024 - 1;
 
 
 // ── Direct asset serving (F-1) ─────────────────────────────────────────────
@@ -335,22 +341,10 @@ export function createBackupAndRotate() {
     }
     lastBackupTime = now;
 
-    const backupKey = `database/dbbackup-${(now / 100).toFixed()}.bin`;
+    const backupKey = `${DB_BACKUP_PREFIX}${(now / 100).toFixed()}.bin`;
     kvCopyValue('database/database.bin', backupKey);
 
-    const backupKeys = kvList('database/dbbackup-')
-        .sort((a, b) => {
-            const aTs = parseInt(a.slice(18, -4));
-            const bTs = parseInt(b.slice(18, -4));
-            return bTs - aTs;
-        });
-
-    const dbSize = kvSize('database/database.bin') || 1;
-    const maxBackups = Math.min(20, Math.max(3, Math.floor(BACKUP_BUDGET_BYTES / dbSize)));
-
-    while (backupKeys.length > maxBackups) {
-        kvDel(backupKeys.pop() || "");
-    }
+    trimSnapshotsToLimits();
 }
 
 export function decodeDataUri(dataUri: string) {
@@ -499,6 +493,112 @@ export async function ensureChatStore() {
     initChatStore(dbObj);
 }
 
+// Stub metadata fields a JSON Patch may legitimately touch on a `chats[i]`
+// entry. Anything else is a chat-internal field — those live in fullChatStore,
+// not in dbCache, and should never appear in a /api/patch payload. Keep in
+// sync with chatToStub on both server and client.
+const STUB_METADATA_FIELDS = new Set(['id', 'name', '_stub', 'lastDate', 'folderId', 'modules']);
+
+// Only add/replace/remove are produced by the legitimate patcher. move/copy
+// could alias _stub or other chat-internal fields through `from`, bypassing
+// the path-based field allowlist. Reject those op types outright on chat
+// paths. test ops can also reveal/manipulate state; deny for symmetry.
+const ALLOWED_CHAT_OP_TYPES = new Set(['add', 'replace', 'remove']);
+
+const CHAT_FIELD_PATH_RE = /^\/characters\/\d+\/chats\/\d+\/([^/]+)/;
+
+/**
+ * Detect JSON Patch ops that mutate chat-internal fields (anything beyond
+ * STUB_METADATA_FIELDS). Such ops are the loss vector: applying them to
+ * dbCache leaves a metadata-only chat without `_stub`, which then bypasses
+ * fullChat merge in reassembleFullDb and gets persisted as-is.
+ *
+ * Whole-chat ops (path = `/characters/N/chats/M` or `/characters/N/chats`)
+ * are allowed — those replace/add/remove chat slots wholesale and the
+ * reassemble guard takes care of validating the resulting state.
+ *
+ * The `_stub` field gets stricter treatment than other allowed fields: only
+ * `add`/`replace` with literal value `true` is permitted. Any op that could
+ * remove the flag or set it to a falsy value is itself the loss mechanism
+ * (reassembleFullDb skips merge when `_stub` is falsy), so it must be
+ * blocked at the patch boundary, not just at the persist boundary.
+ *
+ * `move`/`copy` ops are rejected wholesale on chat-internal paths because
+ * the field-name allowlist on `path` alone can't catch a `from` that points
+ * at `_stub` or another chat-internal field. Both `path` and `from` are
+ * checked when present.
+ */
+export function findChatInternalFieldOps(patch) {
+    if (!Array.isArray(patch)) return [];
+    const violations = [];
+    for (const op of patch) {
+        if (!op || typeof op !== 'object' || typeof op.path !== 'string') continue;
+
+        const pathMatch = op.path.match(CHAT_FIELD_PATH_RE);
+        const fromMatch = typeof op.from === 'string' ? op.from.match(CHAT_FIELD_PATH_RE) : null;
+        if (!pathMatch && !fromMatch) continue;
+
+        if (!ALLOWED_CHAT_OP_TYPES.has(op.op)) {
+            violations.push({
+                op: op.op,
+                path: op.path,
+                field: (pathMatch && pathMatch[1]) || (fromMatch && fromMatch[1]) || '',
+                reason: 'disallowed op type on chat field',
+            });
+            continue;
+        }
+
+        if (pathMatch) {
+            const field = pathMatch[1];
+            if (!STUB_METADATA_FIELDS.has(field)) {
+                violations.push({ op: op.op, path: op.path, field });
+                continue;
+            }
+            if (field === '_stub') {
+                if (op.op === 'remove') {
+                    violations.push({ op: op.op, path: op.path, field, reason: 'remove _stub' });
+                } else if ((op.op === 'add' || op.op === 'replace') && op.value !== true) {
+                    violations.push({ op: op.op, path: op.path, field, reason: 'non-true _stub value' });
+                }
+            }
+        }
+    }
+    return violations;
+}
+
+/**
+ * Detect chats that lost their `_stub` flag without being upgraded to a real
+ * Chat. reassembleFullDb skips merge when `_stub` is falsy, so persisting such
+ * a chat would write metadata-only to disk and silently strip messages — the
+ * exact data-loss path reported with PATCH `remove /chats/N/{message,...}` ops.
+ *
+ * A real Chat has `message` (Array). A real stub has `_stub === true`. Anything
+ * with neither is a malformed in-between state; treat as a corruption signal.
+ */
+export function findStubFlagLossChats(fullDb) {
+    if (!fullDb?.characters) return [];
+    const losses = [];
+    for (let ci = 0; ci < fullDb.characters.length; ci++) {
+        const char = fullDb.characters[ci];
+        if (!char?.chats) continue;
+        for (let chi = 0; chi < char.chats.length; chi++) {
+            const chat = char.chats[chi];
+            if (!chat || typeof chat !== 'object') continue;
+            const isStub = chat._stub === true;
+            const hasMessage = Array.isArray(chat.message);
+            if (!isStub && !hasMessage) {
+                losses.push({
+                    chaId: char.chaId,
+                    charIndex: ci,
+                    chatIndex: chi,
+                    chatId: chat.id || null,
+                });
+            }
+        }
+    }
+    return losses;
+}
+
 /**
  * Persist dbCache to disk with full chats merged back in.
  */
@@ -507,29 +607,79 @@ export async function persistDbCacheWithChats(filePath: string, decodedKey: stri
     if (!strippedDb) return;
     await ensureChatStore();
     const fullDb = reassembleFullDb(strippedDb);
+    // Disk protection guard: abort persist when reassemble produced metadata-only
+    // chats. Writing them would lock the loss in (next /api/read returns the
+    // stripped chat with no `_stub`, so hydration never re-merges fullChatStore).
+    // Invalidate dbCache so the next request re-reads from disk and rebuilds a
+    // consistent stub view; client receives 409 on next /api/patch via hash mismatch.
+    if (decodedKey === 'database/database.bin') {
+        const losses = findStubFlagLossChats(fullDb);
+        if (losses.length > 0) {
+            const sample = losses.slice(0, 3).map(l => `${l.chaId}/${l.chatId ?? l.chatIndex}`).join(', ');
+            const err = new Error(
+                `persist aborted: ${losses.length} chat(s) lost _stub flag without upgrade — `
+                + `would silently strip messages on disk. sample=[${sample}]`
+            );
+            recordPersistFailure(err, 'persistDbCacheWithChats:stub-flag-loss');
+            delete dbCache[filePath];
+            throw err;
+        }
+    }
     const data = Buffer.from(encodeRisuSaveLegacy(fullDb));
-    kvSet(decodedKey, data);
+    try {
+        kvSet(decodedKey, data);
+    } catch (err) {
+        // Tag with BLOB size so the visibility layer can surface it to the user.
+        // The dominant failure mode (better-sqlite3 INT_MAX) is size-driven.
+        if (err && typeof err === 'object') {
+            try { err.attemptedSize = data.length; } catch {}
+        }
+        throw err;
+    }
+    // Refresh fullChatStore from the persisted snapshot so subsequent
+    // /api/chat-content GETs return the same metadata (folderId, modules)
+    // that just hit disk. Without this, PATCH-only clears of stub fields
+    // leave fullChatStore holding stale fullChat objects, and hydration
+    // would resurrect the cleared values until the next /api/read.
+    if (decodedKey === 'database/database.bin') {
+        initChatStore(fullDb);
+    }
 }
 
 /**
  * Convert a full chat to a stub (metadata only).
+ *
+ * Hybrid corruption guard: a chat carrying `_stub: true` AND a real `message`
+ * array is the v1.4.x legacy hybrid pattern. The fast-path "if _stub return"
+ * would propagate the corruption (server reassemble skips merge for _stub
+ * chats with no fullChat lookup match). Treat hybrids as real chats and
+ * collapse them to a real stub here.
  */
 function chatToStub(chat: any) {
-    if (!chat || chat._stub) return chat;
+    if (!chat) return chat;
+    if (chat._stub && !Array.isArray(chat.message)) return chat;
     const stub: Record<string, any> = {
         id: chat.id || '',
         name: chat.name ?? '',
         _stub: true,
     };
-    if (chat.lastDate != null) stub.lastDate = chat.lastDate;
-    if (chat.folderId != null) stub.folderId = chat.folderId;
-    if (chat.modules != null) stub.modules = chat.modules;
+    // Preserve key presence even when the value is null/undefined so the
+    // round-trip distinguishes "user cleared" from "field absent". See
+    // mergeChatStubWithFullChat — it relies on `in` semantics.
+    if ('lastDate' in chat) stub.lastDate = chat.lastDate;
+    if ('folderId' in chat) stub.folderId = chat.folderId;
+    if ('modules' in chat) stub.modules = chat.modules;
     return stub;
 }
 
 /**
  * Initialize fullChatStore from a decoded full database object.
  * Extracts all chat payloads into the store keyed by chaId → chatId.
+ *
+ * Hybrid corruption recovery: a chat with both `_stub: true` and a real
+ * message array is treated as a real chat (its fullChat data is intact).
+ * Strip the `_stub` flag in place so subsequent reassemble passes don't
+ * reproduce the hybrid on disk.
  */
 export function initChatStore(dbObj: any) {
     fullChatStore = new Map();
@@ -538,12 +688,19 @@ export function initChatStore(dbObj: any) {
         if (!char?.chaId || !char.chats) continue;
         const charChats = new Map();
         for (const chat of char.chats) {
-            if (chat && !chat._stub) {
-                if (!chat.id) {
-                    chat.id = randomUUID();
-                }
-                charChats.set(chat.id, chat);
+            if (!chat) continue;
+            const isStub = chat._stub === true;
+            const hasMessage = Array.isArray(chat.message);
+            // Real stub (no payload) — fullChatStore tracks payloads only.
+            if (isStub && !hasMessage) continue;
+            // Hybrid: strip the corrupt _stub flag, keep the real chat.
+            if (isStub && hasMessage) {
+                delete chat._stub;
             }
+            if (!chat.id) {
+                chat.id = randomUUID();
+            }
+            charChats.set(chat.id, chat);
         }
         if (charChats.size > 0) {
             fullChatStore.set(char.chaId, charChats);
@@ -581,9 +738,18 @@ function mergeChatStubWithFullChat(stub: any, fullChat: any) {
         id: stub.id || fullChat.id || '',
         name: stub.name,
     };
-    if (stub.lastDate != null) merged.lastDate = stub.lastDate;
-    if (stub.folderId != null) merged.folderId = stub.folderId;
-    if (stub.modules != null) merged.modules = stub.modules;
+    // Defensive: never let `_stub: true` ride along on a merged chat. If
+    // fullChat carries a stale flag (legacy disk corruption), the spread
+    // would propagate the hybrid pattern back to disk and re-trigger the
+    // chat-data loss path on next round-trip.
+    if ('_stub' in merged) delete merged._stub;
+    // Use key presence (`in`) so an explicit null/undefined from the client —
+    // meaning "user cleared this field" — overwrites fullChat. The previous
+    // `!= null` check conflated "cleared" with "absent" and silently kept
+    // stale folderId / modules on disk, producing orphan-folder chats.
+    if ('lastDate' in stub) merged.lastDate = stub.lastDate;
+    if ('folderId' in stub) merged.folderId = stub.folderId;
+    if ('modules' in stub) merged.modules = stub.modules;
     return merged;
 }
 
@@ -840,6 +1006,30 @@ export function restoreColdStorageChat(chat: any) {
     }
 }
 
+// Recovers chats whose folderId points to a deleted folder. The previous merge
+// layer silently kept stale folderId on disk when a user moved a chat out of a
+// folder, then later deleting that folder produced orphans invisible in the
+// sidebar (rendered into neither the no-folder section nor any folder section).
+// Boot-time normalize so historical corruption self-heals; new corruption is
+// blocked by the merge fix in mergeChatStubWithFullChat.
+function normalizeOrphanFolderIds(dbObj: any) {
+    let changed = false;
+    if (!dbObj?.characters) return changed;
+    for (const char of dbObj.characters) {
+        if (!char?.chats) continue;
+        const validIds = new Set((char.chatFolders ?? []).map(f => f?.id).filter(Boolean));
+        for (const chat of char.chats) {
+            if (!chat) continue;
+            if (chat.folderId && !validIds.has(chat.folderId)) {
+                chat.folderId = null;
+                changed = true;
+            }
+        }
+    }
+    return changed;
+}
+
+
 export async function decodeDatabaseWithPersistentChatIds(raw: Uint8Array, options: { createBackup?: boolean; migrationResult?: any } = {}) {
     const { createBackup = false, migrationResult = null } = options;
     const dbObj = normalizeJSON(await decodeRisuSave(raw));
@@ -847,6 +1037,9 @@ export async function decodeDatabaseWithPersistentChatIds(raw: Uint8Array, optio
 
     const hadMissingIds = assignMissingChatIds(dbObj);
     if (hadMissingIds) needsPersist = true;
+
+    const hadOrphanFolderIds = normalizeOrphanFolderIds(dbObj);
+    if (hadOrphanFolderIds) needsPersist = true;
 
     // One-time migration: restore upstream cold storage characters to full characters.
     // This runs when upstream data first enters NodeOnly (backup import or save folder copy).
@@ -942,4 +1135,106 @@ export function setDbetag(etag: string | null) {
 
 export function getDbetag() {
     return dbEtag;
+}
+
+// ─── Persist failure tracking (Stage 1 visibility) ───────────────────────────
+// Debounced persist runs in setTimeout, so failures cannot be returned in the
+// triggering response. Record the latest failure here and surface it on the
+// next /api/patch response. Cleared on next successful persist.
+let lastPersistFailure = null;
+
+export function recordPersistFailure(error, source) {
+    const message = String(error?.message || error || 'unknown error');
+    const attemptedSize = typeof error?.attemptedSize === 'number' ? error.attemptedSize : null;
+    // Preserve timestamp when the failure is identical to the last one — every
+    // debounce cycle re-records the same failure, and clients dedupe by ts.
+    // Without this guard a fresh ts every 5s would re-fire the toast.
+    if (lastPersistFailure
+        && lastPersistFailure.source === source
+        && lastPersistFailure.message === message
+        && lastPersistFailure.attemptedSize === attemptedSize) {
+        return;
+    }
+    lastPersistFailure = {
+        timestamp: Date.now(),
+        message,
+        attemptedSize,
+        source,
+    };
+}
+
+export function clearPersistFailure() {
+    lastPersistFailure = null;
+}
+
+export function currentPersistWarning() {
+    return lastPersistFailure;
+}
+
+// ─── Server-side database backup (DB-only snapshots) ────────────────────────
+//
+// Snapshots live as `database/dbbackup-{ts}.bin` keys inside the kv table.
+// They're created on every successful persist (with a cooldown) and rotated
+// to fit user-configured count/size limits — see SNAPSHOT_LIMIT_* below.
+export const SNAPSHOT_LIMIT_COUNT_KEY = 'config/snapshot-max-count';
+export const SNAPSHOT_LIMIT_BYTES_KEY = 'config/snapshot-max-bytes';
+export const SNAPSHOT_LIMIT_DEFAULT_COUNT = 20;
+export const SNAPSHOT_LIMIT_DEFAULT_BYTES = 500 * 1024 * 1024; // 500 MB
+// Safety bounds to keep a stray PUT from making the system unusable.
+export const SNAPSHOT_LIMIT_MIN_COUNT = 1;
+export const SNAPSHOT_LIMIT_MAX_COUNT = 100;
+export const SNAPSHOT_LIMIT_MIN_BYTES = 10 * 1024 * 1024;        // 10 MB
+export const SNAPSHOT_LIMIT_MAX_BYTES = 50 * 1024 * 1024 * 1024; // 50 GB
+
+function readSnapshotConfigInt(key, fallback, min, max) {
+    try {
+        const raw = kvGet(key);
+        if (!raw) return fallback;
+        const n = parseInt(Buffer.from(raw).toString('utf-8').trim(), 10);
+        if (!Number.isFinite(n)) return fallback;
+        return Math.min(max, Math.max(min, n));
+    } catch { return fallback; }
+}
+
+export function getSnapshotLimits() {
+    return {
+        maxCount: readSnapshotConfigInt(
+            SNAPSHOT_LIMIT_COUNT_KEY, SNAPSHOT_LIMIT_DEFAULT_COUNT,
+            SNAPSHOT_LIMIT_MIN_COUNT, SNAPSHOT_LIMIT_MAX_COUNT,
+        ),
+        maxBytes: readSnapshotConfigInt(
+            SNAPSHOT_LIMIT_BYTES_KEY, SNAPSHOT_LIMIT_DEFAULT_BYTES,
+            SNAPSHOT_LIMIT_MIN_BYTES, SNAPSHOT_LIMIT_MAX_BYTES,
+        ),
+    };
+}
+
+// Walk newest → oldest; keep within both limits, delete the rest. The most
+// recent snapshot is always kept (even if it alone exceeds the byte limit) so
+// we never end up with zero backups after a config change.
+export function trimSnapshotsToLimits() {
+    const { maxCount, maxBytes } = getSnapshotLimits();
+    const entries = kvListWithSizes(DB_BACKUP_PREFIX)
+        .map((it) => {
+            const tsRaw = parseInt(it.key.slice(DB_BACKUP_PREFIX.length, -4), 10);
+            return { key: it.key, size: it.size, ts: Number.isFinite(tsRaw) ? tsRaw : 0 };
+        })
+        .sort((a, b) => b.ts - a.ts);
+
+    let runningBytes = 0;
+    const toDelete = [];
+    for (let i = 0; i < entries.length; i++) {
+        const e = entries[i];
+        if (e == null) continue;
+        const isFirst = i === 0;
+        const fitsByCount = i < maxCount;
+        const fitsByBytes = runningBytes + e.size <= maxBytes;
+        if (isFirst || (fitsByCount && fitsByBytes)) {
+            runningBytes += e.size;
+        } else {
+            toDelete.push(e.key);
+        }
+    }
+    for (const key of toDelete) kvDel(key);
+    return { kept: entries.length - toDelete.length, removed: toDelete.length };
 }

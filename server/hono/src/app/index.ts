@@ -15,6 +15,7 @@ import { checkpointWal } from '../utils/db.js'
 import { flushPendingDb, migrateInlaysToFilesystem } from '../utils/asset.util.js'
 import { tunnelApp, stopTunnel } from './api/tunnel.js'
 import { backupApp } from './api/backup.js'
+import { dbApp } from './api/db.js'
 
 const app = new Hono();
 
@@ -46,6 +47,7 @@ api.route("/chat-content", chatApp);
 api.route("/migrate", migrateApp);
 api.route("/backup", backupApp);
 api.route("/tunnel", tunnelApp);
+api.route("/db", dbApp);
 app.route('/api', api);
 app.route("/", proxyApp);
 

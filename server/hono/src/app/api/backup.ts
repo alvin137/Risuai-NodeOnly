@@ -14,13 +14,31 @@ const BACKUP_ENTRY_NAME_MAX_BYTES = 1024;
 // Minimum free disk space headroom multiplier: require 2× the backup size to be free
 const BACKUP_DISK_HEADROOM = 2;
 
-const backupsDir = path.join(process.cwd(), "backups")
+// Server-side backup directory (outside save/ to avoid bloating updater copies).
+// Configurable at runtime via the kv key `config/server-backup-path`. When the
+// user changes the path the old directory is left in place (existing backups
+// stay where they were); only future backups land at the new path.
+export const DEFAULT_BACKUPS_DIR = path.join(process.cwd(), "backups");
+export const BACKUP_PATH_CONFIG_KEY = 'config/server-backup-path';
+
+function readBackupsDirConfig() {
+    try {
+        const raw = kvGet(BACKUP_PATH_CONFIG_KEY);
+        if (!raw) return DEFAULT_BACKUPS_DIR;
+        const text = Buffer.from(raw).toString('utf-8').trim();
+        return text || DEFAULT_BACKUPS_DIR;
+    } catch { return DEFAULT_BACKUPS_DIR; }
+}
+
+export let backupsDir = readBackupsDirConfig();
+
 if(!existsSync(backupsDir)){
-    mkdirSync(backupsDir)
+    try { mkdirSync(backupsDir, { recursive: true }); }
+    catch { backupsDir = DEFAULT_BACKUPS_DIR; mkdirSync(backupsDir, { recursive: true }); }
 }
 const BACKUP_FILENAME_REGEX = /^risu-backup-\d+\.bin$/;
 
-function listColdStorageBackupEntries() {
+export function listColdStorageBackupEntries() {
     const canonicalKeys = Array.from(new Set(
         kvList('coldstorage/').map((key) => normalizeColdStorageStorageKey(key))
     )).sort((a, b) => a.localeCompare(b));
@@ -164,7 +182,12 @@ function parseBackupChunk(buffer, onEntry) {
 // Accepts any async iterable of Buffer chunks (HTTP request body, file stream, etc.)
 async function importBackupFromSource(dataSource: any, { maxBytes = 0, totalBytes = 0, onProgress = null }: any = {}) {
     const BATCH_SIZE = 5000;
-    let remainingBuffer = Buffer.alloc(0);
+    // Defer Buffer.concat until enough bytes for the next entry are buffered.
+    // Concatenating on every chunk arrival is O(n²) when a single entry (e.g.
+    // database.risudat) far exceeds chunk size.
+    let pendingChunks = [];
+    let pendingTotal = 0;
+    let nextEntryThreshold = 8;
     let hasDatabase = false;
     let assetsRestored = 0;
     let bytesReceived = 0;
@@ -232,10 +255,17 @@ async function importBackupFromSource(dataSource: any, { maxBytes = 0, totalByte
             }
             if (onProgress) onProgress(bytesReceived, totalBytes);
 
-            remainingBuffer = remainingBuffer.length === 0
-                ? Buffer.from(chunk)
-                : Buffer.concat([remainingBuffer, Buffer.from(chunk)]);
-            remainingBuffer = parseBackupChunk(remainingBuffer, (name, data) => {
+            pendingChunks.push(Buffer.from(chunk));
+            pendingTotal += chunk.length;
+            if (pendingTotal < nextEntryThreshold) continue;
+
+            const buffer = pendingChunks.length === 1
+                ? pendingChunks[0]
+                : Buffer.concat(pendingChunks, pendingTotal);
+            pendingChunks = [];
+            pendingTotal = 0;
+
+            const remaining = parseBackupChunk(buffer, (name, data) => {
                 if (seenEntryNames.has(name)) {
                     throw new Error(`Duplicate backup entry: ${name}`);
                 }
@@ -323,9 +353,28 @@ async function importBackupFromSource(dataSource: any, { maxBytes = 0, totalByte
                     batchCount = 0;
                 }
             });
+
+            if (remaining.length === 0) {
+                nextEntryThreshold = 8;
+            } else {
+                pendingChunks.push(remaining);
+                pendingTotal = remaining.length;
+                if (remaining.length < 4) {
+                    nextEntryThreshold = 8;
+                } else {
+                    const nameLen = remaining.readUInt32LE(0);
+                    const headerEnd = 4 + nameLen + 4;
+                    if (remaining.length < headerEnd) {
+                        nextEntryThreshold = headerEnd;
+                    } else {
+                        const dataLen = remaining.readUInt32LE(4 + nameLen);
+                        nextEntryThreshold = headerEnd + dataLen;
+                    }
+                }
+            }
         }
 
-        if (remainingBuffer.length > 0) {
+        if (pendingTotal > 0) {
             throw new Error('Backup stream ended with incomplete entry');
         }
         if (!hasDatabase) {
@@ -397,6 +446,27 @@ async function importBackupFromSource(dataSource: any, { maxBytes = 0, totalByte
 backupApp.post('/server/save', async (c) => {
   try {
     await flushPendingDb();
+
+      // Pre-flight disk check — bail before streaming if the target dir
+      // can't fit the backup. Avoids wasted minutes + half-written tmp files.
+      try {
+          const estimate = await estimateServerBackupSize();
+          const required = Math.ceil(estimate * 1.05); // 5% safety margin
+          const sf = await fs.statfs(backupsDir);
+          const free = sf.bsize * sf.bavail;
+          if (estimate > 0 && free < required) {
+              return c.json({
+                  error: `Insufficient disk space (need ~${(required / 1024 / 1024).toFixed(0)} MB, free ${(free / 1024 / 1024).toFixed(0)} MB)`,
+                  code: 'insufficient_space',
+                  required,
+                  free,
+              }, 400);
+          }
+      } catch (e) {
+          // Non-fatal: log and proceed. statfs may be unavailable, in which
+          // case the streaming fallback path below still fails gracefully.
+          console.warn('[Backup] pre-flight disk check failed:', e?.message || e);
+      }
 
     const inlayFiles = await listInlayFiles();
     const inlayEntries = await Promise.all(inlayFiles.map(async (entry) => {
@@ -640,9 +710,15 @@ backupApp.get('/server/download/:filename', async (c, next) => {
 
 backupApp.get('/export', async (c) => {
   try {
+    // ?target=upstream excludes NodeOnly-only inlay namespaces (inlay/,
+    // inlay_sidecar/, inlay_meta/). Their entry names contain a slash,
+    // which upstream RisuAI's import treats as a path under assets/ and
+    // fails with ENOENT. The export becomes lossy on inlay images but
+    // imports cleanly into upstream.
+    const target = c.req.query("target") === 'upstream' ? 'upstream' : 'nodeonly';
     await flushPendingDb();
 
-    const inlayFiles = await listInlayFiles();
+    const inlayFiles = target === 'upstream' ? [] : await listInlayFiles();
     const inlayEntries = await Promise.all(inlayFiles.map(async (entry) => {
       const stat = await fs.stat(entry.filePath);
       return {
@@ -666,6 +742,13 @@ backupApp.get('/export', async (c) => {
         };
       } catch { return null; }
     }));
+    const inlayMetaEntries = target === 'upstream' ? [] : kvListWithSizes('inlay_meta/').map((entry) => ({
+            kind: 'kv',
+            key: entry.key,
+            backupName: entry.key,
+            sortKey: entry.key,
+            size: entry.size,
+    }));
 
     const namespacedEntries = [
       ...kvListWithSizes('assets/').map((entry) => ({
@@ -674,11 +757,7 @@ backupApp.get('/export', async (c) => {
         sortKey: entry.key, size: entry.size,
       })),
       ...listColdStorageBackupEntries(),
-      ...kvListWithSizes('inlay_meta/').map((entry) => ({
-        kind: 'kv', key: entry.key,
-        backupName: entry.key,
-        sortKey: entry.key, size: entry.size,
-      })),
+      ...inlayMetaEntries,
       ...inlayEntries,
       ...sidecarEntries.filter(Boolean),
     ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
@@ -687,6 +766,8 @@ backupApp.get('/export', async (c) => {
     const totalBytes = namespacedEntries.reduce((sum, entry) => {
       return sum + 8 + Buffer.byteLength(entry.backupName, 'utf-8') + entry.size;
     }, 0) + (dbSize ? 8 + Buffer.byteLength('database.risudat', 'utf-8') + dbSize : 0);
+
+    const filenameSuffix = target === 'upstream' ? '-upstream' : '';
 
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
@@ -719,7 +800,7 @@ backupApp.get('/export', async (c) => {
     return new Response(readable, {
       headers: {
         'content-type': 'application/octet-stream',
-        'content-disposition': `attachment; filename="risu-backup-${Date.now()}.bin"`,
+        'content-disposition': `attachment; filename="risu-backup-${Date.now()}${filenameSuffix}.bin"`,
         'content-length': String(totalBytes),
         'x-risu-backup-assets': String(namespacedEntries.length),
       },
@@ -791,4 +872,79 @@ backupApp.post('/import', async (c, next) => {
     } finally {
         setImportProgress(false);
     }
+});
+
+// ── Boot-time backup reminder ───────────────────────────────────────────────
+
+const BOOT_REMINDER_KEY = 'config/boot-backup-reminder';
+
+function readBootReminder() {
+    try {
+        const raw = kvGet(BOOT_REMINDER_KEY);
+        if (!raw) return false;
+        return Buffer.from(raw).toString('utf-8').trim() === '1';
+    } catch { return false; }
+}
+
+backupApp.get('/boot-reminder', async (c, next) => {
+    // if (!await checkAuth(c)) return;
+    try {
+        return c.json({ enabled: readBootReminder() });
+    } catch (err) { next(err); }
+});
+
+backupApp.put('/boot-reminder', async (c, next) => {
+    // if (!await checkAuth(c)) return;
+    // if (!checkActiveSession(c)) return;
+    try {
+        const enabled = !!c.req.json().enabled;
+        kvSet(BOOT_REMINDER_KEY, Buffer.from(enabled ? '1' : '0', 'utf-8'));
+        return c.json({ enabled });
+    } catch (err) { next(err); }
+});
+
+// ── Backup directory configuration ──────────────────────────────────────────
+
+backupApp.get('/server/path', async (c, next) => {
+    // if (!await checkAuth(c)) return;
+    try {
+        return c.json({
+            path: backupsDir,
+            default: DEFAULT_BACKUPS_DIR,
+            isDefault: backupsDir === DEFAULT_BACKUPS_DIR,
+        });
+    } catch (err) { next(err); }
+});
+
+backupApp.put('/server/path', async (c, next) => {
+    // if (!await checkAuth(c)) return;
+    // if (!checkActiveSession(c)) return;
+    try {
+        const next = typeof c.req.json()?.path === 'string' ? c.req.json().path.trim() : '';
+        if (!next) {
+            return c.json({ error: 'Path required' }, 400);
+        }
+        const resolved = path.resolve(next);
+        // Ensure parent exists / target is writable. Create the dir if missing.
+        try {
+            if (!existsSync(resolved)) {
+                mkdirSync(resolved, { recursive: true });
+            }
+            // Probe writability with a tmpfile.
+            const probe = path.join(resolved, `.risu-write-probe-${Date.now()}`);
+            require('fs').writeFileSync(probe, '');
+            require('fs').unlinkSync(probe);
+        } catch (e) {
+            return c.json({ error: 'Path is not writable: ' + (e?.message || String(e)) }, 400);
+        }
+        const previous = backupsDir;
+        backupsDir = resolved;
+        kvSet(BACKUP_PATH_CONFIG_KEY, Buffer.from(resolved, 'utf-8'));
+        return c.json({
+            path: backupsDir,
+            previous,
+            default: DEFAULT_BACKUPS_DIR,
+            isDefault: backupsDir === DEFAULT_BACKUPS_DIR,
+        });
+    } catch (err) { next(err); }
 });
