@@ -4922,6 +4922,9 @@ app.post('/api/db/optimize', async (req, res, next) => {
             const t0 = Date.now();
             try { checkpointWal('TRUNCATE'); } catch (e) { logger.warn('[Optimize] checkpoint failed:', e?.message || e); }
             sqliteDb.exec('VACUUM');
+            // VACUUM streams the whole DB through the WAL; without this checkpoint the
+            // -wal file stays inflated until the next 5-min background TRUNCATE.
+            try { checkpointWal('TRUNCATE'); } catch (e) { logger.warn('[Optimize] post-VACUUM checkpoint failed:', e?.message || e); }
             const elapsed = Date.now() - t0;
             const postDbSize = statSafe(dbFilePath)?.size ?? 0;
             return {
