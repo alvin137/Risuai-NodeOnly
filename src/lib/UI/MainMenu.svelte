@@ -23,7 +23,7 @@
 <div class="h-full w-full flex flex-col overflow-y-auto items-center">
     {#if !$OpenRealmStore}
       <Title />
-      <h3 class="text-textcolor2 mt-1">📦 NodeOnly v{getVersionString()}</h3>
+      <h3 class="text-textcolor2 mt-1">v{getVersionString()}</h3>
       {#if $updateInfoStore?.hasUpdate}
         <button
           class="mt-1.5 px-3 py-1 rounded-full text-sm font-medium transition-colors

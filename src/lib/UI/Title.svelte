@@ -1,8 +1,7 @@
 <script lang="ts">
     
 import { DBState } from 'src/ts/stores.svelte';
-    import { openURL } from "src/ts/globalApi.svelte";
-    
+
 let specialDay = $state('')
     const today = new Date()
     if (today.getMonth() === 11 && today.getDate() >= 19 && today.getDate() <= 25) {
@@ -16,9 +15,6 @@ let specialDay = $state('')
     }
     if( today.getMonth() === 2 && today.getDate() === 21 ){
         specialDay = 'nodeonlyAnniversary'
-    }
-    if( today.getMonth() === 3 && today.getDate() === 13 ){
-        specialDay = 'anniversary'
     }
     if( today.getMonth() === 9 && today.getDate() === 31){
         specialDay = 'halloween'
@@ -70,18 +66,22 @@ let specialDay = $state('')
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <h2 class="text-4xl text-textcolor mb-0 mt-6 font-black relative" class:text-bordered={specialDay === 'newYear'} onclick={onClick}>
     {#if specialDay === 'midAutumn'}
-        <span class="text-amber-400">🐉Risuai🐉</span>
+        <span class="text-amber-400">🐉PocketRisu🐉</span>
     {:else if specialDay === 'chuseok'}
         <div class="flex">
-            <span class="text-blue-500">R</span>
-            <span class="text-red-500">i</span>
-            <span class="text-yellow-500">s</span>
-            <span class="text-white">u</span>
-            <span class="text-black">A</span>
-            <span class="text-blue-500">I</span>
+            <span class="text-blue-500">P</span>
+            <span class="text-red-500">o</span>
+            <span class="text-yellow-500">c</span>
+            <span class="text-white">k</span>
+            <span class="text-black">e</span>
+            <span class="text-blue-500">t</span>
+            <span class="text-red-500">R</span>
+            <span class="text-yellow-500">i</span>
+            <span class="text-white">s</span>
+            <span class="text-black">u</span>
         </div>
     {:else}
-        Risuai
+        PocketRisu
     {/if}
     {#if specialDay === 'christmas'}
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -99,15 +99,6 @@ let specialDay = $state('')
             >
         {/if}
     {/if}
-    {#if specialDay === 'anniversary'}
-        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-        {#if clicks < 5}
-            <img src="./birthday.png" alt="birthday" class="absolute logo-top"
-                style:top={(-28 + iconAnimation).toFixed(0) + 'px'}
-                style:right={'-30px'}
-            >
-        {/if}
-    {/if}
     {#if specialDay === 'newYear'}
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <img src="./sun.webp" alt="sun" class="absolute -z-10"
@@ -120,19 +111,9 @@ let specialDay = $state('')
 
 {#if specialDay === 'nodeonlyAnniversary'}
     <h1>
-        <span class="text-2xl font-extralight italic text-amber-400 hover:text-amber-600 transition">NodeOnly {
+        <span class="text-2xl font-extralight italic text-amber-400 hover:text-amber-600 transition">PocketRisu {
             new Date().getFullYear() - 2026
         }{getNumberPostfix(new Date().getFullYear() - 2026)} Anniversary!</span>
-    </h1>
-{/if}
-{#if specialDay === 'anniversary'}
-    <h1>
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <span class="text-2xl font-extralight italic text-amber-400 hover:text-amber-600 cursor-pointer transition" role="button" tabindex="-1" onclick={() => {
-            openURL('https://risuai.net')
-        }}>Happy {
-            new Date().getFullYear() - 2023
-        }{getNumberPostfix(new Date().getFullYear() - 2023)} Anniversary!</span>
     </h1>
 {/if}
 {#if clicks >= 5}

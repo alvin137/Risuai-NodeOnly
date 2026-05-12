@@ -51,7 +51,7 @@
     const userAgent = typeof navigator === "undefined" ? "Unknown" : navigator.userAgent || "Unknown";
     const stackTraceCodeBlock = $derived.by(() => {
         const lines = [
-            `NodeOnly v${nodeOnlyVer}`,
+            `PocketRisu v${nodeOnlyVer}`,
             `OS: ${osLabel}`,
             `User-Agent: ${userAgent}`,
             `Risu environment: ${risuEnvironment}`,
