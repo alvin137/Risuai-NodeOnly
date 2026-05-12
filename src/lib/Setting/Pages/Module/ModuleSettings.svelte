@@ -48,7 +48,6 @@
                 description: '',
                 id: v4(),
             }
-            DBState.db.modules.push(tempModule)
             mode = 1
         }}>
             <PlusIcon />
