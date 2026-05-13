@@ -1,5 +1,5 @@
 /**
- * Risuai NodeOnly — Korean help texts (`language.help`).
+ * PocketRisu NodeOnly — Korean help texts (`language.help`).
  *
  * Extracted from `src/lang/ko.ts` for maintainability. Entries override the
  * English defaults in `help.en.ts` via `lodash/merge` (see `src/lang/index.ts`).
@@ -79,7 +79,7 @@ export const helpKo = {
         "requestretrys": "이 옵션은 요청이 실패할 때 요청을 다시 시도할 횟수를 설정하는 데 사용됩니다.",
         "emotionPrompt": "이 옵션은 감정을 감지하는 데 사용되는 프롬프트를 설정하는 데 사용됩니다. 비어 있으면 기본 프롬프트를 사용합니다.",
         "additionalParams": "요청 본문에 추가될 파라미터입니다. 일부 파라미터를 제외하려면 `{{none}}`을 값으로 입력하세요. 본문 대신 헤더에 추가하려면 키 앞에 `header::Authorization`처럼 `header::`를 붙이세요. 값을 JSON으로 보내려면 값 앞에 `json::{\"key\":\"value\"}`처럼 `json::`을 붙이세요. 그렇지 않으면 값의 타입은 자동으로 결정됩니다.",
-        "antiClaudeOverload": "Claude 과부하가 발생하면, Risuai는 동일한 프롬프트로 계속 진행하여 과부하 발생 가능성을 줄이려고 시도합니다. 스트리밍 응답에서만 작동합니다. 공식 API 엔드포인트가 아닌 경우 작동하지 않을 수 있습니다.",
+        "antiClaudeOverload": "Claude 과부하가 발생하면, PocketRisu는 동일한 프롬프트로 계속 진행하여 과부하 발생 가능성을 줄이려고 시도합니다. 스트리밍 응답에서만 작동합니다. 공식 API 엔드포인트가 아닌 경우 작동하지 않을 수 있습니다.",
         "triggerScript": "트리거 스크립트는 조건이 충족될 때 실행되는 커스텀 스크립트입니다. 채팅 데이터를 수정하거나, 명령어를 실행하거나, 변수를 변경하는 등의 작업에 사용할 수 있습니다. 실행 시점은 타입에 따라 다릅니다. {{button::Display::TriggerName}}을 사용하여 버튼으로 실행하거나, `risu-trigger=\"<TriggerName>\"` 속성이 있는 HTML 버튼으로도 실행할 수 있습니다.",
         "autoContinueChat": "활성화되면 문장 부호로 끝나지 않을 경우 채팅을 계속 이어가려고 시도합니다. 문장 부호를 사용하지 않는 언어에서는 사용하지 마세요.",
         "combineTranslation": "활성화된 경우, 한 문장이지만 HTML 태그로 분리된 텍스트를 모두 합쳐서 번역한 후, 번역된 결과에 다시 디스플레이 수정 스크립트를 적용합니다.\n이를 통해 번역기가 올바른 번역을 하도록 도와줍니다.\n이 옵션을 활성화하고 UI가 이상해지면 옵션을 끄고 제보해 주세요.",
@@ -89,7 +89,7 @@ export const helpKo = {
         "useRegexLorebook": "활성화되면 로어북 검색에 문자열 일치 대신 정규식을 사용합니다. /regex/flags 형식을 사용합니다.",
         "customChainOfThought": "경고: 생각의 사슬 토글 사용은 더 이상 권장되지 않습니다. 대신 다른 프롬프트 항목에 생각의 사슬 프롬프트를 입력하세요.",
         "customPromptTemplateToggle": "여기서 고유한 프롬프트 토글을 정의할 수 있습니다. 개행으로 구분하여 `<토글 변수>=<토글 이름>` 형식을 사용하세요. 예: `cot=COT 토글`. 프롬프트에서 `{{getglobalvar::toggle_<토글 변수>}}`를 사용하여 이 토글을 사용할 수 있습니다. 예: `{{getglobalvar::toggle_cot}}`.",
-        "defaultVariables": "여기에서는 기본 변수를 정의할 수 있습니다. `<변수 이름>=<변수 값>` 형식으로 작성하고 개행으로 구분합니다. 예를 들어, `name=Risuai`는 트리거 스크립트 및 변수 CBS와 함께 `{{getvar::A}}`, `{{setvar::A::B}}` 또는 `{{? $A + 1}}`과 같이 사용할 수 있습니다. 프롬프트 템플릿의 기본 변수와 캐릭터의 기본 변수가 동일한 이름을 가진 경우 캐릭터의 기본 변수가 사용됩니다.",
+        "defaultVariables": "여기에서는 기본 변수를 정의할 수 있습니다. `<변수 이름>=<변수 값>` 형식으로 작성하고 개행으로 구분합니다. 예를 들어, `name=PocketRisu`는 트리거 스크립트 및 변수 CBS와 함께 `{{getvar::A}}`, `{{setvar::A::B}}` 또는 `{{? $A + 1}}`과 같이 사용할 수 있습니다. 프롬프트 템플릿의 기본 변수와 캐릭터의 기본 변수가 동일한 이름을 가진 경우 캐릭터의 기본 변수가 사용됩니다.",
         "lowLevelAccess": "활성화되면 높은 컴퓨팅 파워가 필요한 기능과 캐릭터 트리거를 통한 AI 모델 실행에 대한 접근이 허용됩니다. 꼭 필요한 경우가 아니면 활성화하지 마세요.",
         "triggerLLMPrompt": "모델에 전송될 프롬프트입니다. `@@role user`, `@@role system`, `@@role assistant`를 사용하여 멀티 턴과 역할을 사용할 수 있습니다. 예:\n```\n@@role system\nrespond as hello\n@@role assistant\nhello\n@@role user\nhi\n```",
         "legacyTranslation": "활성화되면 번역 후 후처리 대신 번역 전 마크다운과 따옴표를 전처리하는 이전 번역 방식을 사용합니다.",
@@ -105,7 +105,7 @@ export const helpKo = {
         "betaMobileGUI": "활성화되면 작은 화면(800px 미만)에서 베타 모바일 GUI를 사용합니다. 새로고침이 필요합니다.",
         "enableScrollToActiveChar": "활성화되면 단축키를 누르거나 캐릭터를 드래그하는 동안 Ctrl을 누르면 현재 활성 캐릭터로 스크롤합니다. 폴더가 닫혀있으면 자동으로 열립니다.",
         "unrecommended": "비권장 설정입니다. 이 설정을 사용하는 것은 권장되지 않습니다.",
-        "jsonSchema": "AI 모델이 JSON 스키마를 지원하는 경우 AI 모델로 전송될 JSON 스키마입니다.\n\n하지만 JSON 스키마는 배우기 어렵기 때문에, Risuai에서는 JSON 스키마 대신 TypeScript 인터페이스의 하위 집합을 사용할 수 있습니다. Risuai가 런타임에 이를 변환합니다. 예를 들어 다음과 같은 JSON을 보내고 싶다면:\n\n```js\n{\n  \"name\": \"Risuai\", //이름은 Risuai여야 함,\n  \"age\": 1, //나이는 숫자여야 함,\n  \"icon\": \"slim\", //아이콘은 'slim' 또는 'rounded'여야 함\n  \"thoughts\": [\"Good View!\", \"Lorem\"] //생각은 문자열 배열이어야 함\n}\n```\n\n다음과 같이 TypeScript 인터페이스를 입력할 수 있습니다:\n\n```typescript\ninterface Schema {\n  name: string;\n  age: number;\n  icon: 'slim'|'rounded'\n  thoughts: string[]\n}\n```\n\n인터페이스의 이름은 중요하지 않습니다. 자세한 내용은 TypeScript 문서를 참조하세요. (https://www.typescriptlang.org/docs/handbook/interfaces.html), 지원되는 TypeScript 하위 집합을 확인하려면 아래를 참조하세요.<details><summary>지원되는 TypeScript 하위 집합</summary>\n\n지원되는 타입은 `boolean`, `number`, `string`, `Array`입니다. 유닛 타입, 교차 타입, 유니온 타입, 옵셔널, 리터럴 타입 등 고급 타이핑은 다음 경우를 제외하고 지원되지 않습니다:\n\n        - 원시 타입의 배열: (예: `string[]`, `Array<boolean>)`\n        - 문자열 간의 유닛 타입: (예: `'slim'|'rounded'`).\n\n        속성은 한 줄에 하나씩 있어야 합니다. 한 줄에 여러 속성이 있으면 오류가 발생합니다. 속성 이름과 인터페이스 이름은 ASCII 범위 내의 라틴 문자만 사용해야 합니다. 속성 이름은 따옴표나 큰따옴표로 감싸지 않아야 합니다. 인터페이스 내부 중첩은 지원되지 않습니다. 속성이 정의된 줄에 `{` 또는 `}`를 넣을 수 없습니다. 더 고급 타입을 사용하려면 대신 JSON 스키마를 사용하세요.\n        </details>",
+        "jsonSchema": "AI 모델이 JSON 스키마를 지원하는 경우 AI 모델로 전송될 JSON 스키마입니다.\n\n하지만 JSON 스키마는 배우기 어렵기 때문에, PocketRisu에서는 JSON 스키마 대신 TypeScript 인터페이스의 하위 집합을 사용할 수 있습니다. PocketRisu가 런타임에 이를 변환합니다. 예를 들어 다음과 같은 JSON을 보내고 싶다면:\n\n```js\n{\n  \"name\": \"PocketRisu\", //이름은 PocketRisu여야 함,\n  \"age\": 1, //나이는 숫자여야 함,\n  \"icon\": \"slim\", //아이콘은 'slim' 또는 'rounded'여야 함\n  \"thoughts\": [\"Good View!\", \"Lorem\"] //생각은 문자열 배열이어야 함\n}\n```\n\n다음과 같이 TypeScript 인터페이스를 입력할 수 있습니다:\n\n```typescript\ninterface Schema {\n  name: string;\n  age: number;\n  icon: 'slim'|'rounded'\n  thoughts: string[]\n}\n```\n\n인터페이스의 이름은 중요하지 않습니다. 자세한 내용은 TypeScript 문서를 참조하세요. (https://www.typescriptlang.org/docs/handbook/interfaces.html), 지원되는 TypeScript 하위 집합을 확인하려면 아래를 참조하세요.<details><summary>지원되는 TypeScript 하위 집합</summary>\n\n지원되는 타입은 `boolean`, `number`, `string`, `Array`입니다. 유닛 타입, 교차 타입, 유니온 타입, 옵셔널, 리터럴 타입 등 고급 타이핑은 다음 경우를 제외하고 지원되지 않습니다:\n\n        - 원시 타입의 배열: (예: `string[]`, `Array<boolean>)`\n        - 문자열 간의 유닛 타입: (예: `'slim'|'rounded'`).\n\n        속성은 한 줄에 하나씩 있어야 합니다. 한 줄에 여러 속성이 있으면 오류가 발생합니다. 속성 이름과 인터페이스 이름은 ASCII 범위 내의 라틴 문자만 사용해야 합니다. 속성 이름은 따옴표나 큰따옴표로 감싸지 않아야 합니다. 인터페이스 내부 중첩은 지원되지 않습니다. 속성이 정의된 줄에 `{` 또는 `}`를 넣을 수 없습니다. 더 고급 타입을 사용하려면 대신 JSON 스키마를 사용하세요.\n        </details>",
         "strictJsonSchema": "활성화되면 일부 모델에서 제공된 JSON 스키마를 엄격하게 따릅니다. 비활성화되면 JSON 스키마를 무시할 수도 있습니다.",
         "extractJson": "비워두지 않으면 응답에서 특정 JSON 데이터를 추출합니다. 예를 들어 `{\"response\": {\"text\": [\"hello\"]}}` 응답에서 `response.text[0]`을 추출하려면 `response.text.0`을 입력하세요.",
         "translatorNote": "여기에서 캐릭터마다 별도의 번역 프롬프트를 넣을 수 있습니다. 해당 옵션은  Ax. model 번역을 사용할 때만 적용됩니다. 언어 설정에서 `{{slot::tnote}}`를 넣으세요. 그룹챗에서는 작동하지 않습니다.",

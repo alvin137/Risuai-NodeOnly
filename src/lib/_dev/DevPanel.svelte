@@ -365,7 +365,7 @@ function hello(): string {
         latestVersion: '99.99.99-demo',
         hasUpdate: true,
         severity: 'optional',
-        releaseUrl: 'https://github.com/mrbart3885/Risuai-NodeOnly/releases',
+        releaseUrl: 'https://github.com/PocketRisu/PocketRisu/releases',
         releaseName: 'v99.99.99-demo (Dev Panel sample)',
         publishedAt: new Date().toISOString(),
         canSelfUpdate: true,
