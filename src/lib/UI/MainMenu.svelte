@@ -2,7 +2,8 @@
     import { DBState } from 'src/ts/stores.svelte';
     import Hub from "./Realm/RealmMain.svelte";
     import { OpenRealmStore, RealmInitialOpenChar } from "src/ts/stores.svelte";
-    import { ArrowLeft, FolderCodeIcon, MailIcon, SendIcon, UsersIcon } from "@lucide/svelte";
+    import { ArrowLeft, ChevronDown, MailIcon, SendIcon, TriangleAlertIcon, UsersIcon } from "@lucide/svelte";
+    import GithubIcon from "./GithubIcon.svelte";
     import { getVersionString, openURL } from "src/ts/globalApi.svelte";
     import { language } from "src/lang";
     import { getRisuHub, hubAdditionalHTML } from "src/ts/characterCards";
@@ -10,6 +11,11 @@
     import Title from "./Title.svelte";
     import { updateInfoStore, updatePopupStore } from "src/ts/update";
     import { publicStatsStore } from "src/ts/publicStats";
+    import { isSecureContext } from "src/ts/secureContext";
+    import { openSettings, SettingsRoute } from "src/ts/routing";
+    import ShButton from "./GUI/ShButton.svelte";
+
+    let realmOpen = $state(!DBState.db.hideRealm);
 
     const relatedLinkIconClass =
       "h-40 w-40 md:h-44 md:w-44 origin-right -rotate-12 opacity-[0.12] transition-all duration-500 group-hover:scale-105 group-hover:opacity-[0.22]";
@@ -17,7 +23,7 @@
 <div class="h-full w-full flex flex-col overflow-y-auto items-center">
     {#if !$OpenRealmStore}
       <Title />
-      <h3 class="text-textcolor2 mt-1">📦 NodeOnly v{getVersionString()}</h3>
+      <h3 class="text-textcolor2 mt-1">v{getVersionString()}</h3>
       {#if $updateInfoStore?.hasUpdate}
         <button
           class="mt-1.5 px-3 py-1 rounded-full text-sm font-medium transition-colors
@@ -49,13 +55,81 @@
     {/if}
     <div class="w-full flex p-4 flex-col text-textcolor max-w-4xl">
       {#if !$OpenRealmStore}
+      {#if !isSecureContext}
+        <div class="mt-4 w-full bg-yellow-900/30 border border-yellow-700/40 rounded-md px-4 py-3 flex items-center justify-between gap-3 flex-wrap text-yellow-300">
+          <div class="flex items-start gap-2.5 min-w-0 flex-1">
+            <TriangleAlertIcon class="size-4 shrink-0 mt-0.5 text-yellow-400" />
+            <div class="flex flex-col min-w-0">
+              <span class="font-medium text-sm">{language.httpInsecureWarningTitle}</span>
+              <span class="leading-relaxed text-sm opacity-90">{language.httpInsecureWarningBody}</span>
+            </div>
+          </div>
+          <ShButton variant="outline" size="sm" onclick={() => openSettings(SettingsRoute.RemoteAccess)}>
+            {language.httpInsecureOpenRemoteAccess}
+          </ShButton>
+        </div>
+      {/if}
+      <div class="mt-4 mb-4 w-full border-t border-t-selected"></div>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="flex-1 flex items-center gap-2 text-2xl font-bold text-left outline-none focus-visible:ring-2 focus-visible:ring-borderc/50 rounded"
+          aria-expanded={realmOpen}
+          aria-controls="main-realm-section"
+          onclick={() => (realmOpen = !realmOpen)}
+        >
+          <span>Recently Uploaded</span>
+          <ChevronDown
+            size={20}
+            class="shrink-0 transition-transform duration-150 {realmOpen ? 'rotate-180' : ''}"
+          />
+        </button>
+        <button
+          type="button"
+          class="text-base font-medium p-1 bg-darkbg rounded-md hover:ring-3"
+          onclick={() => {
+            $OpenRealmStore = true
+          }}
+        >Get More</button>
+      </div>
+      <div
+        id="main-realm-section"
+        role="region"
+        aria-hidden={!realmOpen}
+        inert={!realmOpen}
+      >
+        {#if realmOpen}
+          {#await getRisuHub({
+                search: '',
+                page: 0,
+                nsfw: false,
+                sort: 'recommended'
+            }) then charas}
+            {#if charas.length > 0}
+              {@html hubAdditionalHTML}
+              <div class="w-full flex gap-4 p-2 flex-wrap justify-center">
+                  {#each charas as chara}
+                      <RisuHubIcon onClick={() => {
+                        $OpenRealmStore = true
+                        if(DBState.db.realmDirectOpen){
+                            $RealmInitialOpenChar = chara
+                        }
+                      }} chara={chara} />
+                  {/each}
+              </div>
+            {:else}
+              <div class="text-textcolor2">Failed to load {language.hub}...</div>
+            {/if}
+          {/await}
+        {/if}
+      </div>
       <div class="mt-4 mb-4 w-full border-t border-t-selected"></div>
       <h1 class="text-2xl font-bold mb-4">
         Related Links
       </h1>
         <div class="grid w-full grid-cols-1 gap-4 p-2 md:grid-cols-2">
           <button class="group relative flex min-h-35 flex-col justify-center overflow-hidden rounded-2xl border border-borderc/10 bg-darkbg p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-borderc/30 hover:bg-selected/50 hover:shadow-xl hover:shadow-darkbg/50" onclick={() => {
-            openURL("https://github.com/mrbart3885/Risuai-NodeOnly")
+            openURL("https://github.com/PocketRisu/PocketRisu")
           }}>
             <div class="relative z-10 w-[68%] sm:w-[70%]">
               <h2 class="text-2xl font-bold tracking-tight text-textcolor">{language.relatedGithub}</h2>
@@ -64,7 +138,7 @@
               </span>
             </div>
             <div aria-hidden="true" class="pointer-events-none absolute -right-12 top-1/2 -translate-y-1/2 text-textcolor">
-              <FolderCodeIcon class={relatedLinkIconClass} strokeWidth={1} />
+              <GithubIcon class={relatedLinkIconClass} />
             </div>
           </button>
           <button class="group relative flex min-h-35 flex-col justify-center overflow-hidden rounded-2xl border border-borderc/10 bg-darkbg p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-borderc/30 hover:bg-selected/50 hover:shadow-xl hover:shadow-darkbg/50" onclick={() => {
@@ -81,7 +155,7 @@
             </div>
           </button>
           <button class="group relative flex min-h-35 flex-col justify-center overflow-hidden rounded-2xl border border-borderc/10 bg-darkbg p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-borderc/30 hover:bg-selected/50 hover:shadow-xl hover:shadow-darkbg/50" onclick={() => {
-            openURL("mailto:mrbart3885@gmail.com")
+            openURL("mailto:contact@pocketrisu.com")
           }}>
             <div class="relative z-10 w-[68%] sm:w-[70%]">
               <h2 class="text-2xl font-bold tracking-tight text-textcolor">{language.relatedContactEmail}</h2>
@@ -107,36 +181,6 @@
             </div>
           </button>
         </div>
-      <div class="mt-4 mb-4 w-full border-t border-t-selected"></div>
-      <h1 class="text-2xl font-bold">Recently Uploaded<button class="text-base font-medium float-right p-1 bg-darkbg rounded-md hover:ring-3" onclick={() => {
-        $OpenRealmStore = true
-      }}>Get More</button></h1>
-          {#if !DBState.db.hideRealm}
-            {#await getRisuHub({
-                  search: '',
-                  page: 0,
-                  nsfw: false,
-                  sort: 'recommended'
-              }) then charas}
-            {#if charas.length > 0}
-              {@html hubAdditionalHTML}
-              <div class="w-full flex gap-4 p-2 flex-wrap justify-center">
-                  {#each charas as chara}
-                      <RisuHubIcon onClick={() => {
-                        $OpenRealmStore = true
-                        if(DBState.db.realmDirectOpen){
-                            $RealmInitialOpenChar = chara
-                        }
-                      }} chara={chara} />
-                  {/each}
-              </div>
-            {:else}
-              <div class="text-textcolor2">Failed to load {language.hub}...</div>
-            {/if}
-          {/await}
-        {:else}
-          <div class="text-textcolor2">{language.hideRealm}</div>
-        {/if}
 
       {:else}
         <div class="flex items-center mt-4">

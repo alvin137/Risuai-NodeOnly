@@ -1,9 +1,13 @@
+# Project and container names are kept as historical 'risuai-nodeonly' so existing
+# v1.5.x users transition without port/container collisions. Brand identity lives
+# in the image path, README, and in-app UI — these compose internals are infra
+# identifiers and stay stable on purpose.
 name: risuai-nodeonly
 
 services:
   risuai:
     container_name: risuai-nodeonly
-    image: ghcr.io/mrbart3885/risuai-nodeonly:latest
+    image: ghcr.io/pocketrisu/pocketrisu:latest
     restart: always
     ports:
       - 6001:6001
@@ -12,3 +16,7 @@ services:
 
 volumes:
   risuai-save:
+    # Explicit name preserves the existing volume from v1.5.0 (project name was 'risuai-nodeonly').
+    # Without this, the new project name 'pocketrisu' would prefix the volume as
+    # 'pocketrisu_risuai-save', creating an empty save folder for existing users.
+    name: risuai-nodeonly_risuai-save

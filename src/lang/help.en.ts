@@ -1,5 +1,5 @@
 /**
- * Risuai NodeOnly — English help texts (`language.help`).
+ * PocketRisu NodeOnly — English help texts (`language.help`).
  *
  * Extracted from `src/lang/en.ts` for maintainability. See
  * `.agent/notes/help-audit/` (workspace) for the audit, structure rationale,
@@ -119,7 +119,7 @@ export const helpEn = {
         additionalParams:
             'Additional parameters that would be added to the request body. if you want to exclude some parameters, you can put `{{none}}` to the value. if you want to add a header instead of body, you can put `header::` in front of the key like `header::Authorization`. if you want value as json, you can put `json::` in front of the value like `json::{"key":"value"}`. otherwise, type of the value would be determined automatically.',
         antiClaudeOverload:
-            "If Claude overload happens, Risuai would try to prevent it by continuing with same prompt, making it less likely to happen. works only for streamed responses. this could not work for non-official api endpoints.",
+            "If Claude overload happens, PocketRisu would try to prevent it by continuing with same prompt, making it less likely to happen. works only for streamed responses. this could not work for non-official api endpoints.",
         triggerScript:
             'Trigger Script is a custom script that runs when a condition is met. it can be used to modify the chat data, run a command, change variable, and etc. the type depends when it is triggered. it can also be run by buttons, which can be used with {{button::Display::TriggerName}}, or HTML buttons with `risu-trigger="<TriggerName>"` attribute.',
         autoContinueChat: "If enabled, it will try to continue the chat if it doesn't ends with a punctuation. DONT USE THIS WITH LANGUAGES THAT DOESN'T USE PUNCTUATION.",
@@ -134,7 +134,7 @@ export const helpEn = {
         customPromptTemplateToggle:
             "Here you can define your own prompt toggles. use `<toggle variable>=<toggle name>` format, seperated by newline. for example, `cot=Toggle COT`. you can use these toggles in prompt by using `{{getglobalvar::toggle_<toggle variable>}}`. like `{{getglobalvar::toggle_cot}}`.",
         defaultVariables:
-            "Here you can define your own default variables. use `<variable name>=<variable value>` format, seperated by newline. for example, `name=Risuai`, which then can be used with trigger scripts and variables CBS like `{{getvar::A}}`, `{{setvar::A::B}}` or `{{? $A + 1}}`. if prompt template's default variable and character's default variable has same name, character's default variable will be used.",
+            "Here you can define your own default variables. use `<variable name>=<variable value>` format, seperated by newline. for example, `name=PocketRisu`, which then can be used with trigger scripts and variables CBS like `{{getvar::A}}`, `{{setvar::A::B}}` or `{{? $A + 1}}`. if prompt template's default variable and character's default variable has same name, character's default variable will be used.",
         lowLevelAccess:
             "If enabled, it will enable access to features that requires high computing powers and executing AI model via triggers in the character. do not enable this unless you really need these features.",
         triggerLLMPrompt:
@@ -160,8 +160,8 @@ export const helpEn = {
         enableScrollToActiveChar: "If enabled, pressing the hotkey or holding Ctrl while dragging a character will scroll to the currently active character. Folders will be opened automatically if closed.",
         unrecommended: "This is a unrecommended setting. it is not recommended to use this setting.",
         jsonSchema:
-            "This is a JSON Schema that will be sent to the AI model if AI model supports JSON Schema.\n\nHowever, since JSON Schema is hard to learn, In Risuai, you can use subset of TypeScript interface instead of JSON Schema. Risuai will convert it in runtime." +
-            'For example, if you want to send a JSON like this:\n\n```js\n{\n  "name": "Risuai", //name must be Risuai,\n  "age": 1, //age must be number,\n  "icon": "slim", //icon must be \'slim\' or \'rounded\'\n  "thoughts": ["Good View!", "Lorem"] //thoughts must be array of strings\n}\n```\n\n' +
+            "This is a JSON Schema that will be sent to the AI model if AI model supports JSON Schema.\n\nHowever, since JSON Schema is hard to learn, In PocketRisu, you can use subset of TypeScript interface instead of JSON Schema. PocketRisu will convert it in runtime." +
+            'For example, if you want to send a JSON like this:\n\n```js\n{\n  "name": "PocketRisu", //name must be PocketRisu,\n  "age": 1, //age must be number,\n  "icon": "slim", //icon must be \'slim\' or \'rounded\'\n  "thoughts": ["Good View!", "Lorem"] //thoughts must be array of strings\n}\n```\n\n' +
             "You can put this TypeScript interface:\n\n```typescript\ninterface Schema {\n  name: string;\n  age: number;\n  icon: 'slim'|'rounded'\n  thoughts: string[]\n}\n```\n\n" +
             "Name of the interface doesn't matter. for more information, see the typescript documentation. (https://www.typescriptlang.org/docs/handbook/interfaces.html), and to Check what subset of TypeScript is supported, see the below." +
             "<details><summary>Supported TypeScript Subset</summary>\n\n" +
@@ -273,10 +273,6 @@ export const helpEn = {
             "Higher values use more chat context to determine similarity.",
         useNodeOnlyScrollButton:
             "Shows navigation buttons to jump between chat messages while scrolling. Buttons appear on scroll and fade out after 1.5 seconds.",
-        askRemoval:
-            "Show a confirmation dialog before deleting chats, characters, personas, presets, and similar items. When disabled, pressing the trash icon deletes immediately.",
-        instantRemove:
-            "When deleting one chat message, also delete every message after it. When off, only the selected message is deleted.",
         confirmReroll:
             "Ask for confirmation before regenerating a message. Enable this if you want protection against accidentally losing a response.",
         sendWithEnter:
@@ -324,7 +320,7 @@ export const helpEn = {
         hideLeftBarCollapseButton:
             "Hide the toggle button that collapses the left character grid bar on narrow screens (under 400px). Enable this if you prefer to keep the left bar always visible on mobile.",
         enableRisuaiProTools:
-            "Enable RisuAI Pro Tools such as Easy Panel. Some NodeOnly features require this separate toggle.",
+            "Enable Pro Tools such as Easy Panel. Some PocketRisu features require this separate toggle.",
         loreBookDepth:
             "Number of previous messages to scan for lorebook activation keywords. `0` disables scanning; higher values can find older keywords but may activate unnecessary lore. (0-20)",
         loreBookToken:
@@ -390,13 +386,13 @@ export const helpEn = {
         themePresets:
             "Bundle the current Sound & Display settings (layout, color/font, sizes, sound toggles, etc.) as a preset and switch between them. The active preset auto-syncs with edits you make below; clicking opens the preset list to add, switch, rename, or delete.",
         theme:
-            "Overall chat layout theme.\n\n- **NodeOnly Standard**: default NodeOnly design\n- **Standard Risu**: original RisuAI layout\n- **Waifulike**: character-art-focused layout with side character visuals\n- **Mobile Chat**: mobile chat style\n- **CardBoard**: card-style layout\n- **Custom HTML**: use the custom Chat HTML below",
+            "Overall chat layout theme.\n\n- **PocketRisu Standard**: default PocketRisu design\n- **Standard Risu**: original RisuAI layout\n- **Waifulike**: character-art-focused layout with side character visuals\n- **Mobile Chat**: mobile chat style\n- **CardBoard**: card-style layout\n- **Custom HTML**: use the custom Chat HTML below",
         waifuWidth:
             "Width of the character illustration in the Waifulike theme (50-200%). `100%` is the default. Only shown for Waifulike.",
         waifuWidth2:
             "Width of the second character or secondary visual in the Waifulike theme (20-150%). Set close to 0 if you want to hide it for a single-character setup.",
         nodeOnlyStandardChatWidth:
-            "Maximum chat card width in the NodeOnly Standard theme.\n\n- **Standard**: 768px (default)\n- **Wide**: 1152px\n- **No Limit**: fills the available chat area\n\nOnly shown for the NodeOnly Standard theme.",
+            "Maximum chat card width in the PocketRisu Standard theme.\n\n- **Standard**: 768px (default)\n- **Wide**: 1152px\n- **No Limit**: fills the available chat area\n\nOnly shown for the PocketRisu Standard theme.",
         colorScheme:
             "Color palette used across the Risu UI (background, text, accents). Independent of the Theme (layout) option above. Pick **Custom** to define your own colors in the editor that appears below.",
         textColor:
@@ -428,7 +424,7 @@ export const helpEn = {
         showMemoryLimit:
             "Show the current max-context limit as a visual line in the chat area. Messages above the line may not be sent to the model, so this helps show what the model can still remember.",
         hideRealm:
-            "Hide RisuRealm entry points such as the sidebar gallery link. Useful if you do not use external character discovery and want a lighter menu.",
+            "Start the Recently Uploaded section on the home screen collapsed. While collapsed it skips the RisuRealm fetch, speeding up initial load. You can expand it any time from the home screen.",
         showFolderNameInIcon:
             "Show folder names on folder icons in the character grid. Makes large folder collections easier to scan.",
         customBackground:
@@ -546,7 +542,7 @@ export const helpEn = {
         cohereKey:
             "Cohere API key (https://dashboard.cohere.com/api-keys). Required when using Cohere's own models such as `command-r`.",
         ollamaURL:
-            "URL of your local or remote Ollama server (e.g. `http://localhost:11434`). Pairs well with NodeOnly's local-network mode for stable access to private LAN LLMs.",
+            "URL of your local or remote Ollama server (e.g. `http://localhost:11434`). Pairs well with PocketRisu's local-network mode for stable access to private LAN LLMs.",
         ollamaModel:
             "Model name to call on the Ollama server. Run `ollama list` to see installed models and copy the name verbatim (e.g. `llama3:8b`).",
         nanogptKey:
@@ -651,7 +647,7 @@ export const helpEn = {
             "Use stop strings. The model's response is cut as soon as one of these strings appears. Useful for blocking patterns where the character impersonates the next speaker (e.g. `{{user}}: ...`).",
 
         memType:
-            "Long-term memory mode.\n\n- **None**: disabled (chat is sent as-is up to the max context limit)\n- **HypaV3**: RisuAI's long-term memory that auto-summarizes and retrieves older chat to inject into the context. Slightly more cost / latency, but consistency in long chats improves a lot.",
+            "Long-term memory mode.\n\n- **None**: disabled (chat is sent as-is up to the max context limit)\n- **HypaV3**: PocketRisu's long-term memory that auto-summarizes and retrieves older chat to inject into the context. Slightly more cost / latency, but consistency in long chats improves a lot.",
         hypaV3SummaryModel:
             "Model used to summarize chat.\n\n- **subModel**: use the auxiliary model (most common)\n- **Qwen3 4B/14B**: free local summarization (runs in the browser or Node instance directly, downloads on first use)\n\nUsing a lighter model than the main model saves cost.",
         hypaV3Preset:
@@ -809,5 +805,5 @@ export const helpEn = {
             "Reference image mode (None / Upload / Use Character Image). Works only when the model supports image input.",
 
         bootBackupReminder:
-            "When enabled, RisuAI prompts you on every boot whether to create a server backup right away. Useful as a lightweight safety net before opening the app each session. Confirming runs a full server backup (the loading screen waits while it finishes); skipping continues straight to the app.",
+            "When enabled, PocketRisu prompts you on every boot whether to create a server backup right away. Useful as a lightweight safety net before opening the app each session. Confirming runs a full server backup (the loading screen waits while it finishes); skipping continues straight to the app.",
 }

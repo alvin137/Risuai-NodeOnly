@@ -3,6 +3,7 @@
     import SettingPage from "src/lib/UI/GUI/SettingPage.svelte";
     import { forageStorage } from "src/ts/globalApi.svelte";
     import { alertConfirm } from "src/ts/alert";
+    import { isSecureContext } from "src/ts/secureContext";
     import ShButton from "src/lib/UI/GUI/ShButton.svelte";
     import ShInput from "src/lib/UI/GUI/ShInput.svelte";
     import ShAlert from "src/lib/UI/GUI/ShAlert.svelte";
@@ -147,13 +148,15 @@
                     value={tunnelUrl ?? ''}
                     className="flex-1 select-all"
                 />
-                <ShButton size="icon" onclick={copyUrl}>
+                {#if isSecureContext}
+                <ShButton size="icon" onclick={copyUrl} aria-label={language.remoteAccessCopyUrl}>
                     {#if copied}
                         <CheckIcon size={16} />
                     {:else}
                         <CopyIcon size={16} />
                     {/if}
                 </ShButton>
+                {/if}
             </div>
 
             <ShAlert variant="destructive" className="w-full max-w-md">

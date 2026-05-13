@@ -18,6 +18,11 @@ db.pragma('cache_size = -64000');       // 64 MB (default 2 MB) — reduce disk 
 db.pragma('temp_store = MEMORY');       // keep temp tables in RAM
 db.pragma('busy_timeout = 5000');       // wait up to 5 s on lock contention
 db.pragma('mmap_size = 268435456');     // 256 MB memory-mapped I/O for faster reads
+// Cap WAL file size after a reset checkpoint. Without this, a one-time spike
+// (backup import, VACUUM, large asset upload) leaves the -wal file permanently
+// at its peak size since RESTART/TRUNCATE rewind the writer but never shrink
+// the file unless this limit is set.
+db.pragma('journal_size_limit = 268435456');  // 256 MB
 
 // ─── KV table (replaces /save/ hex files) ────────────────────────────────────
 db.exec(`
