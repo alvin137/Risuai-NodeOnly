@@ -11,15 +11,17 @@ import { stream } from "hono/streaming";
 const UPDATE_CHECK_DISABLED = process.env.RISU_UPDATE_CHECK === 'false';
 const UPDATE_CHECK_URL = process.env.RISU_UPDATE_URL || 'https://risu-update-worker.nodridan.workers.dev/check';
 
-const currentVersion = (() => {
+// Re-read on each call so non-portable updates (docker/git pull) without a
+// process restart don't keep reporting the old version to the update worker.
+function getCurrentVersion() {
     try {
         const pkg = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8'));
         return pkg.version || '0.0.0';
     } catch { return '0.0.0'; }
-})();
+}
 
 // ── Deployment type & self-update helpers ─────────────────────────────────────
-const GITHUB_REPO = 'mrbart3885/Risuai-NodeOnly';
+const GITHUB_REPO = 'PocketRisu/PocketRisu';
 
 const deploymentType = (() => {
     // Only portable builds have the .portable marker (created by CI release workflow).
@@ -40,19 +42,20 @@ function getSelfUpdateAssetInfo(version: string) {
     if (!platformName) return null;
     const arch = process.arch; // x64, arm64
     const ext = process.platform === 'win32' ? 'zip' : 'tar.gz';
-    const filename = `RisuAI-NodeOnly-v${version}-${platformName}-${arch}.${ext}`;
+    const filename = `PocketRisu-v${version}-${platformName}-${arch}.${ext}`;
     const url = `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${filename}`;
     return { platformName, arch, ext, filename, url };
 }
 
-async function fetchLatestRelease() {
+async function fetchLatestRelease(lang?: string) {
     if (UPDATE_CHECK_DISABLED) return null;
     try {
         const params = new URLSearchParams({
-            v: currentVersion,
+            v: getCurrentVersion(),
             d: deploymentType,
             os: `${process.platform}-${process.arch}`,
         });
+        if (lang) params.set('l', String(lang).slice(0, 16));
         const url = `${UPDATE_CHECK_URL}?${params}`;
         const res = await fetch(url);
         if (!res.ok) return null;
@@ -83,10 +86,11 @@ async function restoreBackup(backupDir: string, rootDir: string) {
 export function registerUpdateApi(api: Hono) {
 // ── Update check endpoint ────────────────────────────────────────────────────
 api.get('/update-check', async (c) => {
+  const currentVersion = getCurrentVersion();
     if (UPDATE_CHECK_DISABLED) {
         return c.json({ currentVersion, hasUpdate: false, severity: 'none', disabled: true, deploymentType, canSelfUpdate: false });
     }
-    const result = await fetchLatestRelease();
+    const result = await fetchLatestRelease(c.req.query("lang"));
     const response = result || { currentVersion, hasUpdate: false, severity: 'none' };
     response.deploymentType = deploymentType;
     response.canSelfUpdate = deploymentType === 'portable'

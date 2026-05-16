@@ -3,8 +3,8 @@ import path from "node:path";
 import { savePath, hexRegex } from "../../utils/util";
 import { readdirSync, unlinkSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { checkAuth } from "../api";
-import { kvDelPrefix, clearEntities, db as sqliteDb } from "../../utils/db";
-import { flushPendingDb, createBackupAndRotate, invalidateDbCache } from "../../utils/asset.util";
+import { kvDelPrefix, clearEntities, db as sqliteDb, kvDel } from "../../utils/db";
+import { flushPendingDb, createBackupAndRotate, invalidateDbCache, REMOTE_MIGRATION_MARKER_KEY } from "../../utils/asset.util";
 
 export const migrateApp = new Hono();
 
@@ -44,6 +44,18 @@ function clearExistingData() {
     kvDelPrefix('inlay_thumb/');
     kvDelPrefix('inlay_meta/');
     kvDelPrefix('inlay_info/');
+    // Drop the previous user's remote payloads. The new save folder usually
+    // brings its own remotes/<id>.local.bin files (INSERT OR REPLACE), but if
+    // the imported character ids reuse names from the prior user without
+    // shipping a matching payload, the migration's resolveRemote would silently
+    // stitch in stale cross-user data. Wiping here ensures only payloads
+    // that arrived in this import survive.
+    kvDelPrefix('remotes/');
+    // Clear remote-block migration marker — newly imported database.bin may
+    // contain REMOTE blocks (it usually does, since save-folder imports
+    // preserve upstream's split-character format) and we want the migration
+    // to re-evaluate against the new contents on the next ensureChatStore.
+    kvDel(REMOTE_MIGRATION_MARKER_KEY);
     clearEntities();
 }
 

@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
-import { createBackupAndRotate, decodeDatabaseWithPersistentChatIds, decodeDataUri, encodeColdStorageCanonicalBuffer, ensureInlayDir, flushPendingDb, getInlaySidecarPath, initChatStore, invalidateDbCache, isInvalidBackupPathSegment, isSafeInlayId, listInlayFiles, normalizeColdStorageStorageKey, normalizeInlayExt, parseColdStorageJsonBuffer, readColdStorageJsonEntry, toColdStorageBackupName } from '../../utils/asset.util';
-import { checkpointWal, clearEntities, kvDelPrefix, kvGet, kvList, kvListWithSizes, kvSet, kvSet, kvSize, db as sqliteDb } from '../../utils/db';
+import { createBackupAndRotate, decodeDatabaseWithPersistentChatIds, decodeDataUri, encodeColdStorageCanonicalBuffer, ensureInlayDir, flushPendingDb, getInlaySidecarPath, initChatStore, invalidateDbCache, isInvalidBackupPathSegment, isSafeInlayId, listInlayFiles, normalizeColdStorageStorageKey, normalizeInlayExt, parseColdStorageJsonBuffer, readColdStorageJsonEntry, REMOTE_MIGRATION_MARKER_KEY, toColdStorageBackupName } from '../../utils/asset.util';
+import { checkpointWal, clearEntities, kvDel, kvDelPrefix, kvGet, kvList, kvListWithSizes, kvSet, kvSet, kvSize, db as sqliteDb } from '../../utils/db';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { stream } from "hono/streaming"
+import { stream, streamText } from "hono/streaming"
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { inlayDir, inlayMigrationMarker, savePath } from '../../utils/util';
 import { BACKUP_IMPORT_MAX_BYTES, isImportInProgress, setImportProgress } from './migrate';
@@ -13,6 +13,15 @@ export const backupApp = new Hono();
 const BACKUP_ENTRY_NAME_MAX_BYTES = 1024;
 // Minimum free disk space headroom multiplier: require 2× the backup size to be free
 const BACKUP_DISK_HEADROOM = 2;
+
+// Heartbeat interval for NDJSON import progress stream. 5 s by default —
+// shorter than every common reverse-proxy response timeout (nginx 60 s, Cloudflare
+// 100 s). Operators behind more aggressive proxies can tighten this. Clamped to
+// 100 ms so a misconfiguration can't spam the socket.
+const BACKUP_NDJSON_HEARTBEAT_MS = Math.max(
+    100,
+    Number(process.env.BACKUP_NDJSON_HEARTBEAT_MS ?? '5000') || 5000,
+);
 
 // Server-side backup directory (outside save/ to avoid bloating updater copies).
 // Configurable at runtime via the kv key `config/server-backup-path`. When the
@@ -245,6 +254,17 @@ async function importBackupFromSource(dataSource: any, { maxBytes = 0, totalByte
     kvDelPrefix('inlay_meta/');
     kvDelPrefix('inlay_info/');
     kvDelPrefix('coldstorage/');
+    // Same reasoning as clearExistingData (save-folder import path): wipe stale
+    // remote payloads from the prior user before this backup's contents land.
+    // .bin backups never carry REMOTE blocks today, so the migration won't
+    // resolveRemote on them — but keeping the two import paths consistent
+    // avoids a contamination regression if that ever changes (upstream sync,
+    // plugin-generated buffers, etc.).
+    kvDelPrefix('remotes/');
+    // Allow remote-block migration to re-evaluate against the new database.bin.
+    // (.bin backups themselves never carry REMOTE blocks — legacy msgpack
+    // format only — but a fresh import is a clear "data changed" signal.)
+    kvDel(REMOTE_MIGRATION_MARKER_KEY);
     clearEntities();
 
     try {
@@ -850,28 +870,96 @@ backupApp.post('/import', async (c, next) => {
     }
     setImportProgress(true);
 
-    try {
-        const contentType = String(c.req.header('content-type') ?? '');
-        if (contentType && !contentType.includes('application/x-risu-backup') && !contentType.includes('application/octet-stream')) {
-            return c.json({ error: 'Unsupported backup content-type' }, 415);
-        }
+    const contentLength = Number(c.req.header('content-length') ?? '0');
+    if (BACKUP_IMPORT_MAX_BYTES > 0 && Number.isFinite(contentLength) && contentLength > BACKUP_IMPORT_MAX_BYTES) {
+        return c.json({ error: 'Backup exceeds max allowed size' }, 413);
+    }
 
-        const contentLength = Number(c.req.header('content-length') ?? '0');
-        if (BACKUP_IMPORT_MAX_BYTES > 0 && Number.isFinite(contentLength) && contentLength > BACKUP_IMPORT_MAX_BYTES) {
-            return c.json({ error: 'Backup exceeds max allowed size' }, 413);
-        }
 
+    // NDJSON streaming keeps the response socket alive during long
+    // post-upload work (WAL checkpoint, cold-storage migration). Without it
+    // a reverse proxy in front of the server can hit its response timeout
+    // and bounce the request back to the client as 502 Bad Gateway.
+    const wantsNdjson = String(c.req.header('accept') ?? '').includes('application/x-ndjson');
+    let heartbeatTimer = null;
+
+    if (!wantsNdjson) {
+    // Simple path — no streaming
+        try {
         const result = await importBackupFromSource(c.req, { maxBytes: BACKUP_IMPORT_MAX_BYTES });
         return c.json({
             ok: true,
             assetsRestored: result.assetsRestored,
             bytesReceived: result.bytesReceived,
         });
-    } catch (error) {
-        throw error;
-    } finally {
+        } finally {
         setImportProgress(false);
+        }
     }
+
+    // TODO: AI Generated, need to review
+
+    return streamText(c, async (stream) => {
+    // Set headers for NDJSON streaming
+    // Note: Hono's streamText sets text/plain by default;
+    // override via the response init below instead.
+
+    let heartbeatTimer: Timer | undefined;
+
+    try {
+      heartbeatTimer = setInterval(async () => {
+        try {
+          await stream.write('{"type":"heartbeat"}\n');
+        } catch { /* stream already closed */ }
+      }, 15_000);
+
+      let lastProgressWrite = 0;
+      const totalBytes = Number.isFinite(contentLength) ? contentLength : 0;
+
+      const result = await importBackupFromSource(c.req, {
+        maxBytes: BACKUP_IMPORT_MAX_BYTES,
+        totalBytes,
+        onProgress: async (received: number, total: number) => {
+          const now = Date.now();
+          if (now - lastProgressWrite < 200) return;
+          lastProgressWrite = now;
+          try {
+            await stream.write(
+              JSON.stringify({ type: 'progress', bytes: received, totalBytes: total }) + '\n'
+            );
+          } catch { /* client disconnected */ }
+        },
+      });
+
+      await stream.write(
+        JSON.stringify({
+          type: 'done',
+          ok: true,
+          assetsRestored: result.assetsRestored,
+          coldStorageFailed: result.coldStorageFailed,
+        }) + '\n'
+      );
+    } catch (error) {
+      try {
+        await stream.write(
+          JSON.stringify({
+            type: 'error',
+            message: (error as Error)?.message || 'backup import failed',
+          }) + '\n'
+        );
+      } catch { /* stream already closed */ }
+    } finally {
+      clearInterval(heartbeatTimer);
+      setImportProgress(false);
+    }
+  }, {
+    // Response init — override content-type and add proxy hints
+    headers: {
+      'Content-Type': 'application/x-ndjson',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    },
+  });
 });
 
 // ── Boot-time backup reminder ───────────────────────────────────────────────

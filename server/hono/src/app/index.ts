@@ -12,7 +12,7 @@ import { patchApp } from './api/patch.js';
 import { chatApp } from './api/chat.js'
 import { migrateApp } from './api/migrate.js'
 import { checkpointWal } from '../utils/db.js'
-import { flushPendingDb, migrateInlaysToFilesystem } from '../utils/asset.util.js'
+import { flushPendingDb, migrateInlaysToFilesystem, migrateRemoteBlocksIfNeeded } from '../utils/asset.util.js'
 import { tunnelApp, stopTunnel } from './api/tunnel.js'
 import { backupApp } from './api/backup.js'
 import { dbApp } from './api/db.js'
@@ -22,7 +22,7 @@ const app = new Hono();
 
 
 app.use('*', csrf())
-app.use('*', logger())
+// app.use('*', logger())
 app.use("*", compress());
 app.use('*', async (c, next) => {
   if (c.req.path === '/api/backup/import') {
@@ -53,6 +53,7 @@ app.route("/", proxyApp);
 
 
 await migrateInlaysToFilesystem();
+await migrateRemoteBlocksIfNeeded();
 
 setInterval(() => {
   const now = Date.now();
@@ -72,7 +73,7 @@ setInterval(() => {
 
 // WAL 체크포인트
 setInterval(() => {
-  try { checkpointWal('RESTART'); }
+  try { checkpointWal('TRUNCATE'); }
   catch { /* non-fatal */ }
 }, 5 * 60 * 1000);
 

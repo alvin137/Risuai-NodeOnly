@@ -225,7 +225,14 @@ class RisuSaveDecoder {
 
     blocks: any[] = [];
 
-    async decode(data: Uint8Array) {
+    async decode(data: Uint8Array, options = {}) {
+        // `resolveRemote(name)` is an optional async function that returns the
+        // raw bytes (Uint8Array | Buffer | null) for a remote block file, e.g.
+        // `kvGet('remotes/<name>.local.bin')`. When omitted, REMOTE blocks are
+        // skipped (the historical behavior) — which loses any characters that
+        // were saved as remote blocks by upstream RisuAI or by an earlier
+        // NodeOnly version.
+        const { resolveRemote = null } = options;
         let offset = magicRisuSaveHeader.length;
         let db: Record<string, unknown> = {};
 
@@ -273,7 +280,12 @@ class RisuSaveDecoder {
             }
         }
 
-        for (const key in this.blocks) {
+        // Numeric for loop — REMOTE resolution pushes new blocks into
+        // this.blocks during iteration, and `for…in` semantics on a mutated
+        // array are implementation-defined. The client decoder already uses
+        // a numeric loop for the same reason.
+        for (let i = 0; i < this.blocks.length; i++) {
+            const key = i;
             try {
                 switch (this.blocks[key].type) {
                     case RisuSaveType.ROOT: {
@@ -318,8 +330,25 @@ class RisuSaveDecoder {
                         break;
                     }
                     case RisuSaveType.REMOTE: {
-                        // On the server side, remote blocks reference local files.
-                        // We cannot resolve them here, so skip.
+                        // REMOTE blocks point to a separate KV entry
+                        // (`remotes/<name>.local.bin`). Without a resolver
+                        // callback we have to skip — the historical behavior
+                        // that drops characters saved by upstream RisuAI.
+                        if (!resolveRemote) break;
+                        const remoteInfo = JSON.parse(this.blocks[key].content);
+                        const resolved = await resolveRemote(remoteInfo.name);
+                        if (!resolved) {
+                            console.warn(`[RisuSaveDecoder] Remote block ${remoteInfo.name} could not be resolved`);
+                            break;
+                        }
+                        // Push the resolved block back into the queue so it
+                        // gets processed by a later iteration of this loop.
+                        this.blocks.push({
+                            name: remoteInfo.name,
+                            type: remoteInfo.type,
+                            compression: false,
+                            content: new TextDecoder().decode(resolved),
+                        });
                         break;
                     }
                     default: {
@@ -349,9 +378,13 @@ class RisuSaveDecoder {
 /**
  * Decode RisuSave data
  * @param {Uint8Array} data - The data to decode
+ * @param {Object} [options] - Decode options
+ * @param {(name: string) => Promise<Uint8Array|Buffer|null>} [options.resolveRemote] -
+ *   Resolver for REMOTE blocks. Only relevant for the "risusave" format; ignored
+ *   for legacy/compressed/stream which never contain REMOTE blocks.
  * @returns {Promise<Object>} - The decoded database
  */
-export async function decodeRisuSave(data: Uint8Array) {
+export async function decodeRisuSave(data: Uint8Array, options = {}) {
     try {
         const header = checkHeader(data);
         switch (header) {
@@ -373,7 +406,7 @@ export async function decodeRisuSave(data: Uint8Array) {
             }
             case "risusave": {
                 const decoder = new RisuSaveDecoder();
-                return await decoder.decode(data);
+                return await decoder.decode(data, options);
             }
         }
         return unpackr.decode(data);
@@ -393,6 +426,35 @@ export async function decodeRisuSave(data: Uint8Array) {
             }
         }
     }
+}
+
+/**
+ * Cheap scan: does this buffer contain any REMOTE blocks?
+ * Walks block headers without parsing block content, so it's safe to call on
+ * very large RisuSave buffers. Returns false for any non-"risusave" format.
+ * @param {Uint8Array|Buffer} data
+ * @returns {boolean}
+ */
+export function hasRemoteBlocks(data) {
+    if (!data || data.length < magicRisuSaveHeader.length) return false;
+    if (checkHeader(data) !== 'risusave') return false;
+
+    let offset = magicRisuSaveHeader.length;
+    while (offset + 7 <= data.length) {
+        const type = data[offset];
+        // [type:u8][compression:u8][nameLength:u8][name][length:u32LE][data]
+        const nameLength = data[offset + 2];
+        const lengthOffset = offset + 3 + nameLength;
+        if (lengthOffset + 4 > data.length) break;
+        const blockLength =
+            data[lengthOffset] |
+            (data[lengthOffset + 1] << 8) |
+            (data[lengthOffset + 2] << 16) |
+            (data[lengthOffset + 3] << 24);
+        if (type === RisuSaveType.REMOTE) return true;
+        offset = lengthOffset + 4 + (blockLength >>> 0);
+    }
+    return false;
 }
 
 /**
@@ -527,6 +589,17 @@ export function normalizeJSON(value: any): unknown {
 
 //     const contentType = String(c.res.headers('Content-Type') || '').toLowerCase();
 //     if (contentType.includes('text/event-stream')) {
+//         return false;
+//     }
+// // NDJSON endpoints (backup import/restore, inlay bulk compression) emit
+//     // small per-line events and rely on real-time flushes — keepalive
+//     // heartbeats in particular must reach reverse proxies before their
+//     // response timeout fires. gzip would buffer those lines until enough
+//     // bytes accumulated for an efficient compression block, defeating the
+//     // 502-avoidance the streaming endpoints were built for. compressible's
+//     // mime-db happens not to list application/x-ndjson today (so this is
+//     // a no-op in practice) but a future dep upgrade could flip it on.
+//     if (contentType.includes('application/x-ndjson')) {
 //         return false;
 //     }
 //     // Already-compressed media formats: gzip adds CPU cost with ~0% size gain

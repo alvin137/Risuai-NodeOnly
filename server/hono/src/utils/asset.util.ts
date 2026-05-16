@@ -2,8 +2,8 @@ import path from "node:path";
 import { readFile, stat, access, readdir, mkdir, statfs, writeFile, unlink} from "node:fs/promises";
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import sharp from "sharp";
-import { decodeRisuSave, encodeRisuSaveLegacy, normalizeJSON, savePath } from "./util"
-import { kvCopyValue, kvDel, kvGet, kvList, kvListWithSizes, kvSet, kvSize } from "./db";
+import { decodeRisuSave, encodeRisuSaveLegacy, hasRemoteBlocks, normalizeJSON, savePath } from "./util"
+import { kvCopyValue, kvDel, kvGet, kvList, kvListWithSizes, kvSet, kvSize, db as sqliteDb } from "./db";
 import { randomUUID } from "node:crypto";
 
 // In-memory database cache for patch-based sync
@@ -482,6 +482,9 @@ export async function migrateInlaysToFilesystem() {
  */
 export async function ensureChatStore() {
     if (fullChatStore) return;
+    // Run remote-block migration first so the decode below sees an inline DB.
+    // Idempotent — skipped on every subsequent call.
+    await migrateRemoteBlocksIfNeeded();
     const raw = kvGet('database/database.bin');
     if (!raw) {
         fullChatStore = new Map();
@@ -1032,6 +1035,15 @@ function normalizeOrphanFolderIds(dbObj: any) {
 
 export async function decodeDatabaseWithPersistentChatIds(raw: Uint8Array, options: { createBackup?: boolean; migrationResult?: any } = {}) {
     const { createBackup = false, migrationResult = null } = options;
+    // Convert legacy REMOTE-block layouts to inline format before decoding.
+    // If migration ran it overwrote database.bin, so the caller's `raw` is
+    // stale and we re-read from KV. Idempotent on the no-op path.
+    const migration = await migrateRemoteBlocksIfNeeded();
+    if (migration.ran) {
+        const fresh = kvGet('database/database.bin');
+        if (fresh) raw = fresh;
+    }
+
     const dbObj = normalizeJSON(await decodeRisuSave(raw));
     let needsPersist = false;
 
@@ -1237,4 +1249,97 @@ export function trimSnapshotsToLimits() {
     }
     for (const key of toDelete) kvDel(key);
     return { kept: entries.length - toDelete.length, removed: toDelete.length };
+}
+
+// ─── Remote-block migration ─────────────────────────────────────────────────
+//
+// Background: upstream RisuAI (and very early NodeOnly versions) split each
+// character's data out of database.bin into a separate `remotes/<chaId>.local.bin`
+// file. The main database.bin then carries a REMOTE pointer block instead of the
+// character payload. The server-side RisuSaveDecoder used to skip those blocks
+// outright, so any decode pass — /api/read, /api/chat-content fallback, chat
+// store init — saw the character as missing and lost its chats.
+//
+// NodeOnly never wanted this split (`disableRemoteSaving` is hardcoded to
+// true), so we one-shot convert any leftover REMOTE blocks to inline raw blocks
+// the first time a server with such data boots. The reencoded database.bin is
+// stored in legacy msgpack format, which has no block structure at all — so
+// the REMOTE code path becomes unreachable for future decodes.
+//
+// Idempotent via a KV marker. The marker lives in KV (not on disk) so a backup
+// import — which wipes most KV prefixes and INSERTs a new database.bin — naturally
+// clears it, letting the new contents be re-evaluated.
+
+export const REMOTE_MIGRATION_MARKER_KEY = 'migration/disable-remote-saving';
+const REMOTE_MIGRATION_MARKER_VALUE = Buffer.from('done', 'utf-8');
+
+function isRemoteMigrationDone() {
+    const value = kvGet(REMOTE_MIGRATION_MARKER_KEY);
+    return value !== null && value.length > 0;
+}
+
+function markRemoteMigrationDone() {
+    kvSet(REMOTE_MIGRATION_MARKER_KEY, REMOTE_MIGRATION_MARKER_VALUE);
+}
+
+/**
+ * Convert any leftover REMOTE blocks in database.bin into inline raw blocks.
+ * Safe to call repeatedly: idempotent via KV marker.
+ */
+export async function migrateRemoteBlocksIfNeeded() {
+    if (isRemoteMigrationDone()) return { ran: false, reason: 'already-done' };
+
+    const raw = kvGet('database/database.bin');
+    if (!raw) {
+        markRemoteMigrationDone();
+        return { ran: false, reason: 'no-database' };
+    }
+
+    if (!hasRemoteBlocks(raw)) {
+        markRemoteMigrationDone();
+        return { ran: false, reason: 'no-remote-blocks' };
+    }
+
+    console.info('[Migration] REMOTE blocks detected in database.bin; converting to inline format');
+
+    // Pre-migration backup so a botched migration can be rolled back manually.
+    // Use a dedicated prefix — `database/dbbackup-` is on a 20-snapshot rotation
+    // whose timestamp parser would assign this entry ts=0 (because of the
+    // non-numeric suffix), making it the first to evict. The migration safety
+    // net must outlive ordinary backup churn.
+    const backupKey = `migration-backup/pre-remote-fix-${Date.now()}.bin`;
+    kvCopyValue('database/database.bin', backupKey);
+
+    const dbObj = await decodeRisuSave(raw, {
+        resolveRemote: async (name) => {
+            const value = kvGet(`remotes/${name}.local.bin`);
+            return value || null;
+        },
+    });
+
+    const reEncoded = encodeRisuSaveLegacy(dbObj, true);
+
+    // Single transaction so swap + marker move together.
+    // remotes/ files are intentionally NOT deleted here: pre-migration
+    // dbbackup-* snapshots and the migration-backup we just wrote both
+    // only carry database.bin (kvCopyValue is single-key). If a user later
+    // restores one of those snapshots — which holds REMOTE pointers —
+    // resolveRemote needs the remotes/<id>.local.bin payloads to still
+    // exist, otherwise every REMOTE-pointed character drops on the next
+    // decode and the backup is effectively dead. The orphans don't grow
+    // (NodeOnly's disableRemoteSaving = true on writes), so leaving them
+    // costs a few MB of disk for full backup recoverability.
+    sqliteDb.transaction(() => {
+        kvSet('database/database.bin', Buffer.from(reEncoded));
+        markRemoteMigrationDone();
+    })();
+
+    // Reset in-memory caches whose contents were derived from the pre-migration
+    // bytes — next reader recomputes from the migrated database.bin.
+    invalidateDbCache();
+    dbEtag = null;
+
+    const characterCount = Array.isArray(dbObj.characters) ? dbObj.characters.length : 0;
+    console.info(`[Migration] Remote-block migration complete. Inlined ${characterCount} character(s); pre-migration backup at ${backupKey}`);
+    return { ran: true, characterCount, backupKey };
 }

@@ -22,6 +22,9 @@ const CLOUDFLARED_ASSETS: Record<string, any> = {
     'darwin-x64':    { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz', type: 'tgz' },
     'linux-x64':     { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64', type: 'bin' },
     'linux-arm64':   { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64', type: 'bin' },
+    // Termux reports process.platform === 'android' but the linux-arm64
+    // cloudflared binary (statically linked Go) runs cleanly on Bionic.
+    'android-arm64': { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64', type: 'bin' },
     'win32-x64':     { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe', type: 'bin' },
 };
 
@@ -41,7 +44,7 @@ function findCloudflaredBinary() {
 function followRedirects(url: string): Promise<Response> {
     return new Promise((resolve, reject) => {
         const mod = url.startsWith('https') ? require('https') : require('http');
-        mod.get(url, { headers: { 'User-Agent': 'risuai-nodeonly' } }, (res: Response) => {
+        mod.get(url, { headers: { 'User-Agent': 'pocketrisu' } }, (res: Response) => {
             let location = res.headers.get("location");
             if (res.status >= 300 && res.status < 400 && location) {
                 followRedirects(location).then(resolve, reject);
@@ -97,7 +100,13 @@ export function stopTunnel() {
 
 tunnelApp.get('/status', async (c) => {
     // if (!await checkAuth(req, res)) return;
-    return c.json({ disabled: TUNNEL_DISABLED, status: tunnelStatus, url: tunnelUrl, error: tunnelError });
+    return c.json({
+        disabled: TUNNEL_DISABLED,
+        status: tunnelStatus,
+        url: tunnelUrl,
+        error: tunnelError,
+        platform: process.platform,
+    });
 });
 
 tunnelApp.post('/start', async (c) => {

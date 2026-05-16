@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import path from "node:path";
-import { listInlayFiles, getInlaySidecarPath, dbCache, DB_HEX_KEY, ensureChatStore, fullChatStore, queueStorageOperation, flushPendingDb, invalidateDbCache, initChatStore, computeBufferEtag, getDbetag, SNAPSHOT_LIMIT_COUNT_KEY, SNAPSHOT_LIMIT_BYTES_KEY, SNAPSHOT_LIMIT_MIN_COUNT, SNAPSHOT_LIMIT_MIN_BYTES, SNAPSHOT_LIMIT_MAX_BYTES, SNAPSHOT_LIMIT_MAX_COUNT, trimSnapshotsToLimits, setDbetag, getSnapshotLimits, SNAPSHOT_LIMIT_DEFAULT_COUNT, SNAPSHOT_LIMIT_DEFAULT_BYTES } from "../../utils/asset.util";
+import { listInlayFiles, getInlaySidecarPath, dbCache, DB_HEX_KEY, ensureChatStore, fullChatStore, queueStorageOperation, flushPendingDb, invalidateDbCache, initChatStore, computeBufferEtag, getDbetag, SNAPSHOT_LIMIT_COUNT_KEY, SNAPSHOT_LIMIT_BYTES_KEY, SNAPSHOT_LIMIT_MIN_COUNT, SNAPSHOT_LIMIT_MIN_BYTES, SNAPSHOT_LIMIT_MAX_BYTES, SNAPSHOT_LIMIT_MAX_COUNT, trimSnapshotsToLimits, setDbetag, getSnapshotLimits, SNAPSHOT_LIMIT_DEFAULT_COUNT, SNAPSHOT_LIMIT_DEFAULT_BYTES, REMOTE_MIGRATION_MARKER_KEY, decodeDatabaseWithPersistentChatIds } from "../../utils/asset.util";
 import { kvSize, kvListWithSizes, kvList, kvGet, checkpointWal, kvSet, kvDel, kvCopyValue, db as sqliteDb } from "../../utils/db";
 import { decodeRisuSave } from "../../utils/util";
 import { checkAuth } from "../api";
@@ -412,6 +412,9 @@ dbApp.post('/optimize', async (c, next) => {
             const t0 = Date.now();
             try { checkpointWal('TRUNCATE'); } catch (e) { console.warn('[Optimize] checkpoint failed:', e?.message || e); }
             sqliteDb.exec('VACUUM');
+            // VACUUM streams the whole DB through the WAL; without this checkpoint the
+            // -wal file stays inflated until the next 5-min background TRUNCATE.
+            try { checkpointWal('TRUNCATE'); } catch (e) { console.warn('[Optimize] post-VACUUM checkpoint failed:', e?.message || e); }
             const elapsed = Date.now() - t0;
             const postDbSize = statSafe(dbFilePath)?.size ?? 0;
             return {
@@ -531,14 +534,26 @@ dbApp.post('/snapshots/restore', async (c, next) => {
             await flushPendingDb();
             kvCopyValue(key, DB_BLOB_KEY);
             invalidateDbCache();
+            // Snapshot may pre-date the remote-block migration. Clear the marker
+            // so migrateRemoteBlocksIfNeeded re-evaluates against the restored
+            // bytes instead of skipping based on the prior post-migration state.
+            kvDel(REMOTE_MIGRATION_MARKER_KEY);
             // Pre-warm chat store from the just-restored blob so subsequent
             // /api/read fetches and patch-sync baselines see the new data.
+            // Use decodeDatabaseWithPersistentChatIds so it runs the migration
+            // (now unmarked) and refreshes stale raw if the snapshot was a
+            // REMOTE-block format.
             try {
                 const raw = kvGet(DB_BLOB_KEY);
                 if (raw) {
-                    const dbObj = await decodeRisuSave(raw);
+                    const dbObj = await decodeDatabaseWithPersistentChatIds(raw, {
+                        createBackup: false,
+                    });
                     initChatStore(dbObj);
-                    setDbetag(computeBufferEtag(Buffer.from(raw)));
+                    // Migration may have rewritten database.bin — etag must
+                    // reflect the post-migration bytes the next /api/read sends.
+                    const finalRaw = kvGet(DB_BLOB_KEY);
+                    if (finalRaw) setDbetag(computeBufferEtag(Buffer.from(finalRaw)));
                 }
             } catch (e) {
                 console.warn('[Snapshot restore] post-restore decode failed:', e?.message || e);
@@ -546,4 +561,30 @@ dbApp.post('/snapshots/restore', async (c, next) => {
         });
         return c.json({ ok: true });
     } catch (err) { next(err); }
+});
+
+dbApp.post('/wal-checkpoint', async (c, next) => {
+    // if (!await checkAuth(req, res)) return;
+    // if (!checkActiveSession(req, res)) return;
+    try {
+        const saveDir = path.join(process.cwd(), 'save');
+        const walFilePath = path.join(saveDir, 'risuai.db-wal');
+        const preWalSize = statSafe(walFilePath)?.size ?? 0;
+
+        const result = await queueStorageOperation(async () => {
+            await flushPendingDb();
+            const t0 = Date.now();
+            checkpointWal('TRUNCATE');
+            const elapsed = Date.now() - t0;
+            const postWalSize = statSafe(walFilePath)?.size ?? 0;
+            return {
+                ok: true,
+                elapsedMs: elapsed,
+                preWalSize,
+                postWalSize,
+                reclaimed: Math.max(0, preWalSize - postWalSize),
+            };
+        });
+        return c.json(result);
+    } catch (err) { throw err; }
 });
