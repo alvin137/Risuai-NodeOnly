@@ -12,7 +12,17 @@ const nodeCrypto = require('crypto')
 const zlib = require('zlib')
 const rateLimit = require('express-rate-limit')
 const { WebSocketServer } = require('ws')
-const sharp = require('sharp')
+const Vips = require('wasm-vips')
+let _vipsPromise = null
+const getVips = () => {
+    if (!_vipsPromise) {
+        _vipsPromise = Vips().catch(err => {
+            _vipsPromise = null
+            throw err
+        })
+    }
+    return _vipsPromise
+}
 const { kvGet, kvSet, kvDel, kvList,
         kvDelPrefix, kvListWithSizes, kvSize, kvGetUpdatedAt, kvCopyValue, clearEntities, checkpointWal,
         db: sqliteDb } = require('./db.cjs');
@@ -21,7 +31,7 @@ const {
     logger, installProcessHandlers, expressErrorMiddleware,
 } = require('./logs.cjs');
 const { applyPatch } = require('fast-json-patch');
-const { decodeRisuSave, encodeRisuSaveLegacy, calculateHash, normalizeJSON } = require('./utils.cjs');
+const { decodeRisuSave, encodeRisuSaveLegacy, calculateHash, normalizeJSON, hasRemoteBlocks } = require('./utils.cjs');
 const { spawn, execSync } = require('child_process');
 const os = require('os');
 const { Readable, Transform } = require('stream');

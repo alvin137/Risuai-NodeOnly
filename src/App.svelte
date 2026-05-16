@@ -158,7 +158,7 @@
                             aprilFoolsPage = 0
                             aprilFools = false
                         }}>
-                            Risuai  
+                            PocketRisu  
                         </a>
                     </p>
 

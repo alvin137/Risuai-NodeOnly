@@ -1,5 +1,6 @@
 import { writable, get } from "svelte/store"
 import { forageStorage } from "./globalApi.svelte"
+import { DBState } from "./stores.svelte"
 
 export interface UpdateInfo {
     currentVersion: string
@@ -33,7 +34,8 @@ export const selfUpdateProgressStore = writable<SelfUpdateProgress | null>(null)
 
 export async function checkRisuUpdate(): Promise<UpdateInfo | null> {
     try {
-        const res = await fetch('/api/update-check')
+        const lang = encodeURIComponent(DBState.db?.language || '')
+        const res = await fetch(`/api/update-check?lang=${lang}`)
         if (!res.ok) return null
         const data: UpdateInfo = await res.json()
         updateInfoStore.set(data)

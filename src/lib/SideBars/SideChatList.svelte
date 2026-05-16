@@ -254,11 +254,7 @@
                     {@const chatIdx = chara.chats.indexOf(chat)}
                     <button data-risu-chat-idx={chatIdx} onclick={() => {
                         if(!editMode){
-                            if(chatIdx === chara.chatPage && !$chatDeselected){
-                                $chatDeselected = true
-                            } else {
-                                changeChatTo(chatIdx)
-                            }
+                            changeChatTo(chatIdx)
                         }
                     }} class="risu-chats flex items-center text-textcolor border-solid border-0 border-darkborderc p-2 cursor-pointer rounded-md"class:bg-selected={chatIdx === chara.chatPage && !$chatDeselected}>
                         {#if editMode}
@@ -349,11 +345,7 @@
             {#if chat.folderId == null || isOrphanFolder(chat.folderId)}
             <button data-risu-chat-idx={i} onclick={() => {
                 if(!editMode){
-                    if(i === chara.chatPage && !$chatDeselected){
-                        $chatDeselected = true
-                    } else {
-                        changeChatTo(i)
-                    }
+                    changeChatTo(i)
                 }
             }}
             class="flex items-center text-textcolor border-solid border-0 border-darkborderc p-2 cursor-pointer rounded-md"

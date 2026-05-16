@@ -239,9 +239,6 @@ export function setDatabase(data:Database){
     if(checkNullish(data.supaMemoryKey)){
         data.supaMemoryKey = ""
     }
-    if(checkNullish(data.askRemoval)){
-        data.askRemoval = true
-    }
     if(checkNullish(data.confirmReroll)){
         data.confirmReroll = true
     }
@@ -895,7 +892,6 @@ export interface Database{
     jailbreak: string
     globalNote:string
     temperature: number
-    askRemoval:boolean
     maxContext: number
     maxResponse: number
     frequencyPenalty: number
@@ -956,7 +952,6 @@ export interface Database{
     promptPreprocess:boolean
     bias: [string, number][]
     swipe:boolean
-    instantRemove:boolean
     confirmReroll:boolean
     textTheme: string
     customTextTheme: {
@@ -2136,7 +2131,7 @@ export const themePresetTemplate: themePreset = {
     settingsCloseButtonSize: 24,
     showMemoryLimit: false,
     showFirstMessagePages: false,
-    hideRealm: false,
+    hideRealm: true,
     hideAllImages: false,
     hideMessagePageCount: false,
     showFolderName: false,

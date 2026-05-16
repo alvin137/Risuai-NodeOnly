@@ -8,9 +8,14 @@
 import type { SettingItem } from './types';
 import { changeLanguage, language } from 'src/lang';
 import { languageEnglish } from 'src/lang/en';
-import { sleep } from '../util';
-import { alertNormal, alertSelect } from '../alert';
+import { selectFileByDom, sleep } from '../util';
+import { alertConfirm, alertError, alertNormal, alertSelect, alertWait } from '../alert';
 import { downloadFile } from '../globalApi.svelte';
+import {
+    clearLLMCache,
+    exportLLMCacheAsJSON,
+    importLLMCacheFromJSON,
+} from '../translator/translator';
 
 export const langState = $state({ changed: false });
 
@@ -257,5 +262,103 @@ export const languageSettingsItems: SettingItem[] = [
         helpKey: 'autoTranslateCachedOnly',
         classes: 'mt-4',
         condition: (ctx) => !!ctx.db.translator && ctx.db.translatorType === 'llm',
+    },
+
+    {
+        id: 'lang.exportCache',
+        type: 'button',
+        labelKey: 'exportTranslationCache',
+        classes: 'mt-4',
+        condition: (ctx) => !!ctx.db.translator && ctx.db.translatorType === 'llm',
+        options: {
+            onClick: async () => {
+                alertWait(language.loading);
+                try {
+                    const cache = await exportLLMCacheAsJSON();
+                    const entries = Object.keys(cache).length;
+                    if (entries === 0) {
+                        alertNormal(language.exportTranslationCacheEmpty);
+                        return;
+                    }
+                    const json = JSON.stringify(cache, null, 2);
+                    await downloadFile('translation_cache.json', new TextEncoder().encode(json));
+                    alertNormal(language.exportTranslationCacheSuccess);
+                } catch (e: any) {
+                    alertError(e?.message ?? String(e));
+                }
+            },
+        },
+    },
+
+    {
+        id: 'lang.importCache',
+        type: 'button',
+        labelKey: 'importTranslationCache',
+        classes: 'mt-2',
+        condition: (ctx) => !!ctx.db.translator && ctx.db.translatorType === 'llm',
+        options: {
+            onClick: async () => {
+                try {
+                    const files = await selectFileByDom(['json']);
+                    if (!files || files.length === 0) return;
+                    if (!files[0].name.endsWith('.json')) {
+                        alertError('Invalid file type. Please select a .json file.');
+                        return;
+                    }
+                    const text = await files[0].text();
+                    const data = JSON.parse(text);
+                    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+                        alertError('Invalid JSON format');
+                        return;
+                    }
+                    for (const [key, value] of Object.entries(data)) {
+                        if (typeof key !== 'string' || typeof value !== 'string') {
+                            alertError('Invalid JSON format');
+                            return;
+                        }
+                    }
+                    const confirmed = await alertConfirm(language.importTranslationCacheConfirm);
+                    if (!confirmed) return;
+                    alertWait(language.loading);
+                    const { count, failed } = await importLLMCacheFromJSON(
+                        data as Record<string, string>,
+                    );
+                    if (failed > 0) {
+                        alertError(
+                            language.importTranslationCacheFailed
+                                .replace('{0}', String(count))
+                                .replace('{1}', String(failed)),
+                        );
+                    } else {
+                        alertNormal(
+                            language.importTranslationCacheSuccess.replace('{0}', String(count)),
+                        );
+                    }
+                } catch (e: any) {
+                    alertError(e?.message ?? String(e));
+                }
+            },
+        },
+    },
+
+    {
+        id: 'lang.clearCache',
+        type: 'button',
+        labelKey: 'clearTranslationCache',
+        classes: 'mt-2',
+        condition: (ctx) => !!ctx.db.translator && ctx.db.translatorType === 'llm',
+        options: {
+            onClick: async () => {
+                try {
+                    const confirmed = await alertConfirm(language.clearTranslationCacheConfirm);
+                    if (!confirmed) return;
+                    alertWait(language.loading);
+                    await clearLLMCache();
+                    alertNormal(language.clearTranslationCacheSuccess);
+                } catch (e: any) {
+                    alertError(e?.message ?? String(e));
+                }
+            },
+        },
     },
 ];

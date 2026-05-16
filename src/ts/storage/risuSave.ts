@@ -792,6 +792,53 @@ export function normalizeJSON(value: any, seen?: WeakSet<object>): any {
     return result;
 }
 
+// Compare two arrays element-wise, but emit a single `replace` op covering the
+// whole array when structure changes (add, remove, reorder). Element-wise diff
+// via fast-json-patch is dangerous on arrays of deep objects: deleting one
+// entry shifts every following index, each shifted slot deep-diffs "old item N
+// vs new item N+1", and the resulting op list can balloon past V8's function
+// argument limit (~125k) — `patch.push(...ops)` then throws
+// `RangeError: Maximum call stack size exceeded`. Callers MUST iterate the
+// returned ops with `for (const op of ops) patch.push(op)` rather than spread,
+// to stay safe even when a single item's internal diff is large.
+//
+// `idKey != null` (modules): structural detection by id equality at each index,
+// with a safety belt that forces `replace` when ids are falsy or duplicated
+// (defensive against corrupted backups). `idKey == null` (botPresets, which
+// have no stable id): length-only detection.
+export function diffArrayWithIdGuard(
+    compare: (a: any, b: any) => any[],
+    path: string,
+    lastArr: any[] | undefined,
+    curArr: any[],
+    idKey: string | null,
+): any[] {
+    const last = lastArr ?? []
+    let structural = last.length !== curArr.length
+
+    if (!structural && idKey != null) {
+        const lastIds = last.map((m: any) => m?.[idKey])
+        const curIds = curArr.map((m: any) => m?.[idKey])
+        const hasInvalidIds = curIds.some(id => !id) || lastIds.some(id => !id)
+        const hasDuplicates = new Set(curIds).size !== curIds.length
+        structural = hasInvalidIds || hasDuplicates ||
+            lastIds.some((id, i) => id !== curIds[i])
+    }
+
+    if (structural) {
+        return [{ op: 'replace', path, value: curArr }]
+    }
+
+    const ops: any[] = []
+    for (let i = 0; i < curArr.length; i++) {
+        const subPatch = compare(last[i], curArr[i])
+        for (const p of subPatch) {
+            ops.push({ ...p, path: `${path}/${i}${p.path}` })
+        }
+    }
+    return ops
+}
+
 export class RisuSavePatcher {
     private lastSyncedDb: any;
     private hashBlocks: { [key: string]: number } = {};
@@ -861,15 +908,17 @@ export class RisuSavePatcher {
         }
 
         if (toSave.botPreset) {
-            const normBotPresets = normalizeJSON(curBotPresets)
-            patch.push(...compare({ botPresets: lastBotPresets }, { botPresets: normBotPresets }))
+            const normBotPresets = normalizeJSON(curBotPresets) ?? []
+            const ops = diffArrayWithIdGuard(compare, '/botPresets', lastBotPresets, normBotPresets, null)
+            for (const op of ops) patch.push(op)
             this.hashBlocks['botPresets'] = calculateHash(normBotPresets);
             this.lastSyncedDb.botPresets = normBotPresets;
         }
 
         if (toSave.modules) {
-            const normModules = normalizeJSON(curModules)
-            patch.push(...compare({ modules: lastModules }, { modules: normModules }))
+            const normModules = normalizeJSON(curModules) ?? []
+            const ops = diffArrayWithIdGuard(compare, '/modules', lastModules, normModules, 'id')
+            for (const op of ops) patch.push(op)
             this.hashBlocks['modules'] = calculateHash(normModules);
             this.lastSyncedDb.modules = normModules;
         }

@@ -3,6 +3,7 @@
     import SettingPage from "src/lib/UI/GUI/SettingPage.svelte";
     import { forageStorage } from "src/ts/globalApi.svelte";
     import { alertConfirm } from "src/ts/alert";
+    import { isSecureContext } from "src/ts/secureContext";
     import ShButton from "src/lib/UI/GUI/ShButton.svelte";
     import ShInput from "src/lib/UI/GUI/ShInput.svelte";
     import ShAlert from "src/lib/UI/GUI/ShAlert.svelte";
@@ -14,6 +15,7 @@
     let tunnelError = $state<string | null>(null);
     let qrDataUrl = $state<string | null>(null);
     let copied = $state(false);
+    let platform = $state<string | null>(null);
     let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     async function authHeaders() {
@@ -27,6 +29,7 @@
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
 
+            platform = data.platform ?? null;
             if (data.disabled) {
                 status = 'disabled';
             } else {
@@ -110,7 +113,13 @@
 <div class="flex flex-col gap-4">
     <p class="text-sm text-textcolor2">{language.remoteAccessDesc}</p>
 
-    {#if status === 'loading'}
+    {#if platform === 'android'}
+        <ShAlert variant="destructive">
+            {#snippet icon()}<TriangleAlertIcon />{/snippet}
+            {language.remoteAccessTermuxWarning}
+        </ShAlert>
+
+    {:else if status === 'loading'}
         <div class="flex items-center justify-center py-8 text-textcolor2">
             <LoaderCircleIcon class="animate-spin" size={28} />
         </div>
@@ -147,13 +156,15 @@
                     value={tunnelUrl ?? ''}
                     className="flex-1 select-all"
                 />
-                <ShButton size="icon" onclick={copyUrl}>
+                {#if isSecureContext}
+                <ShButton size="icon" onclick={copyUrl} aria-label={language.remoteAccessCopyUrl}>
                     {#if copied}
                         <CheckIcon size={16} />
                     {:else}
                         <CopyIcon size={16} />
                     {/if}
                 </ShButton>
+                {/if}
             </div>
 
             <ShAlert variant="destructive" className="w-full max-w-md">
