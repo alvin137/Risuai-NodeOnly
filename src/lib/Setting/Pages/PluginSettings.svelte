@@ -23,6 +23,41 @@
 <SettingPage title={language.plugin}>
 <span class="text-draculared text-xs mb-4">{language.pluginWarn}</span>
 
+<div class="text-textcolor2 mb-2 flex gap-2 justify-end">
+    <button
+        onclick={() => {
+            importPlugin()
+        }}
+        class="hover:text-textcolor cursor-pointer"
+    >
+        <PlusIcon />
+    </button>
+
+    <button
+        onclick={async () => {
+            const v = parseInt(await alertSelect([
+                "Import plugin with hot reload",
+                "Download plugin template",
+                language.cancel
+            ]))
+            switch(v){
+                case 0:
+                    await hotReloadPluginFiles()
+                    break;
+                case 1:{
+                    const a = document.createElement('a');
+                    a.href = '/plugin_start.7z';
+                    a.download = 'plugin_starter.7z';
+                    document.body.appendChild(a);
+                }
+            }
+        }}
+        class="hover:text-textcolor cursor-pointer"
+    >
+        <CodeXmlIcon />
+    </button>
+</div>
+
 <div class="border-solid border-darkborderc p-2 flex flex-col border-1">
     {#if !DBState.db.plugins || DBState.db.plugins?.length === 0}
         <span class="text-textcolor2">{language.noPlugins}</span>
@@ -264,39 +299,5 @@
             </div>
         {/if}
     {/each}
-</div>
-<div class="text-textcolor2 mt-2 flex gap-2">
-    <button
-        onclick={() => {
-            importPlugin()
-        }}
-        class="hover:text-textcolor cursor-pointer"
-    >
-        <PlusIcon />
-    </button>
-
-    <button
-        onclick={async () => {
-            const v = parseInt(await alertSelect([
-                "Import plugin with hot reload",
-                "Download plugin template",
-                language.cancel
-            ]))
-            switch(v){
-                case 0:
-                    await hotReloadPluginFiles()
-                    break;
-                case 1:{
-                    const a = document.createElement('a');
-                    a.href = '/plugin_start.7z';
-                    a.download = 'plugin_starter.7z';
-                    document.body.appendChild(a);
-                }
-            }
-        }}
-        class="hover:text-textcolor cursor-pointer"
-    >
-        <CodeXmlIcon />
-    </button>
 </div>
 </SettingPage>

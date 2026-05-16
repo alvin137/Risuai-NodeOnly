@@ -6,17 +6,29 @@ import { getDatabase, nodeOnlyVer, type MessageGenerationInfo } from "./storage/
 import { alertStore as alertStoreImported, togglePresetsOpenStore } from "./stores.svelte"
 import { addLog } from "./log"
 import { nativeConsoleError } from "./log-capture"
+import type { ShButtonVariant } from "../lib/UI/GUI/ShButton.svelte"
+
+/**
+ * Action descriptor for dialog buttons. Reusable across any alert type
+ * that renders a list of pressable actions (confirmMulti, future variants).
+ */
+export interface AlertAction {
+    label: string
+    variant?: ShButtonVariant
+}
 
 export interface alertData{
     type: 'error'|'normal'|'none'|'ask'|'wait'|'selectChar'
             |'input'|'wait2'|'markdown'|'select'|'login'
             |'tos'|'cardexport'|'requestdata'|'addchar'|'selectModule'
-            |'pukmakkurit'|'branches'|'progress'|'pluginconfirm'|'requestlogs',
+            |'pukmakkurit'|'branches'|'progress'|'pluginconfirm'|'requestlogs'
+            |'confirmMulti',
     msg: string,
     submsg?: string
     datalist?: [string, string][],
     stackTrace?: string;
     defaultValue?: string
+    actions?: AlertAction[]
 }
 
 export interface NotifyOptions {
@@ -275,6 +287,31 @@ export async function alertConfirm(msg:string){
     await waitAlert()
 
     return get(alertStoreImported).msg === 'yes'
+}
+
+/**
+ * Confirm dialog with multiple actions and a cancel button.
+ * Renders prompt as title, actions as stacked buttons in body, and a single
+ * outline Cancel button in the footer. Bare strings render with the `default`
+ * variant; pass `{label, variant}` to opt into destructive/primary/etc.
+ *
+ * @returns index of the picked action, or -1 if cancelled.
+ */
+export async function alertConfirmMulti(prompt:string, actions:(string | AlertAction)[]){
+    const normalized: AlertAction[] = actions.map(a =>
+        typeof a === 'string' ? { label: a, variant: 'default' } : a
+    )
+    alertStoreImported.set({
+        'type': 'confirmMulti',
+        'msg': prompt,
+        'actions': normalized,
+    })
+
+    await waitAlert()
+
+    const raw = get(alertStoreImported).msg
+    const n = parseInt(raw)
+    return isNaN(n) ? -1 : n
 }
 
 export async function alertPluginConfirm(msg:string){

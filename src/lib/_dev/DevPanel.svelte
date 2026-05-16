@@ -13,6 +13,7 @@
         alertNormalWait,
         alertMd,
         alertConfirm,
+        alertConfirmMulti,
         alertInput,
         alertSelect,
         alertWait,
@@ -150,6 +151,46 @@ function hello(): string {
         );
         setResult(`alertSelect (display): index=${idx}`);
         notifyInfo(`선택: index=${idx}`);
+    }
+
+    async function triggerConfirmMulti2() {
+        // 메시지 삭제 패턴 — destructive variant 명시.
+        const idx = await alertConfirmMulti(
+            '이 메시지를 삭제하시겠습니까?',
+            [
+                { label: '이 메시지만 삭제', variant: 'destructive' },
+                { label: '이후 메시지까지 삭제', variant: 'destructive' },
+            ]
+        );
+        setResult(`alertConfirmMulti (2 destructive): index=${idx}`);
+        if (idx < 0) notifyInfo('취소됨');
+        else notifySuccess(`선택: ${idx === 0 ? '단일 삭제' : 'cascade 삭제'}`);
+    }
+
+    async function triggerConfirmMulti3() {
+        // 문자열 단축 형태 — 기본 'default' variant로 렌더링.
+        const idx = await alertConfirmMulti(
+            '이 채팅을 어떻게 처리할까요?',
+            ['현재 채팅만 보관', '아카이브로 이동', '읽음 표시']
+        );
+        setResult(`alertConfirmMulti (3 default): index=${idx}`);
+        if (idx < 0) notifyInfo('취소됨');
+        else notifySuccess(`선택: index=${idx}`);
+    }
+
+    async function triggerConfirmMultiMixed() {
+        // 액션별 variant 지정 — string과 객체 혼용 가능.
+        const idx = await alertConfirmMulti(
+            '저장하지 않은 변경사항이 있습니다.',
+            [
+                { label: '저장 후 닫기', variant: 'primary' },
+                { label: '변경사항 버리기', variant: 'destructive' },
+                '편집 계속',  // 문자열 단축 → default
+            ]
+        );
+        setResult(`alertConfirmMulti (mixed variants): index=${idx}`);
+        if (idx < 0) notifyInfo('취소됨');
+        else notifySuccess(`선택: index=${idx}`);
     }
 
     // ─── Section 2: Loading transitions ──────────────────────────────────────
@@ -324,7 +365,7 @@ function hello(): string {
         latestVersion: '99.99.99-demo',
         hasUpdate: true,
         severity: 'optional',
-        releaseUrl: 'https://github.com/mrbart3885/Risuai-NodeOnly/releases',
+        releaseUrl: 'https://github.com/PocketRisu/PocketRisu/releases',
         releaseName: 'v99.99.99-demo (Dev Panel sample)',
         publishedAt: new Date().toISOString(),
         canSelfUpdate: true,
@@ -412,6 +453,9 @@ function hello(): string {
             <ShButton variant="outline" onclick={triggerInputDefault}>alertInput (defaultValue)</ShButton>
             <ShButton variant="outline" onclick={triggerSelect}>alertSelect</ShButton>
             <ShButton variant="outline" onclick={triggerSelectDisplay}>alertSelect (with prompt)</ShButton>
+            <ShButton variant="outline" onclick={triggerConfirmMulti2}>alertConfirmMulti (2 destructive)</ShButton>
+            <ShButton variant="outline" onclick={triggerConfirmMulti3}>alertConfirmMulti (3 default)</ShButton>
+            <ShButton variant="outline" onclick={triggerConfirmMultiMixed}>alertConfirmMulti (mixed variants)</ShButton>
         </div>
     </div>
 

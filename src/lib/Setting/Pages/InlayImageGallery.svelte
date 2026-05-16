@@ -288,12 +288,26 @@
     return () => document.removeEventListener('keydown', handleKey)
   })
 
-  // Infinite scroll
+  // Infinite scroll.
+  // The component's own `flex-1 overflow-y-auto` container never actually
+  // scrolls because the Settings layout doesn't propagate a height to it —
+  // real scrolling happens on an ancestor (rs-setting-cont-4). So we resolve
+  // the closest scrollable ancestor at runtime and use it as the observer root.
   let observer: IntersectionObserver | null = null
   $effect(() => {
     if (!galleryScrollContainer || !loadMoreSentinel || !hasMore) {
       observer?.disconnect()
       return
+    }
+    let rootEl: HTMLElement | null = null
+    let p: HTMLElement | null = galleryScrollContainer.parentElement
+    while (p) {
+      const oy = getComputedStyle(p).overflowY
+      if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) {
+        rootEl = p
+        break
+      }
+      p = p.parentElement
     }
     const loadMore = () => {
       if (!hasMore || loading || paging) return
@@ -304,7 +318,7 @@
     observer?.disconnect()
     observer = new IntersectionObserver(
       (entries) => { if (entries[0]?.isIntersecting) loadMore() },
-      { root: galleryScrollContainer, rootMargin: '200px 0px', threshold: 0 }
+      { root: rootEl, rootMargin: '200px 0px', threshold: 0 }
     )
     observer.observe(loadMoreSentinel)
     return () => {

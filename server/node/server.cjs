@@ -12,7 +12,17 @@ const nodeCrypto = require('crypto')
 const zlib = require('zlib')
 const rateLimit = require('express-rate-limit')
 const { WebSocketServer } = require('ws')
-const sharp = require('sharp')
+const Vips = require('wasm-vips')
+let _vipsPromise = null
+const getVips = () => {
+    if (!_vipsPromise) {
+        _vipsPromise = Vips().catch(err => {
+            _vipsPromise = null
+            throw err
+        })
+    }
+    return _vipsPromise
+}
 const { kvGet, kvSet, kvDel, kvList,
         kvDelPrefix, kvListWithSizes, kvSize, kvGetUpdatedAt, kvCopyValue, clearEntities, checkpointWal,
         db: sqliteDb } = require('./db.cjs');
@@ -21,7 +31,7 @@ const {
     logger, installProcessHandlers, expressErrorMiddleware,
 } = require('./logs.cjs');
 const { applyPatch } = require('fast-json-patch');
-const { decodeRisuSave, encodeRisuSaveLegacy, calculateHash, normalizeJSON } = require('./utils.cjs');
+const { decodeRisuSave, encodeRisuSaveLegacy, calculateHash, normalizeJSON, hasRemoteBlocks } = require('./utils.cjs');
 const { spawn, execSync } = require('child_process');
 const os = require('os');
 const { Readable, Transform } = require('stream');
@@ -251,6 +261,14 @@ function normalizeOrphanFolderIds(dbObj) {
 
 async function decodeDatabaseWithPersistentChatIds(raw, options = {}) {
     const { createBackup = false, migrationResult = null } = options;
+    // Convert legacy REMOTE-block layouts to inline format before decoding.
+    // If migration ran it overwrote database.bin, so the caller's `raw` is
+    // stale and we re-read from KV. Idempotent on the no-op path.
+    const migration = await migrateRemoteBlocksIfNeeded();
+    if (migration.ran) {
+        const fresh = kvGet('database/database.bin');
+        if (fresh) raw = fresh;
+    }
     const dbObj = normalizeJSON(await decodeRisuSave(raw));
     let needsPersist = false;
 
@@ -412,11 +430,107 @@ function reassembleFullDb(strippedDb) {
     return full;
 }
 
+// ─── Remote-block migration ─────────────────────────────────────────────────
+//
+// Background: upstream RisuAI (and very early NodeOnly versions) split each
+// character's data out of database.bin into a separate `remotes/<chaId>.local.bin`
+// file. The main database.bin then carries a REMOTE pointer block instead of the
+// character payload. The server-side RisuSaveDecoder used to skip those blocks
+// outright, so any decode pass — /api/read, /api/chat-content fallback, chat
+// store init — saw the character as missing and lost its chats.
+//
+// NodeOnly never wanted this split (`disableRemoteSaving` is hardcoded to
+// true), so we one-shot convert any leftover REMOTE blocks to inline raw blocks
+// the first time a server with such data boots. The reencoded database.bin is
+// stored in legacy msgpack format, which has no block structure at all — so
+// the REMOTE code path becomes unreachable for future decodes.
+//
+// Idempotent via a KV marker. The marker lives in KV (not on disk) so a backup
+// import — which wipes most KV prefixes and INSERTs a new database.bin — naturally
+// clears it, letting the new contents be re-evaluated.
+
+const REMOTE_MIGRATION_MARKER_KEY = 'migration/disable-remote-saving';
+const REMOTE_MIGRATION_MARKER_VALUE = Buffer.from('done', 'utf-8');
+
+function isRemoteMigrationDone() {
+    const value = kvGet(REMOTE_MIGRATION_MARKER_KEY);
+    return value !== null && value.length > 0;
+}
+
+function markRemoteMigrationDone() {
+    kvSet(REMOTE_MIGRATION_MARKER_KEY, REMOTE_MIGRATION_MARKER_VALUE);
+}
+
+/**
+ * Convert any leftover REMOTE blocks in database.bin into inline raw blocks.
+ * Safe to call repeatedly: idempotent via KV marker.
+ */
+async function migrateRemoteBlocksIfNeeded() {
+    if (isRemoteMigrationDone()) return { ran: false, reason: 'already-done' };
+
+    const raw = kvGet('database/database.bin');
+    if (!raw) {
+        markRemoteMigrationDone();
+        return { ran: false, reason: 'no-database' };
+    }
+
+    if (!hasRemoteBlocks(raw)) {
+        markRemoteMigrationDone();
+        return { ran: false, reason: 'no-remote-blocks' };
+    }
+
+    logger.info('[Migration] REMOTE blocks detected in database.bin; converting to inline format');
+
+    // Pre-migration backup so a botched migration can be rolled back manually.
+    // Use a dedicated prefix — `database/dbbackup-` is on a 20-snapshot rotation
+    // whose timestamp parser would assign this entry ts=0 (because of the
+    // non-numeric suffix), making it the first to evict. The migration safety
+    // net must outlive ordinary backup churn.
+    const backupKey = `migration-backup/pre-remote-fix-${Date.now()}.bin`;
+    kvCopyValue('database/database.bin', backupKey);
+
+    const dbObj = await decodeRisuSave(raw, {
+        resolveRemote: async (name) => {
+            const value = kvGet(`remotes/${name}.local.bin`);
+            return value || null;
+        },
+    });
+
+    const reEncoded = encodeRisuSaveLegacy(dbObj, 'compression');
+
+    // Single transaction so swap + marker move together.
+    // remotes/ files are intentionally NOT deleted here: pre-migration
+    // dbbackup-* snapshots and the migration-backup we just wrote both
+    // only carry database.bin (kvCopyValue is single-key). If a user later
+    // restores one of those snapshots — which holds REMOTE pointers —
+    // resolveRemote needs the remotes/<id>.local.bin payloads to still
+    // exist, otherwise every REMOTE-pointed character drops on the next
+    // decode and the backup is effectively dead. The orphans don't grow
+    // (NodeOnly's disableRemoteSaving = true on writes), so leaving them
+    // costs a few MB of disk for full backup recoverability.
+    sqliteDb.transaction(() => {
+        kvSet('database/database.bin', Buffer.from(reEncoded));
+        markRemoteMigrationDone();
+    })();
+
+    // Reset in-memory caches whose contents were derived from the pre-migration
+    // bytes — next reader recomputes from the migrated database.bin.
+    invalidateDbCache();
+    dbEtag = null;
+
+    const characterCount = Array.isArray(dbObj.characters) ? dbObj.characters.length : 0;
+    logger.info(`[Migration] Remote-block migration complete. Inlined ${characterCount} character(s); pre-migration backup at ${backupKey}`);
+    return { ran: true, characterCount, backupKey };
+}
+
 /**
  * Ensure fullChatStore is initialized. Loads from disk if needed.
  */
 async function ensureChatStore() {
     if (fullChatStore) return;
+    // Run remote-block migration first so the decode below sees an inline DB.
+    // Idempotent — skipped on every subsequent call.
+    await migrateRemoteBlocksIfNeeded();
     const raw = kvGet('database/database.bin');
     if (!raw) {
         fullChatStore = new Map();
@@ -596,6 +710,17 @@ function shouldCompress(req, res) {
     if (contentType.includes('text/event-stream')) {
         return false;
     }
+    // NDJSON endpoints (backup import/restore, inlay bulk compression) emit
+    // small per-line events and rely on real-time flushes — keepalive
+    // heartbeats in particular must reach reverse proxies before their
+    // response timeout fires. gzip would buffer those lines until enough
+    // bytes accumulated for an efficient compression block, defeating the
+    // 502-avoidance the streaming endpoints were built for. compressible's
+    // mime-db happens not to list application/x-ndjson today (so this is
+    // a no-op in practice) but a future dep upgrade could flip it on.
+    if (contentType.includes('application/x-ndjson')) {
+        return false;
+    }
     // Already-compressed media formats: gzip adds CPU cost with ~0% size gain
     if (contentType.startsWith('image/') || contentType.startsWith('video/') || contentType.startsWith('audio/')) {
         return false;
@@ -695,6 +820,14 @@ const BACKUP_IMPORT_MAX_BYTES = Number(process.env.RISU_BACKUP_IMPORT_MAX_BYTES 
 const BACKUP_ENTRY_NAME_MAX_BYTES = 1024;
 // Minimum free disk space headroom multiplier: require 2× the backup size to be free
 const BACKUP_DISK_HEADROOM = 2;
+// Heartbeat interval for NDJSON import progress stream. 5 s by default —
+// shorter than every common reverse-proxy response timeout (nginx 60 s, Cloudflare
+// 100 s). Operators behind more aggressive proxies can tighten this. Clamped to
+// 100 ms so a misconfiguration can't spam the socket.
+const BACKUP_NDJSON_HEARTBEAT_MS = Math.max(
+    100,
+    Number(process.env.BACKUP_NDJSON_HEARTBEAT_MS ?? '5000') || 5000,
+);
 
 let importInProgress = false;
 
@@ -711,6 +844,9 @@ const CLOUDFLARED_ASSETS = {
     'darwin-x64':    { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-darwin-amd64.tgz', type: 'tgz' },
     'linux-x64':     { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64', type: 'bin' },
     'linux-arm64':   { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64', type: 'bin' },
+    // Termux reports process.platform === 'android' but the linux-arm64
+    // cloudflared binary (statically linked Go) runs cleanly on Bionic.
+    'android-arm64': { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64', type: 'bin' },
     'win32-x64':     { url: 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe', type: 'bin' },
 };
 
@@ -729,7 +865,7 @@ function findCloudflaredBinary() {
 function followRedirects(url) {
     return new Promise((resolve, reject) => {
         const mod = url.startsWith('https') ? require('https') : require('http');
-        mod.get(url, { headers: { 'User-Agent': 'risuai-nodeonly' } }, (res) => {
+        mod.get(url, { headers: { 'User-Agent': 'pocketrisu' } }, (res) => {
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
                 followRedirects(res.headers.location).then(resolve, reject);
             } else if (res.statusCode === 200) {
@@ -794,15 +930,17 @@ function stopTunnel() {
 const UPDATE_CHECK_DISABLED = process.env.RISU_UPDATE_CHECK === 'false';
 const UPDATE_CHECK_URL = process.env.RISU_UPDATE_URL || 'https://risu-update-worker.nodridan.workers.dev/check';
 
-const currentVersion = (() => {
+// Re-read on each call so non-portable updates (docker/git pull) without a
+// process restart don't keep reporting the old version to the update worker.
+function getCurrentVersion() {
     try {
         const pkg = JSON.parse(readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8'));
         return pkg.version || '0.0.0';
     } catch { return '0.0.0'; }
-})();
+}
 
 // ── Deployment type & self-update helpers ─────────────────────────────────────
-const GITHUB_REPO = 'mrbart3885/Risuai-NodeOnly';
+const GITHUB_REPO = 'PocketRisu/PocketRisu';
 
 const deploymentType = (() => {
     // Only portable builds have the .portable marker (created by CI release workflow).
@@ -827,7 +965,7 @@ function getSelfUpdateAssetInfo(version) {
     if (!platformName) return null;
     const arch = process.arch; // x64, arm64
     const ext = process.platform === 'win32' ? 'zip' : 'tar.gz';
-    const filename = `RisuAI-NodeOnly-v${version}-${platformName}-${arch}.${ext}`;
+    const filename = `PocketRisu-v${version}-${platformName}-${arch}.${ext}`;
     const url = `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${filename}`;
     return { platformName, arch, ext, filename, url };
 }
@@ -1162,15 +1300,17 @@ async function migrateInlaysToFilesystem() {
     await fs.writeFile(inlayMigrationMarker, new Date().toISOString(), 'utf-8');
 }
 
-async function fetchLatestRelease() {
+async function fetchLatestRelease(lang) {
     if (UPDATE_CHECK_DISABLED) return null;
     try {
+        const currentVersion = getCurrentVersion();
         const params = new URLSearchParams({
             v: currentVersion,
             d: deploymentType,
             os: `${process.platform}-${process.arch}`,
             id: instanceId,
         });
+        if (lang) params.set('l', String(lang).slice(0, 16));
         const url = `${UPDATE_CHECK_URL}?${params}`;
         const res = await fetch(url);
         if (!res.ok) return null;
@@ -2028,6 +2168,17 @@ async function importBackupFromSource(dataSource, { maxBytes = 0, totalBytes = 0
     kvDelPrefix('inlay_meta/');
     kvDelPrefix('inlay_info/');
     kvDelPrefix('coldstorage/');
+    // Same reasoning as clearExistingData (save-folder import path): wipe stale
+    // remote payloads from the prior user before this backup's contents land.
+    // .bin backups never carry REMOTE blocks today, so the migration won't
+    // resolveRemote on them — but keeping the two import paths consistent
+    // avoids a contamination regression if that ever changes (upstream sync,
+    // plugin-generated buffers, etc.).
+    kvDelPrefix('remotes/');
+    // Allow remote-block migration to re-evaluate against the new database.bin.
+    // (.bin backups themselves never carry REMOTE blocks — legacy msgpack
+    // format only — but a fresh import is a clear "data changed" signal.)
+    kvDel(REMOTE_MIGRATION_MARKER_KEY);
     clearEntities();
 
     try {
@@ -2858,10 +3009,17 @@ const THUMB_QUALITY = 75;
 const THUMB_IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp']);
 
 async function generateThumbnail(buffer) {
-    return sharp(buffer)
-        .resize(THUMB_MAX_SIDE, THUMB_MAX_SIDE, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: THUMB_QUALITY })
-        .toBuffer();
+    const vips = await getVips()
+    const img = vips.Image.thumbnailBuffer(buffer, THUMB_MAX_SIDE, {
+        height: THUMB_MAX_SIDE,
+        size: 'down',
+    })
+    try {
+        const out = img.writeToBuffer('.webp', { Q: THUMB_QUALITY })
+        return Buffer.from(out);
+    } finally {
+        img.delete()
+    }
 }
 
 app.get('/api/asset/:hexKey', sessionAuthMiddleware, async (req, res) => {
@@ -3704,6 +3862,13 @@ app.post('/api/backup/import', async (req, res, next) => {
     req.socket.setKeepAlive(true);
     if (req.socket.server) req.socket.server.requestTimeout = 0;
 
+    // NDJSON streaming keeps the response socket alive during long
+    // post-upload work (WAL checkpoint, cold-storage migration). Without it
+    // a reverse proxy in front of the server can hit its response timeout
+    // and bounce the request back to the client as 502 Bad Gateway.
+    const wantsNdjson = String(req.headers['accept'] ?? '').includes('application/x-ndjson');
+    let heartbeatTimer = null;
+
     try {
         const contentType = String(req.headers['content-type'] ?? '');
         if (contentType && !contentType.includes('application/x-risu-backup') && !contentType.includes('application/octet-stream')) {
@@ -3717,15 +3882,57 @@ app.post('/api/backup/import', async (req, res, next) => {
             return;
         }
 
-        const result = await importBackupFromSource(req, { maxBytes: BACKUP_IMPORT_MAX_BYTES });
-        res.json({
-            ok: true,
-            assetsRestored: result.assetsRestored,
-            coldStorageFailed: result.coldStorageFailed,
-        });
+        if (wantsNdjson) {
+            res.setHeader('content-type', 'application/x-ndjson');
+            res.setHeader('cache-control', 'no-cache, no-transform');
+            // Disable nginx response buffering so progress events flush immediately.
+            res.setHeader('x-accel-buffering', 'no');
+            res.flushHeaders();
+
+            // Periodic keepalive — covers the post-stream phase (commit,
+            // inlay dir swap, cold storage migration) where onProgress is silent.
+            heartbeatTimer = setInterval(() => {
+                if (!res.writableEnded) res.write('{"type":"heartbeat"}\n');
+            }, BACKUP_NDJSON_HEARTBEAT_MS);
+
+            let lastProgressWrite = 0;
+            const totalBytes = Number.isFinite(contentLength) ? contentLength : 0;
+            const result = await importBackupFromSource(req, {
+                maxBytes: BACKUP_IMPORT_MAX_BYTES,
+                totalBytes,
+                onProgress: (received, total) => {
+                    const now = Date.now();
+                    if (now - lastProgressWrite < 200) return;
+                    lastProgressWrite = now;
+                    res.write(JSON.stringify({ type: 'progress', bytes: received, totalBytes: total }) + '\n');
+                },
+            });
+            res.write(JSON.stringify({
+                type: 'done',
+                ok: true,
+                assetsRestored: result.assetsRestored,
+                coldStorageFailed: result.coldStorageFailed,
+            }) + '\n');
+            res.end();
+        } else {
+            const result = await importBackupFromSource(req, { maxBytes: BACKUP_IMPORT_MAX_BYTES });
+            res.json({
+                ok: true,
+                assetsRestored: result.assetsRestored,
+                coldStorageFailed: result.coldStorageFailed,
+            });
+        }
     } catch (error) {
-        next(error);
+        if (wantsNdjson && res.headersSent) {
+            try {
+                res.write(JSON.stringify({ type: 'error', message: error?.message || 'backup import failed' }) + '\n');
+                res.end();
+            } catch (_) {}
+        } else {
+            next(error);
+        }
     } finally {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
         importInProgress = false;
         if (req.socket.server && prevRequestTimeout !== undefined) {
             req.socket.server.requestTimeout = prevRequestTimeout;
@@ -4299,6 +4506,18 @@ function clearExistingData() {
     kvDelPrefix('inlay_thumb/');
     kvDelPrefix('inlay_meta/');
     kvDelPrefix('inlay_info/');
+    // Drop the previous user's remote payloads. The new save folder usually
+    // brings its own remotes/<id>.local.bin files (INSERT OR REPLACE), but if
+    // the imported character ids reuse names from the prior user without
+    // shipping a matching payload, the migration's resolveRemote would silently
+    // stitch in stale cross-user data. Wiping here ensures only payloads
+    // that arrived in this import survive.
+    kvDelPrefix('remotes/');
+    // Clear remote-block migration marker — newly imported database.bin may
+    // contain REMOTE blocks (it usually does, since save-folder imports
+    // preserve upstream's split-character format) and we want the migration
+    // to re-evaluate against the new contents on the next ensureChatStore.
+    kvDel(REMOTE_MIGRATION_MARKER_KEY);
     clearEntities();
 }
 
@@ -4918,6 +5137,9 @@ app.post('/api/db/optimize', async (req, res, next) => {
             const t0 = Date.now();
             try { checkpointWal('TRUNCATE'); } catch (e) { logger.warn('[Optimize] checkpoint failed:', e?.message || e); }
             sqliteDb.exec('VACUUM');
+            // VACUUM streams the whole DB through the WAL; without this checkpoint the
+            // -wal file stays inflated until the next 5-min background TRUNCATE.
+            try { checkpointWal('TRUNCATE'); } catch (e) { logger.warn('[Optimize] post-VACUUM checkpoint failed:', e?.message || e); }
             const elapsed = Date.now() - t0;
             const postDbSize = statSafe(dbFilePath)?.size ?? 0;
             return {
@@ -4926,6 +5148,32 @@ app.post('/api/db/optimize', async (req, res, next) => {
                 preDbSize,
                 postDbSize,
                 reclaimed: Math.max(0, preDbSize - postDbSize),
+            };
+        });
+        res.json(result);
+    } catch (err) { next(err); }
+});
+
+app.post('/api/db/wal-checkpoint', async (req, res, next) => {
+    if (!await checkAuth(req, res)) return;
+    if (!checkActiveSession(req, res)) return;
+    try {
+        const saveDir = path.join(process.cwd(), 'save');
+        const walFilePath = path.join(saveDir, 'risuai.db-wal');
+        const preWalSize = statSafe(walFilePath)?.size ?? 0;
+
+        const result = await queueStorageOperation(async () => {
+            await flushPendingDb();
+            const t0 = Date.now();
+            checkpointWal('TRUNCATE');
+            const elapsed = Date.now() - t0;
+            const postWalSize = statSafe(walFilePath)?.size ?? 0;
+            return {
+                ok: true,
+                elapsedMs: elapsed,
+                preWalSize,
+                postWalSize,
+                reclaimed: Math.max(0, preWalSize - postWalSize),
             };
         });
         res.json(result);
@@ -5037,14 +5285,26 @@ app.post('/api/db/snapshots/restore', async (req, res, next) => {
             await flushPendingDb();
             kvCopyValue(key, DB_BLOB_KEY);
             invalidateDbCache();
+            // Snapshot may pre-date the remote-block migration. Clear the marker
+            // so migrateRemoteBlocksIfNeeded re-evaluates against the restored
+            // bytes instead of skipping based on the prior post-migration state.
+            kvDel(REMOTE_MIGRATION_MARKER_KEY);
             // Pre-warm chat store from the just-restored blob so subsequent
             // /api/read fetches and patch-sync baselines see the new data.
+            // Use decodeDatabaseWithPersistentChatIds so it runs the migration
+            // (now unmarked) and refreshes stale raw if the snapshot was a
+            // REMOTE-block format.
             try {
                 const raw = kvGet(DB_BLOB_KEY);
                 if (raw) {
-                    const dbObj = await decodeRisuSave(raw);
+                    const dbObj = await decodeDatabaseWithPersistentChatIds(raw, {
+                        createBackup: false,
+                    });
                     initChatStore(dbObj);
-                    dbEtag = computeBufferEtag(Buffer.from(raw));
+                    // Migration may have rewritten database.bin — etag must
+                    // reflect the post-migration bytes the next /api/read sends.
+                    const finalRaw = kvGet(DB_BLOB_KEY);
+                    if (finalRaw) dbEtag = computeBufferEtag(Buffer.from(finalRaw));
                 }
             } catch (e) {
                 logger.warn('[Snapshot restore] post-restore decode failed:', e?.message || e);
@@ -5162,11 +5422,20 @@ app.post('/api/inlays/compress', sessionAuthMiddleware, async (req, res) => {
         let skipped = 0;
         let totalSaved = 0;
 
+        const vips = await getVips()
+
         for (let i = 0; i < imageFiles.length; i++) {
             const entry = imageFiles[i];
             try {
                 const original = await fs.readFile(entry.filePath);
-                const webpBuf = await sharp(original).webp({ quality }).toBuffer();
+                const img = vips.Image.newFromBuffer(original)
+                let webpBuf
+                try {
+                    const out = img.writeToBuffer('.webp', { Q: quality })
+                    webpBuf = Buffer.from(out);
+                } finally {
+                    img.delete()
+                }
 
                 if (webpBuf.length < original.length) {
                     const sidecar = await readInlaySidecar(entry.id);
@@ -5197,11 +5466,12 @@ app.post('/api/inlays/compress', sessionAuthMiddleware, async (req, res) => {
 
 // ── Update check endpoint ────────────────────────────────────────────────────
 app.get('/api/update-check', async (req, res) => {
+    const currentVersion = getCurrentVersion();
     if (UPDATE_CHECK_DISABLED) {
         res.json({ currentVersion, hasUpdate: false, severity: 'none', disabled: true, deploymentType, canSelfUpdate: false });
         return;
     }
-    const result = await fetchLatestRelease();
+    const result = await fetchLatestRelease(req.query.lang);
     const response = result || { currentVersion, hasUpdate: false, severity: 'none' };
     response.deploymentType = deploymentType;
     response.canSelfUpdate = deploymentType === 'portable'
@@ -5574,7 +5844,13 @@ async function restoreBackup(backupDir, rootDir) {
 
 app.get('/api/tunnel/status', async (req, res) => {
     if (!await checkAuth(req, res)) return;
-    res.json({ disabled: TUNNEL_DISABLED, status: tunnelStatus, url: tunnelUrl, error: tunnelError });
+    res.json({
+        disabled: TUNNEL_DISABLED,
+        status: tunnelStatus,
+        url: tunnelUrl,
+        error: tunnelError,
+        platform: process.platform,
+    });
 });
 
 app.post('/api/tunnel/start', async (req, res) => {
@@ -5714,6 +5990,7 @@ async function getHttpsOptions() {
 async function startServer() {
     try {
         await migrateInlaysToFilesystem();
+        await migrateRemoteBlocksIfNeeded();
         const port = process.env.PORT || 6001;
         const httpsOptions = await getHttpsOptions();
         let server;
@@ -5773,9 +6050,10 @@ for (const sig of ['SIGTERM', 'SIGINT']) {
     await startServer();
 
     // Periodically checkpoint WAL to reclaim disk space.
-    // Without this, the -wal file grows unbounded as inlay/asset writes accumulate.
+    // TRUNCATE (vs RESTART) shrinks the -wal file on disk, not just the writer
+    // pointer — required for journal_size_limit to actually take effect.
     setInterval(() => {
-        try { checkpointWal('RESTART'); }
+        try { checkpointWal('TRUNCATE'); }
         catch { /* non-fatal */ }
     }, 5 * 60 * 1000); // every 5 minutes
 

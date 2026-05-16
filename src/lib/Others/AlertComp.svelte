@@ -51,7 +51,7 @@
     const userAgent = typeof navigator === "undefined" ? "Unknown" : navigator.userAgent || "Unknown";
     const stackTraceCodeBlock = $derived.by(() => {
         const lines = [
-            `NodeOnly v${nodeOnlyVer}`,
+            `PocketRisu v${nodeOnlyVer}`,
             `OS: ${osLabel}`,
             `User-Agent: ${userAgent}`,
             `Risu environment: ${risuEnvironment}`,
@@ -203,7 +203,7 @@
     }
 }}></svelte:window>
 
-{#if $alertStore.type !== 'none' &&  $alertStore.type !== 'cardexport' && $alertStore.type !== 'branches' && $alertStore.type !== 'selectModule' && $alertStore.type !== 'pukmakkurit' && $alertStore.type !== 'requestlogs' && $alertStore.type !== 'error' && $alertStore.type !== 'normal' && $alertStore.type !== 'markdown' && $alertStore.type !== 'ask' && $alertStore.type !== 'pluginconfirm' && $alertStore.type !== 'tos' && $alertStore.type !== 'input' && $alertStore.type !== 'select' && $alertStore.type !== 'wait' && $alertStore.type !== 'wait2' && $alertStore.type !== 'progress'}
+{#if $alertStore.type !== 'none' &&  $alertStore.type !== 'cardexport' && $alertStore.type !== 'branches' && $alertStore.type !== 'selectModule' && $alertStore.type !== 'pukmakkurit' && $alertStore.type !== 'requestlogs' && $alertStore.type !== 'error' && $alertStore.type !== 'normal' && $alertStore.type !== 'markdown' && $alertStore.type !== 'ask' && $alertStore.type !== 'pluginconfirm' && $alertStore.type !== 'tos' && $alertStore.type !== 'input' && $alertStore.type !== 'select' && $alertStore.type !== 'wait' && $alertStore.type !== 'wait2' && $alertStore.type !== 'progress' && $alertStore.type !== 'confirmMulti'}
     <div class="absolute w-full h-full z-50 bg-black/50 flex justify-center items-center">
         <div class="bg-darkbg p-4 break-any rounded-md flex flex-col max-w-3xl  max-h-full overflow-y-auto">
             {#if $alertStore.type === 'selectChar'}
@@ -956,6 +956,38 @@
         </div>
     {/if}
 </ShDialog>
+
+<ShAlertDialog
+    open={$alertStore.type === 'confirmMulti'}
+    closeOnEscape={true}
+    closeOnOutsideClick={true}
+    onOpenChange={(v) => {
+        if (!v && $alertStore.type === 'confirmMulti') {
+            alertStore.set({ type: 'none', msg: 'cancel' })
+        }
+    }}
+>
+    {#snippet title()}
+        {$alertStore.msg}
+    {/snippet}
+    {#if $alertStore.type === 'confirmMulti'}
+        {@const actions = $alertStore.actions ?? []}
+        <div class="flex flex-col gap-2">
+            {#each actions as action, i}
+                <ShButton
+                    variant={action.variant ?? 'default'}
+                    className="w-full"
+                    onclick={() => alertStore.set({ type: 'none', msg: i.toString() })}
+                >
+                    {action.label}
+                </ShButton>
+            {/each}
+        </div>
+    {/if}
+    {#snippet footer()}
+        <ShButton variant="outline" onclick={() => alertStore.set({ type: 'none', msg: 'cancel' })}>{language.cancel}</ShButton>
+    {/snippet}
+</ShAlertDialog>
 
 <ShDialog
     open={$alertStore.type === 'input'}

@@ -14,15 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
@@ -36,7 +36,7 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=4096'
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-build
           path: |
@@ -59,29 +59,32 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: x64
+          - os: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
           - os: macos-latest
             platform: macos
             arch: arm64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           sparse-checkout: |
             scripts
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 10
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
 
       - name: Download build artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: app-build
           path: portable/
@@ -118,10 +121,11 @@ jobs:
         shell: bash
         run: |
           NODE_VERSION="24.14.1"
+          NODE_ARCH="${{ matrix.arch }}"
           mkdir -p portable/bin
-          curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o node.tar.xz
+          curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" -o node.tar.xz
           tar -xJf node.tar.xz
-          cp "node-v${NODE_VERSION}-linux-x64/bin/node" portable/bin/node
+          cp "node-v${NODE_VERSION}-linux-${NODE_ARCH}/bin/node" portable/bin/node
           chmod +x portable/bin/node
 
       - name: Download Node.js binary (macOS)
@@ -145,7 +149,12 @@ jobs:
         if: matrix.platform == 'linux'
         shell: bash
         run: |
-          curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" -o portable/bin/cloudflared
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            CLOUDFLARED_ARCH="arm64"
+          else
+            CLOUDFLARED_ARCH="amd64"
+          fi
+          curl -fsSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${CLOUDFLARED_ARCH}" -o portable/bin/cloudflared
           chmod +x portable/bin/cloudflared
 
       - name: Download cloudflared (macOS)
@@ -169,7 +178,7 @@ jobs:
           cd scripts/portable
           GCC_DIR="$(dirname "$(which gcc)")"
           "$GCC_DIR/windres" launcher.rc -O coff -o launcher.res
-          gcc -municode -O2 -o ../../portable/RisuAI.exe launcher.c launcher.res -lshell32
+          gcc -municode -O2 -o ../../portable/PocketRisu.exe launcher.c launcher.res -lshell32
           rm -f launcher.res icon.ico
 
       - name: Create macOS app bundle
@@ -177,7 +186,7 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          APP="portable/RisuAI.app"
+          APP="portable/PocketRisu.app"
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
           ICONSET="$(mktemp -d)/AppIcon.iconset"
           mkdir -p "$ICONSET"
@@ -196,11 +205,11 @@ jobs:
           <plist version="1.0">
           <dict>
               <key>CFBundleExecutable</key>
-              <string>RisuAI</string>
+              <string>PocketRisu</string>
               <key>CFBundleName</key>
-              <string>RisuAI NodeOnly</string>
+              <string>PocketRisu</string>
               <key>CFBundleIdentifier</key>
-              <string>com.risuai.nodeonly</string>
+              <string>com.pocketrisu</string>
               <key>CFBundleVersion</key>
               <string>${VERSION}</string>
               <key>CFBundleShortVersionString</key>
@@ -214,13 +223,13 @@ jobs:
           </dict>
           </plist>
           PLIST
-          cat > "$APP/Contents/MacOS/RisuAI" << 'LAUNCHER'
+          cat > "$APP/Contents/MacOS/PocketRisu" << 'LAUNCHER'
           #!/bin/bash
           PORTABLE_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
           cd "$PORTABLE_DIR"
           PORT="${PORT:-6001}"
           if [ ! -f "bin/node" ]; then
-              osascript -e 'display dialog "RisuAI.app must remain inside the RisuAI portable folder." buttons {"OK"} default button 1 with icon stop'
+              osascript -e 'display dialog "PocketRisu.app must remain inside the PocketRisu portable folder." buttons {"OK"} default button 1 with icon stop'
               exit 1
           fi
           (sleep 2 && open "http://localhost:$PORT") &
@@ -231,7 +240,7 @@ jobs:
           end tell
           ENDSCRIPT
           LAUNCHER
-          chmod +x "$APP/Contents/MacOS/RisuAI"
+          chmod +x "$APP/Contents/MacOS/PocketRisu"
 
       - name: Add update script (Windows)
         if: matrix.platform == 'win'
@@ -276,25 +285,37 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          NAME="RisuAI-NodeOnly-v${VERSION}-win-x64"
+          NAME="PocketRisu-v${VERSION}-win-x64"
+          LEGACY_NAME="RisuAI-NodeOnly-v${VERSION}-win-x64"
           cd portable
           7z a -tzip "../${NAME}.zip" .
+          # Dual asset: legacy filename for v1.5.x in-app self-update.
+          # v1.5.x server.cjs has the old "RisuAI-NodeOnly-" prefix hardcoded;
+          # this copy lets that code path keep working through the transition.
+          cp "../${NAME}.zip" "../${LEGACY_NAME}.zip"
 
       - name: Package portable (Unix)
         if: matrix.platform != 'win'
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          NAME="RisuAI-NodeOnly-v${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}"
+          NAME="PocketRisu-v${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}"
+          LEGACY_NAME="RisuAI-NodeOnly-v${VERSION}-${{ matrix.platform }}-${{ matrix.arch }}"
           mv portable "$NAME"
           tar -czf "${NAME}.tar.gz" "$NAME"
           rm -rf "$NAME"
+          # Dual asset: legacy filename for v1.5.x in-app self-update.
+          # v1.5.x server.cjs has the old "RisuAI-NodeOnly-" prefix hardcoded;
+          # this copy lets that code path keep working through the transition.
+          cp "${NAME}.tar.gz" "${LEGACY_NAME}.tar.gz"
 
       - name: Upload portable artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: portable-${{ matrix.platform }}-${{ matrix.arch }}
-          path: RisuAI-NodeOnly-*
+          path: |
+            PocketRisu-*
+            RisuAI-NodeOnly-*
           retention-days: 1
 
   release:
@@ -303,16 +324,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all portable artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: portable-*
           merge-multiple: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           generate_release_notes: true
           draft: true
-          files: RisuAI-NodeOnly-*
+          files: |
+            PocketRisu-*
+            RisuAI-NodeOnly-*
