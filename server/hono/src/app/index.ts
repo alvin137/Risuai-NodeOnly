@@ -58,19 +58,24 @@ app.use('*', async (c, next) => {
   if (isPublicPath(c.req.path)) return next()
 
   const token = c.req.header('risu-auth')
-  if (!token) {
-    console.log(`[Auth] No token: ${c.req.method} ${c.req.path}`)
-    return c.json({ error: 'Unauthorized' }, 401)
+  if (token) {
+    try {
+      const payload = await verify(token, jwtSecret)
+      c.set('jwtPayload', payload)
+      return next()
+    } catch {
+      console.log(`[Auth] Invalid token: ${c.req.method} ${c.req.path}`)
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
   }
 
-  try {
-    const payload = await verify(token, jwtSecret)
-    c.set('jwtPayload', payload)
-    await next()
-  } catch {
-    console.log(`[Auth] Invalid token: ${c.req.method} ${c.req.path}`)
-    return c.json({ error: 'Unauthorized' }, 401)
+  const sessionToken = parseSessionCookie(c.req)
+  if (sessionToken && (sessions.get(sessionToken) ?? 0) > Date.now()) {
+    return next()
   }
+
+  console.log(`[Auth] No auth: ${c.req.method} ${c.req.path}`)
+  return c.json({ error: 'Unauthorized' }, 401)
 })
 
 api.route('/session', sessionApp);
