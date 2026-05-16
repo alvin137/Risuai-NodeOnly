@@ -9,6 +9,8 @@ import net from "node:net";
 import http from "node:http";
 import https from "node:https";
 import { WebSocketServer } from "ws";
+import { verify } from "hono/jwt";
+import { jwtSecret } from "../utils/util";
 
 export const proxyApp = new Hono();
 
@@ -456,9 +458,6 @@ function createTimeoutController(timeoutMs: number | null) {
 }
 
 const reverseProxyFunc = async (c: Context, next: Next) => {
-    // if(!await checkAuth(req, res)){
-    //     return;
-    // }
     let url = c.req.header("risu-url");
     const urlParam = url ? decodeURIComponent(url) : c.req.query("url");
 
@@ -548,9 +547,6 @@ const reverseProxyFunc = async (c: Context, next: Next) => {
 }
 
 const reverseProxyFunc_get = async (c: Context, next: Next) => {
-    // if(!await checkAuth(req, res)){
-    //     return;
-    // }
     
     const urlParam = c.req.header("risu-url") ? decodeURIComponent(c.req.header("risu-url") ?? "") : c.req.query("url");
 
@@ -706,10 +702,13 @@ async function hubProxyFunc(c: Context) {
         //if Authorization header is "Server-Auth, set the token to be Server-Auth
         if(headersToSend['Authorization'] === 'X-Node-Server-Auth'){
             //this requires password auth
-            // TODO: Auth
-            // if(!await checkAuth(req, res)){
-            //     return;
-            // }
+            const token = c.req.header('risu-auth');
+            if(!token) return;
+            try {
+                const payload = await verify(token, jwtSecret);
+            } catch (e) {
+                return c.json({ error: 'Invalid auth token' }, 401);
+            }
 
             headersToSend['Authorization'] = "Bearer " + await getSionywAccessToken();
             delete headersToSend['risu-auth'];
@@ -795,9 +794,6 @@ proxyApp.post('/hub-proxy/*', hubProxyFunc);
 
 // --- Proxy Stream Job endpoints ---
 proxyApp.post('/proxy-stream-jobs', async (c) => {
-    // if (!await checkProxyAuth(c)) {
-    //     return;
-    // }
 
     const rawUrl = typeof c.req.raw?.url === 'string' ? c.req.raw.url : '';
     const encodedUrl = encodeURIComponent(rawUrl);
@@ -840,9 +836,7 @@ proxyApp.post('/proxy-stream-jobs', async (c) => {
 });
 
 proxyApp.delete('/proxy-stream-jobs/:jobId', async (c: Context) => {
-    // if (!await checkProxyAuth(req, res)) {
-    //     return;
-    // }
+
     const job = proxyStreamJobs.get(c.req.param("jobId"));
     if (!job) {
         return c.json({success: true});

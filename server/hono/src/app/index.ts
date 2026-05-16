@@ -3,10 +3,11 @@ import { csrf } from 'hono/csrf'
 import { logger } from 'hono/logger'
 import { compress } from 'hono/compress'
 import { bodyLimit } from 'hono/body-limit'
+import { verify } from 'hono/jwt'
 import api from './api.js'
 import { cleanupJob, PROXY_STREAM_DEFAULT_TIMEOUT_MS, PROXY_STREAM_GC_INTERVAL_MS, proxyApp, proxyStreamJobs } from './proxy.js'
 
-import { sessionApp } from './session.js';
+import { parseSessionCookie, sessionApp, sessions } from './session.js';
 import { assetApp } from './asset.js'
 import { patchApp } from './api/patch.js';
 import { chatApp } from './api/chat.js'
@@ -16,6 +17,8 @@ import { flushPendingDb, migrateInlaysToFilesystem, migrateRemoteBlocksIfNeeded 
 import { tunnelApp, stopTunnel } from './api/tunnel.js'
 import { backupApp } from './api/backup.js'
 import { dbApp } from './api/db.js'
+import { jwtSecret } from '../utils/util.js'
+import { loginApp } from './api/login.js'
 
 const app = new Hono();
 
@@ -40,6 +43,36 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error' }, 500);
 });
 
+const publicPaths = ['/', '/api/login', '/api/test_auth', '/api/token/refresh', '/api/set_password', '/api/backup/server/save', '/api/backup/export', '/api/update-check', '/api/self-update']
+const proxyExcludedPaths = ['/proxy', '/proxy2', '/proxy-stream-jobs']
+function isPublicPath(path: string): boolean {
+  if (publicPaths.includes(path)) return true
+  if (path.startsWith('/api/asset/')) return true
+  if (path.startsWith('/hub-proxy')) return true // Hub-proxy handles jwt itself
+  if (proxyExcludedPaths.includes(path) || path.startsWith('/proxy-stream-jobs')) return false // Proxy paths need jwt
+  if (!path.startsWith('/api')) return true
+  return false
+}
+
+app.use('*', async (c, next) => {
+  if (isPublicPath(c.req.path)) return next()
+
+  const token = c.req.header('risu-auth')
+  if (!token) {
+    console.log(`[Auth] No token: ${c.req.method} ${c.req.path}`)
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  try {
+    const payload = await verify(token, jwtSecret)
+    c.set('jwtPayload', payload)
+    await next()
+  } catch {
+    console.log(`[Auth] Invalid token: ${c.req.method} ${c.req.path}`)
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+})
+
 api.route('/session', sessionApp);
 api.route('/asset', assetApp);
 api.route("/patch", patchApp);
@@ -48,6 +81,7 @@ api.route("/migrate", migrateApp);
 api.route("/backup", backupApp);
 api.route("/tunnel", tunnelApp);
 api.route("/db", dbApp);
+api.route("/", loginApp);
 app.route('/api', api);
 app.route("/", proxyApp);
 

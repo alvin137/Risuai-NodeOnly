@@ -9,7 +9,6 @@ export const chatApp = new Hono();
 
 // GET /api/chat-content/:chaId/:chatIndex — retrieve full chat from server
 chatApp.get('/:chaId/:chatIndex', async (c) => {
-    // if (!await checkAuth(req, res)) { return; }
     try {
         const chaId = c.req.param("chaId");
         const chatIndex = parseInt(c.req.param("chatIndex"), 10);
@@ -59,8 +58,7 @@ chatApp.get('/:chaId/:chatIndex', async (c) => {
 
 // POST /api/chat-content/:chaId/:chatIndex — save chat content to server
 chatApp.post('/:chaId/:chatIndex', async (c) => {
-    //if (!await checkAuth(req, res)) { return; }
-    //if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(req, res)) return;
     try {
         return await queueStorageOperation(async () => {
             const chaId = c.req.param("chaId");

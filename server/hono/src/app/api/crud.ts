@@ -1,17 +1,13 @@
 import { Hono } from "hono";
 import { unlink } from "node:fs/promises";
-import { checkAuth } from "../api";
-import { decodeRisuSave, encodeRisuSaveLegacy, isHex, normalizeJSON } from "../../utils/util";
+import { decodeRisuSave, encodeRisuSaveLegacy, isHex } from "../../utils/util";
 import { initChatStore, flushPendingDb, dbCache, computeBufferEtag, queueStorageOperation, normalizeInlayExt, decodeDataUri, writeInlayFile, writeInlaySidecar, ensureChatStore, reassembleFullDb, DB_HEX_KEY, saveTimers, createBackupAndRotate, getInlaySidecarPath, deleteInlayFile, readAndLoadValue, getStrippedData, setDbetag, getDbetag, recordPersistFailure, findStubFlagLossChats } from "../../utils/asset.util";
 import { kvDel, kvSet } from "../../utils/db";
+import { checkActiveSession } from "../session";
 
 export function registerCrud(api: Hono) {
 
   api.get("/read", async (c) => {
-    const auth = await checkAuth(c);
-
-    //if (auth instanceof Response) return auth;
-
     const filePath = c.req.header("file-path");
     if (!filePath) {
       console.log("no path");
@@ -45,10 +41,7 @@ export function registerCrud(api: Hono) {
   });
 
 api.post("/write", async (c) => {
-    const auth = await checkAuth(c);
-    //if (auth instanceof Response) return auth;
-
-    // if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(c)) return;
     const filePath = c.req.header('file-path');
     const raw = await c.req.arrayBuffer();
     const fileContent = Buffer.from(raw);
@@ -130,7 +123,7 @@ api.post("/write", async (c) => {
                     initChatStore(fullDb);
                     kvSet(key, mergedContent);
                 } catch (e) {
-                    console.error('[Write] Failed to merge chats into database.bin:', e.message);
+                    console.error('[Write] Failed to merge chats into database.bin:', (e as Error).message);
                     // Do NOT write stubs-only to disk — that would permanently
                     // destroy existing full chat data. Preserve disk as-is.
                     return c.json({ error: 'Database merge failed' }, 500);
@@ -162,9 +155,6 @@ api.post("/write", async (c) => {
 });
 
 api.get("/remove", async (c) => {
-    const auth = await checkAuth(c);
-    //if (auth instanceof Response) return auth;
-
     const filePath = c.req.header('file-path');
     if (!filePath) {
         return c.json({ error: 'File path required' }, 400);
@@ -192,9 +182,8 @@ api.get("/remove", async (c) => {
     }
 });
 
-// TODO: Add sessionauthmiddleware 
 api.post('/db/flush', async (c) => {
-    //if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return;
     try {
         return await queueStorageOperation(async () => {
             await flushPendingDb();

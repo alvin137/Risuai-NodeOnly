@@ -7,6 +7,7 @@ import { stream, streamText } from "hono/streaming"
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { inlayDir, inlayMigrationMarker, savePath } from '../../utils/util';
 import { BACKUP_IMPORT_MAX_BYTES, isImportInProgress, setImportProgress } from './migrate';
+import { checkActiveSession } from '../session';
 
 export const backupApp = new Hono();
 
@@ -584,36 +585,30 @@ backupApp.post('/server/save', async (c) => {
 });
 
 // List backup files on the server
-backupApp.get('/server/list', async (c, next) => {
-    //if (!await checkAuth(req, res)) { return; }
+backupApp.get('/server/list', async (c) => {
+    let entries;
     try {
-        let entries;
-        try {
-            entries = await fs.readdir(backupsDir, { withFileTypes: true });
-        } catch {
-            return c.json({ backups: [] });
-        }
-        const backups = [];
-        for (const entry of entries) {
-            if (!entry.isFile() || !BACKUP_FILENAME_REGEX.test(entry.name)) continue;
-            const stat = await fs.stat(path.join(backupsDir, entry.name));
-            const tsMatch = entry.name.match(/^risu-backup-(\d+)\.bin$/);
-            backups.push({
-                filename: entry.name,
-                size: stat.size,
-                createdAt: tsMatch ? Number(tsMatch[1]) : stat.mtimeMs,
-            });
-        }
-        backups.sort((a, b) => b.createdAt - a.createdAt);
-        return c.json({ backups });
-    } catch (error) {
-        throw error;
+        entries = await fs.readdir(backupsDir, { withFileTypes: true });
+    } catch {
+        return c.json({ backups: [] });
     }
+    const backups = [];
+    for (const entry of entries) {
+        if (!entry.isFile() || !BACKUP_FILENAME_REGEX.test(entry.name)) continue;
+        const stat = await fs.stat(path.join(backupsDir, entry.name));
+        const tsMatch = entry.name.match(/^risu-backup-(\d+)\.bin$/);
+        backups.push({
+            filename: entry.name,
+            size: stat.size,
+            createdAt: tsMatch ? Number(tsMatch[1]) : stat.mtimeMs,
+        });
+    }
+    backups.sort((a, b) => b.createdAt - a.createdAt);
+    return c.json({ backups });
 });
 
 backupApp.post('/server/restore', async (c) => {
-  // if (!await checkAuth(c)) return;
-  // if (!checkActiveSession(c)) return;
+  if (!checkActiveSession(c)) return;
 
   if (isImportInProgress()) {
     return c.json({ error: 'Another import is already in progress' }, 409);
@@ -679,8 +674,7 @@ backupApp.post('/server/restore', async (c) => {
 
 // Delete a server backup file
 backupApp.delete('/server/:filename', async (c, next) => {
-    // if (!await checkAuth(req, res)) { return; }
-    // if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(c)) return;
     try {
         const filename = c.req.param("filename");
         if (!BACKUP_FILENAME_REGEX.test(filename)) {
@@ -703,7 +697,6 @@ backupApp.delete('/server/:filename', async (c, next) => {
 
 // Download a server backup file
 backupApp.get('/server/download/:filename', async (c, next) => {
-    //if (!await checkAuth(req, res)) { return; }
     try {
         const filename = c.req.param("filename");
         if (!BACKUP_FILENAME_REGEX.test(filename)) {
@@ -831,9 +824,8 @@ backupApp.get('/export', async (c) => {
 });
 
 // Pre-flight check: auth + size + disk space before client starts uploading
-backupApp.post('/import/prepare', async (c, next) => {
-    // if (!await checkAuth(req, res)) { return; }
-    // if (!checkActiveSession(req, res)) return;
+backupApp.post('/import/prepare', async (c) => {
+    if (!checkActiveSession(c)) return;
     try {
         if (isImportInProgress()) {
             return c.json({ error: 'Another import is already in progress' }, 409);
@@ -862,8 +854,7 @@ backupApp.post('/import/prepare', async (c, next) => {
 });
 
 backupApp.post('/import', async (c, next) => {
-    // if(!await checkAuth(req, res)){ return; }
-    // if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(req, res)) return;
 
     if (isImportInProgress()) {
         return c.json({ error: 'Another import is already in progress' }, 409);
@@ -975,15 +966,13 @@ function readBootReminder() {
 }
 
 backupApp.get('/boot-reminder', async (c, next) => {
-    // if (!await checkAuth(c)) return;
     try {
         return c.json({ enabled: readBootReminder() });
     } catch (err) { next(err); }
 });
 
 backupApp.put('/boot-reminder', async (c, next) => {
-    // if (!await checkAuth(c)) return;
-    // if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return;
     try {
         const enabled = !!c.req.json().enabled;
         kvSet(BOOT_REMINDER_KEY, Buffer.from(enabled ? '1' : '0', 'utf-8'));
@@ -994,7 +983,6 @@ backupApp.put('/boot-reminder', async (c, next) => {
 // ── Backup directory configuration ──────────────────────────────────────────
 
 backupApp.get('/server/path', async (c, next) => {
-    // if (!await checkAuth(c)) return;
     try {
         return c.json({
             path: backupsDir,
@@ -1005,8 +993,7 @@ backupApp.get('/server/path', async (c, next) => {
 });
 
 backupApp.put('/server/path', async (c, next) => {
-    // if (!await checkAuth(c)) return;
-    // if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return;
     try {
         const next = typeof c.req.json()?.path === 'string' ? c.req.json().path.trim() : '';
         if (!next) {

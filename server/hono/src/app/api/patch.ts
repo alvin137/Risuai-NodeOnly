@@ -3,6 +3,7 @@ import { decodeRisuSave, encodeRisuSaveLegacy, isHex, normalizeJSON, calculateHa
 import { kvGet, kvSet } from "../../utils/db";
 import { applyPatch } from "fast-json-patch";
 import { dbCache, saveTimers, SAVE_INTERVAL, queueStorageOperation, decodeDatabaseWithPersistentChatIds, initChatStore, stripChatsFromDb, persistDbCacheWithChats, createBackupAndRotate, computeBufferEtag, setDbetag, getDbetag, findChatInternalFieldOps, clearPersistFailure, recordPersistFailure, currentPersistWarning } from "../../utils/asset.util";
+import { checkActiveSession } from "../session";
 
 export const patchApp = new Hono();
 
@@ -16,10 +17,8 @@ patchApp.post("", async(c) => {
   if (!enablePatchSync) {
     return c.json({error: 'Patch sync is disabled'}, 503);
   }
-  //const auth = await checkAuth(c);
-  //if (auth instanceof Response) return auth;
 
-  //if (!checkActiveSession(c)) return ;
+  if (!checkActiveSession(c)) return
   const filePath = c.req.header("file-path");
   const body = await c.req.json();
   const patch = body.patch;

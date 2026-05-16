@@ -3,12 +3,13 @@ import { Hono } from "hono";
 
 import { kvGet, kvGetUpdatedAt, kvSet, db as sqliteDb } from "../utils/db.js";
 import { readInlayFile, readInlaySidecar, resolveAssetPayload, THUMB_IMAGE_EXTS, generateThumbnail, readInlayInfoPayload } from "../utils/asset.util.js";
+import { sessionAuthMiddleware } from "./session.js";
 
 
 export const assetApp = new Hono();
 
 // add Sessionauthmiddleware
-assetApp.get("/:hexKey", async (c) => {
+assetApp.get("/:hexKey", sessionAuthMiddleware, async (c) => {
   try {
     const key = Buffer.from(c.req.param("hexKey"), "hex").toString("utf-8");
     if (key.startsWith("inlay/")) {

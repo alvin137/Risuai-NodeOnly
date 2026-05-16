@@ -14,7 +14,7 @@ export const sessionApp = new Hono();
 // cookie issued after initial JWT auth. Single-user environment: Map is fine.
 // Sessions are persisted to disk so they survive server restarts.
 const SESSION_FILE = path.join(process.cwd(), 'save', '__sessions')
-const sessions = new Map() // token → expiresAt (ms)
+export const sessions = new Map() // token → expiresAt (ms)
 
 function loadSessions() {
     try {
@@ -33,7 +33,7 @@ function saveSessions() {
 
 loadSessions();
 
-function parseSessionCookie(req: HonoRequest) {
+export function parseSessionCookie(req: HonoRequest) {
     const cookieHeader = req.header("cookie") || ''
     for (const part of cookieHeader.split(';')) {
         const eq = part.indexOf('=')
@@ -43,10 +43,10 @@ function parseSessionCookie(req: HonoRequest) {
     return null
 }
 
-function sessionAuthMiddleware(c: Context, next: Next) {
+export function sessionAuthMiddleware(c: Context, next: Next) {
     const token = parseSessionCookie(c.req)
     if (token && (sessions.get(token) ?? 0) > Date.now()) return next()
-    return c.status(401);
+    return c.body(null, 401);
 }
 
 // ── Active writer session (single-writer lock) ────────────────────────────────
@@ -56,7 +56,7 @@ function sessionAuthMiddleware(c: Context, next: Next) {
 let activeSessionId: string | null = null // string | null
 
 // TODO: Need edit
-function checkActiveSession(c: Context) {
+export function checkActiveSession(c: Context) {
     const clientSessionId = c.req.header("x-session-id");
     if (!clientSessionId) return true  // client without session support
     if (!activeSessionId) return true  // no session registered yet
@@ -70,8 +70,6 @@ function checkActiveSession(c: Context) {
 
 
 sessionApp.post('/', async (c) => {
-    const auth = await checkAuth(c);
-    if (auth instanceof Response) return auth;
     const clientSessionId = c.req.header('x-session-id');
     if (clientSessionId) {
         activeSessionId = clientSessionId

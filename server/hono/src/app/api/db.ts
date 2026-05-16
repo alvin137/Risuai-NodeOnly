@@ -6,6 +6,7 @@ import { decodeRisuSave } from "../../utils/util";
 import { checkAuth } from "../api";
 import fs from "node:fs/promises";
 import { backupsDir, DEFAULT_BACKUPS_DIR, listColdStorageBackupEntries } from "./backup";
+import { checkActiveSession } from "../session";
 
 
 export const dbApp = new Hono();
@@ -103,7 +104,6 @@ async function estimateServerBackupSize() {
 }
 
 dbApp.get('/stats', async (c, next) => {
-    // if (!await checkAuth(c)) return;
     try {
         const saveDir = path.join(process.cwd(), 'save');
         const dbFilePath = path.join(saveDir, 'risuai.db');
@@ -242,7 +242,6 @@ dbApp.get('/stats', async (c, next) => {
 });
 
 dbApp.get('/stats/characters', async (c, next) => {
-    //if (!await checkAuth(c)) return;
     try {
         await ensureChatStore();
         const raw = kvGet(DB_BLOB_KEY);
@@ -340,7 +339,6 @@ dbApp.get('/stats/characters', async (c, next) => {
 // referenced assets. Assets attribution is independent from /characters; an
 // asset shared between a character and a module would be counted in both.
 dbApp.get('/stats/modules', async (c, next) => {
-    if (!await checkAuth(c)) return;
     try {
         const raw = kvGet(DB_BLOB_KEY);
         if (!raw) {
@@ -391,8 +389,7 @@ dbApp.get('/stats/modules', async (c, next) => {
 });
 
 dbApp.post('/optimize', async (c, next) => {
-    // if (!await checkAuth(c)) return;
-    // if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return;
     try {
         const saveDir = path.join(process.cwd(), 'save');
         const dbFilePath = path.join(saveDir, 'risuai.db');
@@ -432,7 +429,6 @@ dbApp.post('/optimize', async (c, next) => {
 // ── Snapshot list (database/dbbackup-* keys) ─────────────────────────────────
 
 dbApp.get('/snapshots/limits', async (c, next) => {
-    //if (!await checkAuth(c)) return;
     try {
         const { maxCount, maxBytes } = getSnapshotLimits();
         const items = kvListWithSizes(DB_BACKUP_PREFIX);
@@ -457,8 +453,7 @@ dbApp.get('/snapshots/limits', async (c, next) => {
 });
 
 dbApp.put('/snapshots/limits', async (c, next) => {
-    // if (!await checkAuth(c)) return;
-    // if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return;
     try {
         const rawCount = Number(c.req.json().maxCount);
         const rawBytes = Number(c.req.json().maxBytes);
@@ -485,7 +480,6 @@ dbApp.put('/snapshots/limits', async (c, next) => {
 });
 
 dbApp.get('/snapshots', async (c, next) => {
-    // if (!await checkAuth(c)) return;
     try {
         const items = kvListWithSizes(DB_BACKUP_PREFIX);
         const out = items.map((it) => {
@@ -498,8 +492,7 @@ dbApp.get('/snapshots', async (c, next) => {
 });
 
 dbApp.delete('/snapshots', async (c, next) => {
-    // if (!await checkAuth(c)) return;
-    // if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return;
     try {
         const key = typeof c.req.query("key") === 'string' ? c.req.query("key") : '';
         // Restrict to snapshot prefix — never let this endpoint touch other kv keys.
@@ -516,8 +509,7 @@ dbApp.delete('/snapshots', async (c, next) => {
 // racy because the patch-sync save loop is debounced and the reload can fire
 // before the snapshot data lands on disk.
 dbApp.post('/snapshots/restore', async (c, next) => {
-    // if (!await checkAuth(c)) return;
-    // if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return;
     try {
         const key = typeof c.req.json()?.key === 'string' ? c.req.json().key : '';
         if (!key.startsWith(DB_BACKUP_PREFIX)) {
@@ -564,8 +556,7 @@ dbApp.post('/snapshots/restore', async (c, next) => {
 });
 
 dbApp.post('/wal-checkpoint', async (c, next) => {
-    // if (!await checkAuth(req, res)) return;
-    // if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(c)) return;
     try {
         const saveDir = path.join(process.cwd(), 'save');
         const walFilePath = path.join(saveDir, 'risuai.db-wal');

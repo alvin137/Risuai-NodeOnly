@@ -5,6 +5,7 @@ import { readdirSync, unlinkSync, existsSync, readFileSync, writeFileSync } from
 import { checkAuth } from "../api";
 import { kvDelPrefix, clearEntities, db as sqliteDb, kvDel } from "../../utils/db";
 import { flushPendingDb, createBackupAndRotate, invalidateDbCache, REMOTE_MIGRATION_MARKER_KEY } from "../../utils/asset.util";
+import { checkActiveSession } from "../session";
 
 export const migrateApp = new Hono();
 
@@ -114,8 +115,7 @@ async function importHexEntries(entries: { key: string, value: Buffer}[]) {
 }
 
 migrateApp.post('/save-folder/scan', async (c, next) => {
-    //if (!await checkAuth(req, res)) return;
-    //if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(c)) return;
     try {
         const body = await c.req.json();
         const folderPath = body.path || savePath;
@@ -136,8 +136,7 @@ migrateApp.post('/save-folder/scan', async (c, next) => {
 });
 
 migrateApp.post('/save-folder/execute', async (c, next) => {
-    //if (!await checkAuth(req, res)) return;
-    //if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(c)) return;
     if (importInProgress) {
         return c.json({ error: 'Another import is already in progress' }, 409);
     }
@@ -164,8 +163,7 @@ migrateApp.post('/save-folder/execute', async (c, next) => {
 });
 
 migrateApp.post('/save-folder/upload', async (c, next) => {
-    //if (!await checkAuth(req, res)) return;
-    //if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(c)) return;
     if (importInProgress) {
         return c.json({ error: 'Another import is already in progress' }, 409);
     }
@@ -224,11 +222,10 @@ migrateApp.post('/save-folder/upload', async (c, next) => {
 });
 
 migrateApp.post('/save-folder/cleanup/scan', async (c, next) => {
-    // if (!await checkAuth(c)) return;
-    // if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return;
     try {
         if (!existsSync(migrationMarkerPath)) {
-            c.json({ error: 'Migration has not been completed yet' }, 400);
+            return c.json({ error: 'Migration has not been completed yet' }, 400);
         }
         const { count, totalSize } = scanHexFilesInDir(savePath);
         return c.json({ count, totalSize });
@@ -238,8 +235,7 @@ migrateApp.post('/save-folder/cleanup/scan', async (c, next) => {
 });
 
 migrateApp.post('/save-folder/cleanup/execute', async (c, next) => {
-    // if (!await checkAuth(req, res)) return;
-    // if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(c)) return;
     try {
         if (!existsSync(migrationMarkerPath)) {
             return c.json({ error: 'Migration has not been completed yet' }, 400);

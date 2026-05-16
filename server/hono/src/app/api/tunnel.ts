@@ -99,7 +99,6 @@ export function stopTunnel() {
 // ── Cloudflare Quick Tunnel API ──────────────────────────────────────────────
 
 tunnelApp.get('/status', async (c) => {
-    // if (!await checkAuth(req, res)) return;
     return c.json({
         disabled: TUNNEL_DISABLED,
         status: tunnelStatus,
@@ -110,7 +109,6 @@ tunnelApp.get('/status', async (c) => {
 });
 
 tunnelApp.post('/start', async (c) => {
-    // if (!await checkAuth(c)) return;
     if (TUNNEL_DISABLED) return c.json({ error: 'Tunnel feature is disabled' }, 403);
     if (tunnelStatus === 'running' || tunnelStatus === 'starting' || tunnelStatus === 'downloading') {
         return c.json({ error: 'Tunnel is already active or starting' }, 409);
@@ -200,7 +198,6 @@ function startTunnelProcess(cfPath: string) {
 }
 
 tunnelApp.post('/api/tunnel/stop', async (c) => {
-    //if (!await checkAuth(req, res)) return;
     stopTunnel();
     return c.json({ status: 'off' });
 });
