@@ -193,6 +193,8 @@ export async function readImage(data: string) {
 /**
  * Saves an asset file with the given data, custom ID, and file name.
  * 
+ * MODIFIED: Use client resources to pre-process the file(PNG -> WebP) to save server bandwidth
+ * 
  * @param {Uint8Array} data - The data of the asset file.
  * @param {string} [customId=''] - The custom ID for the asset file.
  * @param {string} [fileName=''] - The name of the asset file.
@@ -214,6 +216,22 @@ export async function saveAsset(data: Uint8Array, customId: string = '', fileNam
     if (fileName && fileName.split('.').length > 0) {
         fileExtension = fileName.split('.').pop()
     }
+
+    if (['png', 'jpg', 'jpeg'].includes(fileExtension.toLowerCase())) {
+        try {
+            const blob = new Blob([new Uint8Array(data)])
+            const img = await createImageBitmap(blob)
+            const canvas = new OffscreenCanvas(img.width, img.height)
+            const ctx = canvas.getContext('2d')!
+            ctx.drawImage(img, 0, 0)
+            const webpBlob = await canvas.convertToBlob({ type: 'image/webp', quality: 0.9 })
+            data = new Uint8Array(await webpBlob.arrayBuffer())
+            fileExtension = 'webp'
+        } catch {
+            // Keep original data
+        }
+    }
+
     let form = `assets/${id}.${fileExtension}`
     const replacer = await forageStorage.setItem(form, data)
     if (replacer) {

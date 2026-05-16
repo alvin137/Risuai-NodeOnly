@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { clearPersistFailure, createBackupAndRotate, DB_HEX_KEY, dbCache, ensureChatStore, fullChatStore, persistDbCacheWithChats, queueStorageOperation, reassembleFullDb, recordPersistFailure, restoreColdStorageChat, SAVE_INTERVAL, saveTimers, stripChatsFromDb } from "../../utils/asset.util";
 import { decodeRisuSave, encodeRisuSaveLegacy, normalizeJSON } from "../../utils/util";
 import { kvGet, kvSet } from "../../utils/db";
+import { checkActiveSession } from "../session";
 
 
 export const chatApp = new Hono();
@@ -58,7 +59,7 @@ chatApp.get('/:chaId/:chatIndex', async (c) => {
 
 // POST /api/chat-content/:chaId/:chatIndex — save chat content to server
 chatApp.post('/:chaId/:chatIndex', async (c) => {
-    if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(c)) return;
     try {
         return await queueStorageOperation(async () => {
             const chaId = c.req.param("chaId");

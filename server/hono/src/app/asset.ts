@@ -19,7 +19,7 @@ assetApp.get("/:hexKey", sessionAuthMiddleware, async (c) => {
         const etag = `"${Math.floor(file.mtimeMs)}"`;
         if (c.req.header("if-none-match") === etag) {
           c.header("Cache-Control", "public, max-age=31536000, immutable");
-          return c.status(304);
+          return c.body(null, 304);
         }
         c.header("Content-Type", file.mime)
         c.header("Cache-Control", "public, max-age=31536000, immutable");
@@ -27,14 +27,14 @@ assetApp.get("/:hexKey", sessionAuthMiddleware, async (c) => {
         return c.body(new Uint8Array(file.buffer));
       }
       c.header("Cache-Control", "no-store")
-      return c.status(404);
+      return c.body(null, 404);
     }
 
     if (key.startsWith("inlay_thumb/")) {
       const id = key.slice("inlay_thumb/".length);
       const sidecar = await readInlaySidecar(id);
       if (!sidecar || sidecar.type !== "image" || !THUMB_IMAGE_EXTS.has(sidecar.ext)) {
-        return c.status(404);
+        return c.body(null, 404);
       }
       const file = await readInlayFile(id);
       if (!file) return c.body(null, 404, { 'Cache-Control': 'no-store' });

@@ -68,7 +68,8 @@ export function resolveAssetPayload(key: string, rawValue: Buffer) {
     // assets/* and others: raw binary
     const ext = key.split('.').pop()?.toLowerCase()
     if (!ext) return { binary: rawValue, contentType: 'application/octet-stream' }
-    const contentType = ASSET_EXT_MIME[ext] || detectMime(rawValue)
+    const detected = detectMime(rawValue);
+    const contentType = detected !== "application/octet-stream" ? detected : (ASSET_EXT_MIME[ext] || detected);
     return { binary: rawValue, contentType }
 }
 
@@ -1342,4 +1343,8 @@ export async function migrateRemoteBlocksIfNeeded() {
     const characterCount = Array.isArray(dbObj.characters) ? dbObj.characters.length : 0;
     console.info(`[Migration] Remote-block migration complete. Inlined ${characterCount} character(s); pre-migration backup at ${backupKey}`);
     return { ran: true, characterCount, backupKey };
+}
+
+export async function png2Webp(pngBuffer: Buffer) {
+    return await sharp(pngBuffer).webp({ lossless: true }).toBuffer();
 }
