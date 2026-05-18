@@ -608,7 +608,7 @@ backupApp.get('/server/list', async (c) => {
 });
 
 backupApp.post('/server/restore', async (c) => {
-  if (!checkActiveSession(c)) return;
+  if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
 
   if (isImportInProgress()) {
     return c.json({ error: 'Another import is already in progress' }, 409);
@@ -674,7 +674,7 @@ backupApp.post('/server/restore', async (c) => {
 
 // Delete a server backup file
 backupApp.delete('/server/:filename', async (c, next) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         const filename = c.req.param("filename");
         if (!BACKUP_FILENAME_REGEX.test(filename)) {
@@ -825,7 +825,7 @@ backupApp.get('/export', async (c) => {
 
 // Pre-flight check: auth + size + disk space before client starts uploading
 backupApp.post('/import/prepare', async (c) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         if (isImportInProgress()) {
             return c.json({ error: 'Another import is already in progress' }, 409);
@@ -854,7 +854,7 @@ backupApp.post('/import/prepare', async (c) => {
 });
 
 backupApp.post('/import', async (c, next) => {
-    if (!checkActiveSession(req, res)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
 
     if (isImportInProgress()) {
         return c.json({ error: 'Another import is already in progress' }, 409);
@@ -972,7 +972,7 @@ backupApp.get('/boot-reminder', async (c, next) => {
 });
 
 backupApp.put('/boot-reminder', async (c, next) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         const enabled = !!c.req.json().enabled;
         kvSet(BOOT_REMINDER_KEY, Buffer.from(enabled ? '1' : '0', 'utf-8'));
@@ -993,7 +993,7 @@ backupApp.get('/server/path', async (c, next) => {
 });
 
 backupApp.put('/server/path', async (c, next) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         const next = typeof c.req.json()?.path === 'string' ? c.req.json().path.trim() : '';
         if (!next) {

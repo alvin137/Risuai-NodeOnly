@@ -59,7 +59,7 @@ chatApp.get('/:chaId/:chatIndex', async (c) => {
 
 // POST /api/chat-content/:chaId/:chatIndex — save chat content to server
 chatApp.post('/:chaId/:chatIndex', async (c) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         return await queueStorageOperation(async () => {
             const chaId = c.req.param("chaId");

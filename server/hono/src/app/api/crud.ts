@@ -41,7 +41,7 @@ export function registerCrud(api: Hono) {
   });
 
 api.post("/write", async (c) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     const filePath = c.req.header('file-path');
     const raw = await c.req.arrayBuffer();
     const fileContent = Buffer.from(raw);
@@ -183,7 +183,7 @@ api.get("/remove", async (c) => {
 });
 
 api.post('/db/flush', async (c) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         return await queueStorageOperation(async () => {
             await flushPendingDb();

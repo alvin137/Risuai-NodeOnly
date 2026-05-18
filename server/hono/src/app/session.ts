@@ -55,13 +55,21 @@ export function sessionAuthMiddleware(c: Context, next: Next) {
 // becomes the active writer; older sessions receive 423 on write attempts.
 let activeSessionId: string | null = null // string | null
 
-// TODO: Need edit
-export function checkActiveSession(c: Context) {
+/**
+ * Check Header "x-session-id". 
+ * If no session ID provided, allow by default (for clients without session support).
+ * If no active session registered, allow and treat as active session.
+ * If session ID provided, compare with activeSessionId. If matches, allow; else, reject.
+ * @param {Context} c - Hono context
+ * @returns {boolean} - true if request is allowed to proceed, false if it should be rejected with 423
+ */
+export function checkActiveSession(c: Context) : boolean {
     const clientSessionId = c.req.header("x-session-id");
     if (!clientSessionId) return true  // client without session support
     if (!activeSessionId) return true  // no session registered yet
     if (clientSessionId === activeSessionId) return true
-    return c.json({ error: 'Session deactivated' }, 423);
+    return false;
+    //c.json({ error: 'Session deactivated' }, 423);
 }
 
 // ── Session cookie issuance (F-0) ──────────────────────────────────────────

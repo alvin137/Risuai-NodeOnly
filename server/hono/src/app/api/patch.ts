@@ -18,7 +18,7 @@ patchApp.post("", async(c) => {
     return c.json({error: 'Patch sync is disabled'}, 503);
   }
 
-  if (!checkActiveSession(c)) return
+  if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
   const filePath = c.req.header("file-path");
   const body = await c.req.json();
   const patch = body.patch;

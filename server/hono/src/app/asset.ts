@@ -3,7 +3,7 @@ import { Hono } from "hono";
 
 import { kvGet, kvGetUpdatedAt, kvSet, db as sqliteDb } from "../utils/db.js";
 import { readInlayFile, readInlaySidecar, resolveAssetPayload, THUMB_IMAGE_EXTS, generateThumbnail, readInlayInfoPayload } from "../utils/asset.util.js";
-import { sessionAuthMiddleware } from "./session.js";
+import { checkActiveSession, sessionAuthMiddleware } from "./session.js";
 
 
 export const assetApp = new Hono();
@@ -140,9 +140,8 @@ assetApp.post('/bulk-read', async (c) => {
     } catch(error){ throw error; }
 });
 
-assetApp.post('/bulk-write', async (c, next) => {
-    // if(!await checkAuth(req, res)){ return; }
-    // if (!checkActiveSession(req, res)) return;
+assetApp.post('/bulk-write', async (c) => {
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         const entries = c.req.raw.body; // {key: string, value: base64}[]
         if(!Array.isArray(entries)){

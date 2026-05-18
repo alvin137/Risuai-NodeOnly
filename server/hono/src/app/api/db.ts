@@ -389,7 +389,7 @@ dbApp.get('/stats/modules', async (c, next) => {
 });
 
 dbApp.post('/optimize', async (c, next) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         const saveDir = path.join(process.cwd(), 'save');
         const dbFilePath = path.join(saveDir, 'risuai.db');
@@ -453,7 +453,7 @@ dbApp.get('/snapshots/limits', async (c, next) => {
 });
 
 dbApp.put('/snapshots/limits', async (c, next) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         const rawCount = Number(c.req.json().maxCount);
         const rawBytes = Number(c.req.json().maxBytes);
@@ -492,7 +492,7 @@ dbApp.get('/snapshots', async (c, next) => {
 });
 
 dbApp.delete('/snapshots', async (c, next) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         const key = typeof c.req.query("key") === 'string' ? c.req.query("key") : '';
         // Restrict to snapshot prefix — never let this endpoint touch other kv keys.
@@ -509,7 +509,7 @@ dbApp.delete('/snapshots', async (c, next) => {
 // racy because the patch-sync save loop is debounced and the reload can fire
 // before the snapshot data lands on disk.
 dbApp.post('/snapshots/restore', async (c, next) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         const key = typeof c.req.json()?.key === 'string' ? c.req.json().key : '';
         if (!key.startsWith(DB_BACKUP_PREFIX)) {
@@ -556,7 +556,7 @@ dbApp.post('/snapshots/restore', async (c, next) => {
 });
 
 dbApp.post('/wal-checkpoint', async (c, next) => {
-    if (!checkActiveSession(c)) return;
+    if (!checkActiveSession(c)) return c.json({ error: 'Session deactivated' }, 423);
     try {
         const saveDir = path.join(process.cwd(), 'save');
         const walFilePath = path.join(saveDir, 'risuai.db-wal');
