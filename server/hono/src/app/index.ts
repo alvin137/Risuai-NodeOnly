@@ -43,7 +43,7 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal Server Error' }, 500);
 });
 
-const publicPaths = ['/', '/api/login', '/api/test_auth', '/api/token/refresh', '/api/set_password', '/api/backup/server/save', '/api/backup/export', '/api/update-check', '/api/self-update']
+const publicPaths = ['/', '/api/login', '/api/test_auth', '/api/token/refresh', '/api/set_password', '/api/backup/server/save', '/api/backup/export', '/api/update-check', '/api/self-update', '/api/crypto']
 const proxyExcludedPaths = ['/proxy', '/proxy2', '/proxy-stream-jobs']
 function isPublicPath(path: string): boolean {
   if (publicPaths.includes(path)) return true

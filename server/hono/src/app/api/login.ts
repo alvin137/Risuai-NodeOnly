@@ -3,7 +3,6 @@ import { sign, verify } from 'hono/jwt';
 import { jwtSecret } from '../../utils/util';
 import { existsSync, readFileSync } from 'fs';
 import path from 'node:path';
-import { hash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { parseSessionCookie, sessions } from '../session';
 import { rateLimiter } from 'hono-rate-limiter'
@@ -26,13 +25,12 @@ const loginRouteLimiter = rateLimiter({
   handler: (c) => c.json({ error: 'Too many attempts. Please wait and try again later.' }, 429)
 })
 
-// TODO: Add loginRouteLimiter
 // Need to route before JWT middleware
 loginApp.post('/login', loginRouteLimiter, async (c) => {
     if(password === ''){
         return c.json({error: 'Password not set'}, 400)
     }
-    const body = await c.req.json();
+    const body : { password: string } = await c.req.json();
     if(body.password && body.password.trim() === password.trim()){
         return c.json({status: 'success', token: await createServerJwt()})
     }
@@ -50,13 +48,14 @@ loginApp.post('/token/refresh', async (c) => {
     const payload = await verify(token, jwtSecret)
     return c.json({ token: await createServerJwt() })
   } catch (e) {
-    if (e.name === 'JwtTokenExpired') {
+    if ((e as Error).name === 'JwtTokenExpired') {
       return c.json({ token: await createServerJwt() })
     }
     return c.json({ error: 'Unauthorized' }, 401)
   }
 })
 
+// Need to route before JWT middleware
 loginApp.post('/crypto', async (c) => {
     const body = await c.req.json();
     const hasher = new Bun.CryptoHasher('sha256', body.data);

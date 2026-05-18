@@ -3,6 +3,7 @@ import { clearPersistFailure, createBackupAndRotate, DB_HEX_KEY, dbCache, ensure
 import { decodeRisuSave, encodeRisuSaveLegacy, normalizeJSON } from "../../utils/util";
 import { kvGet, kvSet } from "../../utils/db";
 import { checkActiveSession } from "../session";
+import type { Database } from "../../types/database.types";
 
 
 export const chatApp = new Hono();
@@ -36,7 +37,8 @@ chatApp.get('/:chaId/:chatIndex', async (c) => {
         if (!raw) {
             return c.json({ error: 'Database not found' }, 404);
         }
-        const dbObj = await decodeRisuSave(raw);
+        const dbObj: Database = await decodeRisuSave(raw);
+
         const char = dbObj.characters?.find(cha => cha?.chaId === chaId);
         if (!char?.chats?.[chatIndex]) {
             return c.json({ error: 'Chat not found' }, 404);
@@ -107,7 +109,7 @@ chatApp.post('/:chaId/:chatIndex', async (c) => {
                         // No stripped cache — load, merge, save
                         const raw = kvGet('database/database.bin');
                         if (raw) {
-                            const dbObj = normalizeJSON(await decodeRisuSave(raw));
+                            const dbObj: any = normalizeJSON(await decodeRisuSave(raw));
                             const fullDb = reassembleFullDb(stripChatsFromDb(dbObj));
                             const encoded = Buffer.from(encodeRisuSaveLegacy(fullDb));
                             try {

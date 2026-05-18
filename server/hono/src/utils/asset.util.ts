@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { decodeRisuSave, encodeRisuSaveLegacy, hasRemoteBlocks, normalizeJSON, savePath } from "./util"
 import { kvCopyValue, kvDel, kvGet, kvList, kvListWithSizes, kvSet, kvSize, db as sqliteDb } from "./db";
 import { randomUUID } from "node:crypto";
+import type { character, Chat, Database } from "../types/database.types";
 
 // In-memory database cache for patch-based sync
 // dbCache stores the STRIPPED (stubs-only) version matching what the client sees.
@@ -17,7 +18,7 @@ export const DB_HEX_KEY = Buffer.from('database/database.bin', 'utf-8').toString
 const inlayDir = path.join(savePath, 'inlays')
 const inlayMigrationMarker = path.join(inlayDir, '.migrated_to_fs')
 
-export let fullChatStore: Map<string, Map<string, unknown>> | null = null; // Map<chaId, Map<chatId, chatObject>> — lazy-initialized
+export let fullChatStore: Map<string, Map<string, Chat>> | null = null; // Map<chaId, Map<chatId, chatObject>> — lazy-initialized
 
 // ETag for database.bin
 let dbEtag: string | null = null;
@@ -317,7 +318,7 @@ export function computeBufferEtag(buffer: Buffer) {
   return hasher.update(buffer).digest('hex');
 }
 
-function computeDatabaseEtagFromObject(databaseObject: any) {
+function computeDatabaseEtagFromObject(databaseObject: Database) {
     return computeBufferEtag(Buffer.from(encodeRisuSaveLegacy(databaseObject)));
 }
 
@@ -579,7 +580,7 @@ export function findChatInternalFieldOps(patch) {
  * A real Chat has `message` (Array). A real stub has `_stub === true`. Anything
  * with neither is a malformed in-between state; treat as a corruption signal.
  */
-export function findStubFlagLossChats(fullDb) {
+export function findStubFlagLossChats(fullDb: Database) {
     if (!fullDb?.characters) return [];
     const losses = [];
     for (let ci = 0; ci < fullDb.characters.length; ci++) {
@@ -659,7 +660,7 @@ export async function persistDbCacheWithChats(filePath: string, decodedKey: stri
  * chats with no fullChat lookup match). Treat hybrids as real chats and
  * collapse them to a real stub here.
  */
-function chatToStub(chat: any) {
+function chatToStub(chat: Chat) {
     if (!chat) return chat;
     if (chat._stub && !Array.isArray(chat.message)) return chat;
     const stub: Record<string, any> = {
@@ -685,12 +686,12 @@ function chatToStub(chat: any) {
  * Strip the `_stub` flag in place so subsequent reassemble passes don't
  * reproduce the hybrid on disk.
  */
-export function initChatStore(dbObj: any) {
+export function initChatStore(dbObj: Database) {
     fullChatStore = new Map();
     if (!dbObj?.characters) return;
     for (const char of dbObj.characters) {
         if (!char?.chaId || !char.chats) continue;
-        const charChats = new Map();
+        const charChats : Map<string, Chat> = new Map();
         for (const chat of char.chats) {
             if (!chat) continue;
             const isStub = chat._stub === true;
@@ -716,13 +717,13 @@ export function initChatStore(dbObj: any) {
  * Strip full chat data from a decoded database object, replacing with stubs.
  * Returns a new object — does not mutate input.
  */
-export function stripChatsFromDb(dbObj: any) {
+export function stripChatsFromDb(dbObj: Database) {
     if (!dbObj?.characters) return dbObj;
     const stripped = { ...dbObj };
-    stripped.characters = dbObj.characters.map((char: any) => {
+    stripped.characters = dbObj.characters.map((char : character) => {
         if (!char?.chats) return char;
         return { ...char, chats: char.chats.map(chatToStub) };
-    });
+    }) as character[];
     return stripped;
 }
 
@@ -757,16 +758,16 @@ function mergeChatStubWithFullChat(stub: any, fullChat: any) {
     return merged;
 }
 
-export function reassembleFullDb(strippedDb: any) {
+export function reassembleFullDb(strippedDb: Database) {
     if (!strippedDb?.characters || !fullChatStore) return strippedDb;
     const full = { ...strippedDb };
-    full.characters = strippedDb.characters.map((char: any) => {
+    full.characters = strippedDb.characters.map((char: character) => {
         if (!char?.chaId || !char.chats) return char;
         const charChats = fullChatStore!.get(char.chaId);
         if (!charChats) return char;
         return {
             ...char,
-            chats: char.chats.map((chat: any) => {
+            chats: char.chats.map((chat: Chat) => {
                 if (chat && chat._stub && chat.id) {
                     return mergeChatStubWithFullChat(chat, charChats.get(chat.id));
                 }
@@ -960,7 +961,7 @@ function promoteFailedColdStorageStub(char: any) {
     delete char.coldStoragedChats;
 }
 
-export function restoreColdStorageCharactersInDb(dbObj: any) {
+export function restoreColdStorageCharactersInDb(dbObj: Database) {
     const result: { restored: number, failed: number, failedNames: string[] } = { restored: 0, failed: 0, failedNames: [] };
     if (!Array.isArray(dbObj?.characters)) return result;
     for (let i = 0; i < dbObj.characters.length; i++) {
@@ -977,13 +978,15 @@ export function restoreColdStorageCharactersInDb(dbObj: any) {
     return result;
 }
 
-function isColdStorageChat(chat: any) {
+function isColdStorageChat(chat: Chat) {
     return chat?.message?.[0]?.data?.startsWith(COLD_STORAGE_HEADER);
 }
 
-export function restoreColdStorageChat(chat: any) {
+export function restoreColdStorageChat(chat: Chat) {
     if (!isColdStorageChat(chat)) return true;
-    const key = chat.message[0].data.slice(COLD_STORAGE_HEADER.length);
+    const first = chat.message[0];
+    if (!first) throw new Error('Unexpected empty message in cold storage chat');
+    const key = first.data.slice(COLD_STORAGE_HEADER.length);
     const entry = readColdStorageJsonEntry(key, {
         migrateLegacy: true,
     });
